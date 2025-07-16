@@ -2,7 +2,7 @@
 
 [![codecov-badge]][codecov-link] [![rust-ci-badge]][rust-ci-runs]
 
-[codecov-badge]: https://app.codecov.io/gh/2bndy5/git-bot-feedback/graph/badge.svg?token=T3FRIJ64W0
+[codecov-badge]: https://codecov.io/gh/2bndy5/git-bot-feedback/graph/badge.svg?token=T3FRIJ64W0
 [codecov-link]: https://app.codecov.io/gh/2bndy5/git-bot-feedback
 [rust-ci-badge]: https://github.com/2bndy5/git-bot-feedback/actions/workflows/rust.yml/badge.svg
 [rust-ci-runs]: https://github.com/2bndy5/git-bot-feedback/actions/workflows/rust.yml

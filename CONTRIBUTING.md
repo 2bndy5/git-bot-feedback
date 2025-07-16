@@ -15,7 +15,7 @@ This project uses the following tools for development:
 
 ### Optional tools
 
-- [committed] for verifying commit messages conform to [conventional commit] standards.
+- [committed] for verifying commit messages conform to [conventional commits] standards.
 - [git-cliff] for generating a [Changelog](CHANGELOG.md) and release notes.
 - [pre-commit] for sanitizing project files.
 
@@ -23,7 +23,7 @@ This project uses the following tools for development:
 [cargo-nextest]: https://crates.io/crates/cargo-nextest
 [nur]: https://crates.io/crates/nur
 [committed]: https://crates.io/crates/committed
-[conventional commit]: https://www.conventionalcommits.org
+[conventional commits]: https://www.conventionalcommits.org
 [git-cliff]: https://crates.io/crates/git-cliff
 [pre-commit]: https://pre-commit.com
 
