@@ -1,7 +1,7 @@
 [package]
 name = "git-bot-feedback"
 description = "A library designed for CI tools that posts comments on a Pull Request."
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 repository = "https://github.com/2bndy5/git-bot-feedback"
 license-file = "LICENSE"

@@ -29,14 +29,14 @@
 #    Locally, you can use `gh login` to interactively authenticate the user account.
 
 
-let IN_CI = $env | get --ignore-errors CI | default "false" | ($in == "true")
+let IN_CI = $env | get --ignore-errors CI | default "false" | ($in == "true") or ($in == true)
 
 # Bump the version per the given component name (major, minor, patch)
 def bump-version [
     component: string # the version component to bump
 ] {
     mut args = [--bump $component]
-    if $IN_CI {
+    if (not $IN_CI) {
         $args = $args | append "--dry-run"
     }
     let result = (
