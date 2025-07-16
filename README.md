@@ -1,11 +1,15 @@
 # Git-bot-feedback
 
-[![codecov-badge]][codecov-link] [![rust-ci-badge]][rust-ci-runs]
+[![rust-ci-badge]][rust-ci-runs] [![docs-rs-badge]][docs-rs-link] [![codecov-badge]][codecov-link] [![crates-io-badge]][crates-io-link]
 
 [codecov-badge]: https://codecov.io/gh/2bndy5/git-bot-feedback/graph/badge.svg?token=T3FRIJ64W0
 [codecov-link]: https://app.codecov.io/gh/2bndy5/git-bot-feedback
 [rust-ci-badge]: https://github.com/2bndy5/git-bot-feedback/actions/workflows/rust.yml/badge.svg
 [rust-ci-runs]: https://github.com/2bndy5/git-bot-feedback/actions/workflows/rust.yml
+[crates-io-badge]: https://img.shields.io/crates/v/git-bot-feedback
+[crates-io-link]: https://crates.io/crates/git-bot-feedback
+[docs-rs-badge]: https://img.shields.io/docsrs/git-bot-feedback
+[docs-rs-link]: https://docs.rs/git-bot-feedback
 
 A rust library designed for CI tools to easily submit feedback on a git server.
 
