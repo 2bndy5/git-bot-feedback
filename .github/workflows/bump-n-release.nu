@@ -110,8 +110,11 @@ def main [component: string] {
         print $"(ansi yellow)Not checked out on default branch!(ansi reset)"
     }
     if $IN_CI and $is_main {
-        git add .
-        git push -m $"build: bump version to ($tag)"
+        git config --global user.name $"($env.GITHUB_ACTOR)"
+        git config --global user.email $"($env.GITHUB_ACTOR_ID)+($env.GITHUB_ACTOR)@users.noreply.github.com"
+        git add --all
+        git commit -m $"build: bump version to ($tag)"
+        git push
         print $"Deploying ($tag)"
         deploy-crate
         gh-release $tag
