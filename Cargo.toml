@@ -1,0 +1,29 @@
+[package]
+name = "git-bot-feedback"
+description = "A library designed for CI tools that posts comments on a Pull Request."
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/2bndy5/git-bot-feedback"
+license-file = "LICENSE"
+
+[dependencies]
+log = "0.4.27"
+chrono = "0.4.41"
+reqwest = "0.12.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.140"
+thiserror = "2.0.12"
+tokio = { version = "1.46.1", features = ["macros", "rt-multi-thread"] }
+url = "2.5.4" # pinned to whatever reqwest uses
+
+[dev-dependencies]
+mockito = "1.7.0"
+tempfile = "3.20.0"
+
+[build-dependencies]
+chrono = {version = "0.4.41", features = ["now"]}
+
+[features]
+# This feature is intended to be a dev-only feature.
+# It used to expedite tests about rate limit violations
+test-skip-wait-for-rate-limit = []

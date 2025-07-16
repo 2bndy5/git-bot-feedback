@@ -1,0 +1,28 @@
+version: "0.2"
+words:
+  - autoupdate
+  - binstall
+  - bndy
+  - chrono
+  - clippy
+  - endfor
+  - endgroup
+  - endmacro
+  - Gitea
+  - hustcer
+  - nextest
+  - nurfile
+  - nushell
+  - orhun
+  - pipx
+  - reqwest
+  - rustc
+  - rustup
+  - serde
+  - startswith
+  - thiserror
+  - timeit
+  - topo
+ignorePaths:
+  - .gitignore
+  - tests/comment_test_assets/**/*.json
