@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.1.2] - 2025-07-16
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Detect CI context in build-n-release.nu script by @2bndy5 in [`ae77080`](https://github.com/2bndy5/git-bot-feedback/commit/ae77080563f20f0374c4692d79d2096abbe14b66)
+
+### <!-- 8 --> 📝 Documentation
+
+- Add badges to README by @2bndy5 in [`ea7212d`](https://github.com/2bndy5/git-bot-feedback/commit/ea7212d9a248260a02a531394115ab58fadfe67f)
+
+[0.1.2]: https://github.com/2bndy5/git-bot-feedback/compare/v0.1.1...v0.1.2
+
+Full commit diff: [`v0.1.1...v0.1.2`][0.1.2]
+
 ## [0.1.1] - 2025-07-16
 
 ### <!-- 1 --> 🚀 Added
@@ -15,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### <!-- 6 --> 📦 Dependency updates
 
 - Adjust bump-n-release.nu script by @2bndy5 in [`ccaa011`](https://github.com/2bndy5/git-bot-feedback/commit/ccaa0113b94e4c103e4fa258e249f2b932070ef7)
+- Bump version to v0.1.1 by @2bndy5 in [`6a508c0`](https://github.com/2bndy5/git-bot-feedback/commit/6a508c0f58c2e97684f369d9fecc3349203bfd07)
 
 ### <!-- 9 --> 🗨️ Changed
 
