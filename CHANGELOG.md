@@ -6,11 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.1.3] - 2025-07-19
+
+### <!-- 9 --> 🗨️ Changed
+
+- Bump serde_json from 1.0.140 to 1.0.141 by @2bndy5 in [`e831cd8`](https://github.com/2bndy5/git-bot-feedback/commit/e831cd8b937620eb804f4efad02f683d0317eeb6)
+
+[0.1.3]: https://github.com/2bndy5/git-bot-feedback/compare/v0.1.2...v0.1.3
+
+Full commit diff: [`v0.1.2...v0.1.3`][0.1.3]
+
 ## [0.1.2] - 2025-07-16
 
 ### <!-- 6 --> 📦 Dependency updates
 
 - Detect CI context in build-n-release.nu script by @2bndy5 in [`ae77080`](https://github.com/2bndy5/git-bot-feedback/commit/ae77080563f20f0374c4692d79d2096abbe14b66)
+- Bump version to v0.1.2 by @2bndy5 in [`9c6cef4`](https://github.com/2bndy5/git-bot-feedback/commit/9c6cef41be1c2780b95cc18277bb9e180d78886f)
 
 ### <!-- 8 --> 📝 Documentation
 
