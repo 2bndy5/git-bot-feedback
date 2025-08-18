@@ -6,7 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
-## [0.1.3] - 2025-07-19
+## [0.1.4] - 2025-08-18
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Check in Cargo.lock by @2bndy5 in [`8642a56`](https://github.com/2bndy5/git-bot-feedback/commit/8642a561eeefc241e61c56cac29ade1dfab1fb1b)
+- Bump the cargo group with 3 updates by @dependabot[bot] in [#2](https://github.com/2bndy5/git-bot-feedback/pull/2)
+- Update locked transitive dependencies by @2bndy5 in [`db158c0`](https://github.com/2bndy5/git-bot-feedback/commit/db158c0ce96163471a569299be2c5ee8a13c66a6)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Update dependabot config by @2bndy5 in [`f5b2097`](https://github.com/2bndy5/git-bot-feedback/commit/f5b2097d46b101ff133323fe7e7d81d8a0c6e1aa)
+
+[0.1.4]: https://github.com/2bndy5/git-bot-feedback/compare/v0.1.3...v0.1.4
+
+Full commit diff: [`v0.1.3...v0.1.4`][0.1.4]
+
+## New Contributors
+
+- @dependabot[bot] made their first contribution in [#2](https://github.com/2bndy5/git-bot-feedback/pull/2)## [0.1.3] - 2025-07-19
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.1.3 by @2bndy5 in [`c5e4d9b`](https://github.com/2bndy5/git-bot-feedback/commit/c5e4d9b9ce474d26e6a92286c1b58207351cd153)
 
 ### <!-- 9 --> 🗨️ Changed
 
