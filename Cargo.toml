@@ -7,21 +7,21 @@ repository = "https://github.com/2bndy5/git-bot-feedback"
 license-file = "LICENSE"
 
 [dependencies]
-log = "0.4.27"
-chrono = "0.4.41"
+log = "0.4.28"
+chrono = "0.4.42"
 reqwest = "0.12.23"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.141"
-thiserror = "2.0.15"
+serde_json = "1.0.145"
+thiserror = "2.0.17"
 tokio = { version = "1.47.1", features = ["macros", "rt-multi-thread"] }
-url = "2.5.4" # pinned to whatever reqwest uses
+url = "2.5.7" # pinned to whatever reqwest uses
 
 [dev-dependencies]
 mockito = "1.7.0"
-tempfile = "3.20.0"
+tempfile = "3.23.0"
 
 [build-dependencies]
-chrono = {version = "0.4.41", features = ["now"]}
+chrono = {version = "0.4.42", features = ["now"]}
 
 [features]
 # This feature is intended to be a dev-only feature.
