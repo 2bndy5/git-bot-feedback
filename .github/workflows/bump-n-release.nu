@@ -27,20 +27,26 @@
 #
 #    NOTE: In a CI run, the GITHUB_TOKEN env var to authenticate access.
 #    Locally, you can use `gh login` to interactively authenticate the user account.
+use ../common.nu run-cmd
 
-
-let IN_CI = $env | get --optional CI | default "false" | ($in == "true") or ($in == true)
+export def is-in-ci [] {
+    $env | get --optional CI | default "false" | ($in == "true") or ($in == true)
+}
 
 # Bump the version per the given component name (major, minor, patch)
-def bump-version [
+export def bump-version [
     component: string # the version component to bump
+    --dry-run, # do not actually write changes to disk
 ] {
     mut args = [--bump $component]
-    if (not $IN_CI) {
+    if ($dry_run) {
         $args = $args | append "--dry-run"
     }
     let result = (
-        cargo set-version ...$args e>| lines
+        (^cargo set-version ...$args)
+        | complete
+        | get stderr
+        | lines
         | first
         | str trim
         | parse "Upgrading {pkg} from {old} to {new}"
@@ -54,7 +60,7 @@ def bump-version [
 #
 # If `--unreleased` is asserted, then the `git-cliff` output will be saved to .config/ReleaseNotes.md.
 # Otherwise, the generated changes will span the entire git history and be saved to CHANGELOG.md.
-def gen-changes [
+export def gen-changes [
     tag: string, # the new version tag to use for unreleased changes.
     --unreleased, # only generate changes from unreleased version.
 ] {
@@ -68,12 +74,12 @@ def gen-changes [
         $args = $args | append [--output, $out_path]
         {out_path: $out_path, log_prefix: "Updated"}
     }
-    ^git-cliff ...$args
+    run-cmd git-cliff ...$args
     print ($prompt | format pattern "{log_prefix} {out_path}")
 }
 
 # Is the the default branch currently checked out?
-def is-on-main [] {
+export def is-on-main [] {
     let branch = (
         ^git branch
         | lines
@@ -85,23 +91,13 @@ def is-on-main [] {
     $branch
 }
 
-# Publish this package to crates.io
-#
-# This requires a token in $env.CARGO_REGISTRY_TOKEN for authentication.
-def deploy-crate [] {
-    ^cargo publish
-}
-
-# Publish a GitHub Release for the given tag.
-#
-# This requires a token in $env.GITHUB_TOKEN for authentication.
-def gh-release [tag: string] {
-    ^gh release create $tag --notes-file ".config/ReleaseNotes.md"
-}
-
-
-def main [component: string] {
-    let ver = bump-version $component
+export def main [component: string] {
+    let is_ci = is-in-ci
+    let ver = if $is_ci {
+        bump-version --dry-run $component
+    } else {
+        bump-version $component
+    }
     let tag = $"v($ver)"
     gen-changes $tag
     gen-changes $tag --unreleased
@@ -109,15 +105,14 @@ def main [component: string] {
     if not $is_main {
         print $"(ansi yellow)Not checked out on default branch!(ansi reset)"
     }
-    if $IN_CI and $is_main {
-        git config --global user.name $"($env.GITHUB_ACTOR)"
-        git config --global user.email $"($env.GITHUB_ACTOR_ID)+($env.GITHUB_ACTOR)@users.noreply.github.com"
-        git add --all
-        git commit -m $"build: bump version to ($tag)"
-        git push
+    if $is_ci and $is_main {
+        run-cmd git config --global user.name $"($env.GITHUB_ACTOR)"
+        run-cmd git config --global user.email $"($env.GITHUB_ACTOR_ID)+($env.GITHUB_ACTOR)@users.noreply.github.com"
+        run-cmd git add --all
+        run-cmd git commit -m $"build: bump version to ($tag)"
+        run-cmd git push
         print $"Deploying ($tag)"
-        deploy-crate
-        gh-release $tag
+        run-cmd gh release create $tag --notes-file ".config/ReleaseNotes.md"
     } else if $is_main {
         print $"(ansi yellow)Not deploying from local clone.(ansi reset)"
     }

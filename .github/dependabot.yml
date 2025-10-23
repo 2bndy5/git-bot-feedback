@@ -21,3 +21,11 @@ updates:
       cargo:
         patterns:
           - "*"
+  - package-ecosystem: pip
+    directory: .github/
+    schedule:
+      interval: "monthly"
+    groups:
+      pip:
+        patterns:
+          - "*"
