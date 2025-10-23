@@ -29,7 +29,7 @@ def "nur test" [
         llvm-cov
         --no-report
         --features
-        test-skip-wait-for-rate-limit
+        "test-skip-wait-for-rate-limit,file-changes"
         nextest
         --color
         always
@@ -63,7 +63,7 @@ def "nur test lcov" [] {
 def "nur docs" [
     --open (-o) # Open the built docs in your browser
 ] {
-    mut cmd = [cargo doc --no-deps --lib]
+    mut cmd = [cargo doc --no-deps --lib --all-features]
     if $open {
         $cmd = $cmd | append '--open'
     }
@@ -74,7 +74,7 @@ def "nur docs" [
 # Run clippy and rustfmt (on packages only)
 def "nur lint" [] {
     run-cmd ...(
-        [cargo clippy --fix --allow-dirty --allow-staged]
+        [cargo clippy --fix --allow-dirty --allow-staged --features file-changes]
     )
     run-cmd ...[cargo fmt]
 }

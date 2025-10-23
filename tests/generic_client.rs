@@ -277,3 +277,20 @@ fn bad_request() {
     eprintln!("err: {result:?}");
     assert!(result.is_err_and(|e| matches!(e, RestClientError::Request(_))));
 }
+
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_file_changes() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+
+    let client = TestClient::default();
+
+    // This uses `git diff` on local checkout of this repo.
+    // It should return no changed files because `FileFilter::new(&[""], &[])`
+    // ignores everything in working directory and specifies no extensions to include.
+    let changes = client
+        .get_list_of_changed_files(&FileFilter::new(&[""], &[], None), &LinesChangedOnly::Off)
+        .await
+        .unwrap();
+    assert!(changes.is_empty());
+}

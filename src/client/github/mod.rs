@@ -16,6 +16,13 @@ use std::{env, fs::OpenOptions, io::Write};
 mod serde_structs;
 mod specific_api;
 
+#[cfg(feature = "file-changes")]
+use crate::{FileDiffLines, FileFilter, LinesChangedOnly, client::send_api_request, parse_diff};
+#[cfg(feature = "file-changes")]
+use reqwest::Method;
+#[cfg(feature = "file-changes")]
+use std::{collections::HashMap, path::Path};
+
 /// A structure to work with Github REST API.
 pub struct GithubApiClient {
     /// The HTTP request client to be used for all REST API calls.
@@ -154,5 +161,66 @@ impl RestApiClient for GithubApiClient {
             };
         }
         Ok(())
+    }
+
+    #[cfg(feature = "file-changes")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+    async fn get_list_of_changed_files(
+        &self,
+        file_filter: &FileFilter,
+        lines_changed_only: &LinesChangedOnly,
+    ) -> Result<HashMap<String, FileDiffLines>, RestClientError> {
+        let is_pr = self.is_pr_event();
+        let url_path = if is_pr {
+            format!("pulls/{}/files", self.pull_request)
+        } else {
+            format!("commits/{}", self.sha)
+        };
+        let url = self
+            .api_url
+            .join("repos/")?
+            .join(format!("{}/", &self.repo).as_str())?
+            .join(url_path.as_str())?;
+        let mut url = Some(Url::parse_with_params(url.as_str(), &[("page", "1")])?);
+        let mut files: HashMap<String, FileDiffLines> = HashMap::new();
+        while let Some(ref endpoint) = url {
+            let request =
+                Self::make_api_request(&self.client, endpoint.as_str(), Method::GET, None, None)?;
+            let response =
+                send_api_request(&self.client, request, &self.rate_limit_headers).await?;
+            url = Self::try_next_page(response.headers());
+            let body = response.text().await?;
+            let files_list = if !is_pr {
+                let json_value: serde_structs::PushEventFiles = serde_json::from_str(&body)?;
+                json_value.files
+            } else {
+                serde_json::from_str::<Vec<serde_structs::GithubChangedFile>>(&body)?
+            };
+            for file in files_list {
+                let ext = Path::new(&file.filename).extension().unwrap_or_default();
+                if !file_filter
+                    .extensions
+                    .contains(&ext.to_string_lossy().to_string())
+                {
+                    continue;
+                }
+                if let Some(patch) = file.patch {
+                    let diff = format!(
+                        "diff --git a/{old} b/{new}\n--- a/{old}\n+++ b/{new}\n{patch}\n",
+                        old = file.previous_filename.unwrap_or(file.filename.clone()),
+                        new = file.filename,
+                    );
+                    for (name, info) in parse_diff(&diff, file_filter, lines_changed_only) {
+                        files.entry(name).or_insert(info);
+                    }
+                } else if file.changes == 0 {
+                    // file may have been only renamed.
+                    // include it in case files-changed-only is enabled.
+                    files.entry(file.filename).or_default();
+                }
+                // else changes are too big or we don't care
+            }
+        }
+        Ok(files)
     }
 }

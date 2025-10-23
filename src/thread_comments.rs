@@ -1,6 +1,8 @@
 use crate::CommentKind;
 
-/// An enumeration of possible values that control [`FeedBackOptions::thread_comments`].
+/// An enumeration of supported behaviors about posting comments.
+///
+/// See [`ThreadCommentOptions::policy`].
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub enum CommentPolicy {
     /// Each thread comment is posted as a new comment.
@@ -16,6 +18,9 @@ pub enum CommentPolicy {
     Update,
 }
 
+/// Options that control posting comments on a thread.
+///
+/// Used as a parameter value to [`RestApiClient::post_thread_comment()`](fn@crate::client::RestApiClient::post_thread_comment).
 #[derive(Debug)]
 pub struct ThreadCommentOptions {
     /// Controls posting comments on a thread that concerns a Pull Request or Push event.

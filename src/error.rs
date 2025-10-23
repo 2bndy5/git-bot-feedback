@@ -1,3 +1,4 @@
+//! Error types used across the git-bot-feedback crate.
 use thiserror::Error;
 
 use crate::OutputVariable;
@@ -12,6 +13,11 @@ pub enum RestClientError {
     /// Errors related to standard I/O.
     #[error("{0}")]
     Io(#[from] std::io::Error),
+
+    /// Error related to Git command execution
+    #[error("Git command error: {0}")]
+    #[cfg(feature = "file-changes")]
+    GitCommandError(String),
 
     /// Error related to exceeding REST API Rate limits
     #[error("Rate Limit exceeded")]
@@ -40,4 +46,21 @@ pub enum RestClientError {
     /// An error emitted when encountering an invalid [`OutputVariable`].
     #[error("OutputVariable is malformed: {0}")]
     OutputVarError(OutputVariable),
+}
+
+/// The possible errors emitted by file utilities
+#[cfg(feature = "file-changes")]
+#[derive(Debug, Error)]
+#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+pub enum FileUtilsError {
+    #[error("Failed to read directory {0}: {1}")]
+    ReadDirError(String, std::io::Error),
+
+    #[error("Failed to get parent path of {0}")]
+    ParentPathUnKnown(String),
+
+    // #[error("Failed to parse glob pattern: {0}")]
+    // GlobPatternError(#[from] glob::PatternError),
+    #[error("No files matched the given patterns.")]
+    NoFilesMatched,
 }

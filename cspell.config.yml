@@ -5,24 +5,29 @@ words:
   - bndy
   - chrono
   - clippy
+  - docsrs
   - endfor
   - endgroup
   - endmacro
   - Gitea
+  - gitmodules
   - hustcer
   - nextest
   - nurfile
   - nushell
   - orhun
   - pipx
+  - pybind
   - reqwest
   - rustc
+  - rustdoc
   - rustup
   - serde
+  - splitn
   - startswith
   - thiserror
   - timeit
   - topo
 ignorePaths:
   - .gitignore
-  - tests/comment_test_assets/**/*.json
+  - tests/assets/**/*.json

@@ -22,6 +22,15 @@ Feedback on a git server using this library can be in the form of
 
 More features are planned, like PR reviews and file annotations.
 
+## Optional Features
+
+These [cargo features][dep-features] are optional and disabled by default:
+
+- `file-changes`: ability to list files changed with information like
+  which lines have additions or which lines are shown in the diff.
+
+[dep-features]: https://doc.rust-lang.org/cargo/reference/features.html#dependency-features
+
 ## Supported git servers
 
 Initially this project os designed to work with GitHub.

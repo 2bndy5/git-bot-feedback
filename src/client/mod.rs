@@ -11,6 +11,13 @@ use std::{env, fmt::Debug};
 mod github;
 pub use github::GithubApiClient;
 
+#[cfg(feature = "file-changes")]
+use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};
+#[cfg(feature = "file-changes")]
+use std::collections::HashMap;
+#[cfg(feature = "file-changes")]
+use tokio::process::Command;
+
 /// The User-Agent header value included in all HTTP requests.
 pub static USER_AGENT: &str = concat!(env!("CARGO_CRATE_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -44,6 +51,36 @@ pub trait RestApiClient {
     ///
     /// This **will not** check if a push event's instigating commit is part of any PR.
     fn is_pr_event(&self) -> bool;
+
+    /// A way to get the list of changed files in the context of the CI event.
+    ///
+    /// This method will parse diff blobs and return a list of changed files.
+    ///
+    /// The default implementation uses `git diff` to get the list of changed files.
+    /// So, the default implementation requires `git` installed and a non-shallow checkout.
+    ///
+    /// Other implementations use the Git server's REST API to get the list of changed files.
+    #[cfg(feature = "file-changes")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+    fn get_list_of_changed_files(
+        &self,
+        file_filter: &FileFilter,
+        lines_changed_only: &LinesChangedOnly,
+    ) -> impl Future<Output = Result<HashMap<String, FileDiffLines>, RestClientError>> {
+        async move {
+            let mut cmd = Command::new("git");
+            cmd.arg("diff");
+            let output = cmd.output().await.map_err(RestClientError::Io)?;
+            if output.status.success() {
+                let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
+                let files = parse_diff(&diff_str, file_filter, lines_changed_only);
+                Ok(files)
+            } else {
+                let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
+                Err(RestClientError::GitCommandError(err_msg))
+            }
+        }
+    }
 
     /// A way to post feedback to the Git server's GUI.
     ///
@@ -104,25 +141,25 @@ pub trait RestApiClient {
         req.build().map_err(RestClientError::Request)
     }
 
-    /// Gets the URL for the next page in a paginated response.
+    /// Gets the URL for the next page from the headers in a paginated response.
     ///
     /// Returns [`None`] if current response is the last page.
     fn try_next_page(headers: &HeaderMap) -> Option<Url> {
-        if let Some(links) = headers.get("link") {
-            if let Ok(pg_str) = links.to_str() {
-                let pages = pg_str.split(", ");
-                for page in pages {
-                    if page.ends_with("; rel=\"next\"") {
-                        if let Some(link) = page.split_once(">;") {
-                            let url = link.0.trim_start_matches("<").to_string();
-                            if let Ok(next) = Url::parse(&url) {
-                                return Some(next);
-                            } else {
-                                log::debug!("Failed to parse next page link from response header");
-                            }
+        if let Some(links) = headers.get("link")
+            && let Ok(pg_str) = links.to_str()
+        {
+            let pages = pg_str.split(", ");
+            for page in pages {
+                if page.ends_with("; rel=\"next\"") {
+                    if let Some(link) = page.split_once(">;") {
+                        let url = link.0.trim_start_matches("<").to_string();
+                        if let Ok(next) = Url::parse(&url) {
+                            return Some(next);
                         } else {
-                            log::debug!("Response header link for pagination is malformed");
+                            log::debug!("Failed to parse next page link from response header");
                         }
+                    } else {
+                        log::debug!("Response header link for pagination is malformed");
                     }
                 }
             }
