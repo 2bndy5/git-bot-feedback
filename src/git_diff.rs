@@ -37,7 +37,9 @@ fn get_filename_from_front_matter(front_matter: &str) -> Option<&str> {
 static HUNK_INFO_PATTERN: &str = r"(?m)@@\s\-\d+,?\d*\s\+(\d+),?(\d*)\s@@";
 
 /// Parses a single file's patch containing one or more hunks
-/// Returns a 3-item tuple:
+///
+/// Returns a 2-item tuple:
+///
 /// - the line numbers that contain additions
 /// - the ranges of lines that span each hunk
 fn parse_patch(patch: &str) -> (Vec<u32>, Vec<Range<u32>>) {
@@ -47,7 +49,7 @@ fn parse_patch(patch: &str) -> (Vec<u32>, Vec<Range<u32>>) {
     let hunk_info = Regex::new(HUNK_INFO_PATTERN).unwrap();
     let hunk_headers = hunk_info.captures_iter(patch).collect::<Vec<_>>();
     if !hunk_headers.is_empty() {
-        // skip the first split because it is just blank space before first hunk header
+        // skip the first split because it is anything that precedes first hunk header
         let hunks = hunk_info.split(patch).skip(1);
         for (hunk, header) in hunks.zip(hunk_headers) {
             // header.unwrap() is safe because the hunk_headers.iter() is parallel to hunk_info.split()
@@ -72,7 +74,7 @@ fn parse_patch(patch: &str) -> (Vec<u32>, Vec<Range<u32>>) {
 ///
 /// The `file_filter` is used to filter out files that are not of interest.
 /// The `lines_changed_only` parameter determines whether to include files
-/// based on the presence changed lines or diff chunks.
+/// based on their contents' changes.
 pub fn parse_diff(
     diff: &str,
     file_filter: &FileFilter,
@@ -107,7 +109,6 @@ pub fn parse_diff(
                 }
             }
         }
-        // else file has no changed content; moving on
     }
     results
 }

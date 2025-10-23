@@ -6,7 +6,7 @@ use std::{
 };
 
 use super::FileDiffLines;
-use crate::error::FileUtilsError;
+use crate::error::DirWalkError;
 
 /// A structure to encapsulate file path filtering behavior.
 #[derive(Debug, Clone, Default)]
@@ -27,7 +27,10 @@ pub struct FileFilter {
     /// A set of valid file extensions.
     ///
     /// These extensions do not include the leading dot.
-    /// For example, use "tar.gz" instead of ".tar.gz".
+    /// For example, use "txt" instead of ".txt".
+    ///
+    /// A blank extension (`""`) can be used to match files with
+    /// no extension (eg. ".clang-format").
     pub extensions: HashSet<String>,
 
     /// An optional scope name for logging purposes.
@@ -51,6 +54,7 @@ impl FileFilter {
     /// let filter = FileFilter::new(
     ///     &[" src ", " ! src/lib.rs "],
     ///     &["rs", "toml"],
+    ///     None,
     /// );
     /// assert!(filter.ignored.contains("src"));
     /// assert!(filter.not_ignored.contains("src/lib.rs"));
@@ -105,9 +109,9 @@ impl FileFilter {
                 if line_trimmed.starts_with("path") {
                     // .gitmodules convention defines path to submodule as `path = submodule_path`
                     if let Some(path) = line_trimmed
-                        .splitn(2, '=')
-                        .skip(1)
-                        .last()
+                        .splitn(2, '=') // can be less than 2 items
+                        .skip(1) // skip first to ensure that
+                        .last() // last() returns the second item (or None)
                         .map(|v| v.trim_start())
                         && !path.is_empty()
                     {
@@ -154,11 +158,9 @@ impl FileFilter {
             &self.not_ignored
         };
         for pattern in set {
-            let glob_matched =
-                glob_match(pattern, file_name.to_string_lossy().to_string().as_str());
             let pat = PathBuf::from(&pattern);
             if pattern.is_empty()
-                || glob_matched
+                || glob_match(pattern, file_name.to_string_lossy().as_ref())
                 || (pat.is_file() && file_name == pat)
                 || (pat.is_dir() && file_name.starts_with(pat))
             {
@@ -193,26 +195,35 @@ impl FileFilter {
         self.is_file_in_list(file_name, false)
     }
 
-    /// A helper function that checks if `entry` satisfies the following conditions (in
+    /// A helper function that checks if `file_path` satisfies the following conditions (in
     /// ordered priority):
     ///
-    /// - Does `entry`'s path use at least 1 of the listed file [`FileFilter::extensions`]?
-    ///   (takes precedence)
-    /// - Is `entry` *not* specified in list of [`FileFilter::ignored`] paths?
-    /// - Is `entry` specified in the list of explicitly [`FileFilter::not_ignored`] paths?
-    ///   (supersedes specified [`FileFilter::ignored`] paths)
-    pub fn is_ext_and_not_ignored(&self, entry: &Path) -> bool {
-        let extension = entry
-            .extension()
-            .unwrap_or_default() // allow for matching files with no extension
-            .to_string_lossy()
-            .to_string();
-        if !self.extensions.contains(&extension) {
-            return false;
+    /// - Does `file_path` use at least 1 of [`FileFilter::extensions`]?
+    ///   Skipped if [`FileFilter::extensions`] is empty.
+    /// - Is `file_path` specified in [`FileFilter::not_ignored`]?
+    /// - Is `file_path` *not* specified in [`FileFilter::ignored`]?
+    pub fn is_ext_and_not_ignored(&self, file_path: &Path) -> bool {
+        if !self.extensions.is_empty() && !file_path.is_dir() {
+            let extension = file_path
+                .extension()
+                .unwrap_or_default() // allow for matching files with no extension
+                .to_string_lossy()
+                .to_string();
+            if !self.extensions.contains(&extension) {
+                return false;
+            }
         }
-        let is_not_ignored = self.is_file_in_list(entry, false);
-        let is_ignored = self.is_file_in_list(entry, true);
-        is_not_ignored || !is_ignored
+        let is_not_ignored = self.is_file_not_ignored(file_path);
+        is_not_ignored || {
+            // if not explicitly unignored
+            let is_ignored = self.is_file_ignored(file_path);
+            let is_hidden = file_path.components().any(|c| {
+                let comp = c.as_os_str().to_string_lossy();
+                comp.starts_with('.') && !["..", "."].contains(&comp.as_ref())
+            });
+            // is implicitly not ignored and not a hidden file/folder
+            !is_ignored && !is_hidden
+        }
     }
 
     /// Walks a given `root_path` recursively and returns a map of discovered source files.
@@ -228,19 +239,14 @@ impl FileFilter {
     pub fn list_source_files(
         &self,
         root_path: &str,
-    ) -> Result<HashMap<String, FileDiffLines>, FileUtilsError> {
+    ) -> Result<HashMap<String, FileDiffLines>, DirWalkError> {
         let mut files: HashMap<String, FileDiffLines> = HashMap::new();
         let entries = fs::read_dir(root_path)
-            .map_err(|e| FileUtilsError::ReadDirError(root_path.to_string(), e))?;
+            .map_err(|e| DirWalkError::ReadDirError(root_path.to_string(), e))?;
         for entry in entries.filter_map(|p| p.ok()) {
             let path = entry.path();
             if path.is_dir() {
-                let is_hidden = path
-                    .file_name()
-                    .is_some_and(|v| v.to_string_lossy().starts_with('.'));
-                if !is_hidden {
-                    files.extend(self.list_source_files(&path.to_string_lossy())?);
-                }
+                files.extend(self.list_source_files(&path.to_string_lossy())?);
             } else {
                 let is_valid_src = self.is_ext_and_not_ignored(&path);
                 if is_valid_src {

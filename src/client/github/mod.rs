@@ -52,12 +52,41 @@ pub struct GithubApiClient {
 
 // implement the RestApiClient trait for the GithubApiClient
 impl RestApiClient for GithubApiClient {
-    /// This prints a line to indicate the beginning of a related group of log statements.
+    /// This prints a line to indicate the beginning of a related group of [`log`] statements.
+    ///
+    /// For apps' [`log`] implementations, this function's [`log::info`] output needs to have
+    /// no prefixed data.
+    /// Such behavior can be identified by the log target `"CI_LOG_GROUPING"`.
+    ///
+    /// ```
+    /// # struct MyAppLogger;
+    /// impl log::Log for MyAppLogger {
+    /// #    fn enabled(&self, metadata: &log::Metadata) -> bool {
+    /// #        log::max_level() > metadata.level()
+    /// #    }
+    ///     fn log(&self, record: &log::Record) {
+    ///         if record.target() == "CI_LOG_GROUPING" {
+    ///             println!("{}", record.args());
+    ///         } else {
+    ///             println!(
+    ///                 "[{:>5}]{}: {}",
+    ///                 record.level().as_str(),
+    ///                 record.module_path().unwrap_or_default(),
+    ///                 record.args()
+    ///             );
+    ///         }
+    ///     }
+    /// #    fn flush(&self) {}
+    /// }
+    /// ```
     fn start_log_group(name: &str) {
         log::info!(target: "CI_LOG_GROUPING", "::group::{name}");
     }
 
-    /// This prints a line to indicate the ending of a related group of log statements.
+    /// This prints a line to indicate the ending of a related group of [`log`] statements.
+    ///
+    /// See also [`GithubApiClient::start_log_group`] about special handling of
+    /// the log target `"CI_LOG_GROUPING"`.
     fn end_log_group() {
         log::info!(target: "CI_LOG_GROUPING", "::endgroup::");
     }
@@ -218,7 +247,7 @@ impl RestApiClient for GithubApiClient {
                     // include it in case files-changed-only is enabled.
                     files.entry(file.filename).or_default();
                 }
-                // else changes are too big or we don't care
+                // else changes are too big (per git server limits) or we don't care
             }
         }
         Ok(files)

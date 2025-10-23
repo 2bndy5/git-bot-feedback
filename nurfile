@@ -46,6 +46,10 @@ export def "nur test lcov" [] {
     run-cmd cargo llvm-cov report --lcov --output-path lcov.info
 }
 
+# Run examples in doc comments as unit tests.
+export def "nur test docs" [] {
+    run-cmd cargo test --doc --features "file-changes"
+}
 
 # Rust API docs
 export def "nur docs" [
@@ -63,17 +67,13 @@ export def "nur docs" [
 export def "nur lint" [
     --check (-c) # Check only, do not apply fixes
 ] {
+    let clippy_args = [cargo, clippy, --features, file-changes]
     if $check {
-        run-cmd ...(
-            [cargo clippy --all-features -- -D warnings]
-        )
-        run-cmd ...[cargo fmt -- --check]
-        return
+        run-cmd ...$clippy_args -- -D warnings
+        run-cmd cargo fmt -- --check
     } else {
-        run-cmd ...(
-            [cargo clippy --fix --allow-dirty --allow-staged --features file-changes]
-        )
-        run-cmd ...[cargo fmt]
+        run-cmd ...$clippy_args --fix --allow-dirty --allow-staged
+        run-cmd cargo fmt
     }
 }
 
@@ -85,7 +85,7 @@ export def "nur pre-commit" [
     --upgrade (-u), # upgrade pre-commit hooks defined in the .pre-commit-config.yaml
 ] {
     if $upgrade {
-        run-cmd ...[uvx pre-commit autoupdate]
+        run-cmd uvx pre-commit autoupdate
     }
     mut args = [pre-commit, run]
     if (not $changes_only) {

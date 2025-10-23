@@ -28,9 +28,14 @@ jobs:
   bump-release:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # permissions needed by the BUMP_N_RELEASE token:
+    # permissions:
+    #   contents: write
+    #   pull-requests: read
+    # BUMP_N_RELEASE (PAT) token needed to trigger other CI
+    # permissions used by the `github.token` (which cannot trigger other CI):
     permissions:
-      contents: write
-      pull-requests: read
+      contents: read
     steps:
       - uses: actions/checkout@v5
         with:
@@ -62,7 +67,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.BUMP_N_RELEASE }}
         run: nu .github/workflows/bump-n-release.nu ${{ inputs.component }}
 
-  update-changelog:
+  unreleased-changes:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:

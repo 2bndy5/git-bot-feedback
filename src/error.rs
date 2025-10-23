@@ -17,6 +17,7 @@ pub enum RestClientError {
     /// Error related to Git command execution
     #[error("Git command error: {0}")]
     #[cfg(feature = "file-changes")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
     GitCommandError(String),
 
     /// Error related to exceeding REST API Rate limits
@@ -52,15 +53,7 @@ pub enum RestClientError {
 #[cfg(feature = "file-changes")]
 #[derive(Debug, Error)]
 #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
-pub enum FileUtilsError {
+pub enum DirWalkError {
     #[error("Failed to read directory {0}: {1}")]
     ReadDirError(String, std::io::Error),
-
-    #[error("Failed to get parent path of {0}")]
-    ParentPathUnKnown(String),
-
-    // #[error("Failed to parse glob pattern: {0}")]
-    // GlobPatternError(#[from] glob::PatternError),
-    #[error("No files matched the given patterns.")]
-    NoFilesMatched,
 }

@@ -281,8 +281,11 @@ fn bad_request() {
 #[tokio::test]
 #[cfg(feature = "file-changes")]
 async fn list_file_changes() {
+    use common::logger_init;
     use git_bot_feedback::{FileFilter, LinesChangedOnly};
 
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
     let client = TestClient::default();
 
     // This uses `git diff` on local checkout of this repo.

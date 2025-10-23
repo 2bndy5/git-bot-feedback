@@ -26,19 +26,26 @@ tempfile = "3.23.0"
 chrono = {version = "0.4.42", features = ["now"]}
 
 [features]
+regex = ["dep:regex"]
+fast-glob = ["dep:fast-glob"]
 # This feature is intended to be a dev-only feature.
 # It used to expedite tests about rate limit violations
 test-skip-wait-for-rate-limit = []
 
-# no default features enabled
-default = []
+# GitHub implementation/support
+github = []
 
-regex = ["dep:regex"]
-fast-glob = ["dep:fast-glob"]
+# features enabled by default
+default = ["github"]
 
-# Enable getting file changes
+# optional feature to silence a compiler error if/when
+# no features enable any git server implementations
+custom-git-server-impl = []
+
+# feature that enables getting file changes
 file-changes = ["fast-glob", "regex", "tokio/process"]
 
 [package.metadata.docs.rs]
+# extra metadata for builds on docs.rs
 features = ["file-changes"]
 rustdoc-args = ["--cfg", "docsrs"]

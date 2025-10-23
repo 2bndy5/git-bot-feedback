@@ -8,8 +8,16 @@ use reqwest::{
 use std::future::Future;
 use std::time::Duration;
 use std::{env, fmt::Debug};
+
+#[cfg(feature = "github")]
 mod github;
+#[cfg(feature = "github")]
 pub use github::GithubApiClient;
+
+#[cfg(not(any(feature = "github", feature = "custom-git-server-impl")))]
+compile_error!(
+    "At least one Git server implementation (eg. 'github') should be enabled via `features`"
+);
 
 #[cfg(feature = "file-changes")]
 use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};

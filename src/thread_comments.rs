@@ -1,4 +1,15 @@
-use crate::CommentKind;
+/// An enumeration of possible type of comments being posted.
+///
+/// The default is [`CommentKind::Concerns`].
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub enum CommentKind {
+    /// A comment that admonishes concerns for end-users' attention.
+    #[default]
+    Concerns,
+
+    /// A comment that basically says "Looks Good To Me".
+    Lgtm,
+}
 
 /// An enumeration of supported behaviors about posting comments.
 ///
@@ -89,7 +100,13 @@ impl Default for ThreadCommentOptions {
 }
 
 impl ThreadCommentOptions {
-    pub(crate) fn mark_comment(&self) -> String {
+    /// Ensure that the [`ThreadCommentOptions::comment`] is marked with
+    /// the [`ThreadCommentOptions::marker`].
+    ///
+    /// Typically only used by implementations of
+    /// [`RestApiClient::post_thread_comment`](crate::client::RestApiClient::post_thread_comment)
+    /// and [`RestApiClient::append_step_summary`](crate::client::RestApiClient::append_step_summary).
+    pub fn mark_comment(&self) -> String {
         if !self.comment.starts_with(&self.marker) {
             return format!("{}{}", self.marker, self.comment);
         }

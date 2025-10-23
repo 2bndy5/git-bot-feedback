@@ -77,6 +77,7 @@ impl FileDiffLines {
         if let Some((_, start)) = iter_lines.next() {
             let mut range_start = *start;
             let mut ranges: Vec<Range<u32>> = Vec::new();
+            let last_entry = lines.len() - 1;
             for (index, number) in iter_lines {
                 if let Some(prev) = lines.get(index - 1)
                     && (number - 1) != *prev
@@ -88,7 +89,7 @@ impl FileDiffLines {
                     // from the current number
                     range_start = *number;
                 }
-                if index == lines.len() - 1 {
+                if index == last_entry {
                     // last number
                     ranges.push(range_start..(*number + 1));
                 }
@@ -107,7 +108,7 @@ impl FileDiffLines {
         }
     }
 
-    /// Is the range from `start_line` to `end_line` contained in a single item of
+    /// Is the range from [`DiffHunkHeader`] contained in a single item of
     /// [`FileDiffLines::diff_hunks`]?
     pub fn is_hunk_in_diff(&self, hunk: &DiffHunkHeader) -> Option<(u32, u32)> {
         let (start_line, end_line) = if hunk.old_lines > 0 {
@@ -120,8 +121,9 @@ impl FileDiffLines {
             // make old hunk's range span 1 line
             (start, start + 1)
         };
+        let inclusive_end = end_line - 1;
         for range in &self.diff_hunks {
-            if range.contains(&start_line) && range.contains(&(end_line - 1)) {
+            if range.contains(&start_line) && range.contains(&inclusive_end) {
                 return Some((start_line, end_line));
             }
         }
@@ -157,7 +159,7 @@ mod test {
         let added_lines = vec![4, 5, 9];
         let file_obj = FileDiffLines::with_info(added_lines, diff_chunks.clone());
         let ranges = file_obj.get_ranges(&LinesChangedOnly::Diff);
-        assert!(ranges.is_some_and(|v| v == diff_chunks));
+        assert_eq!(ranges.unwrap(), diff_chunks);
     }
 
     #[test]
