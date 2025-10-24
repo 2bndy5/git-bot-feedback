@@ -195,14 +195,14 @@ impl FileFilter {
         self.is_file_in_list(file_name, false)
     }
 
-    /// A helper function that checks if `file_path` satisfies the following conditions (in
+    /// A function that checks if `file_path` satisfies the following conditions (in
     /// ordered priority):
     ///
     /// - Does `file_path` use at least 1 of [`FileFilter::extensions`]?
-    ///   Skipped if [`FileFilter::extensions`] is empty.
+    ///   Not applicable if [`FileFilter::extensions`] is empty.
     /// - Is `file_path` specified in [`FileFilter::not_ignored`]?
     /// - Is `file_path` *not* specified in [`FileFilter::ignored`]?
-    pub fn is_ext_and_not_ignored(&self, file_path: &Path) -> bool {
+    pub fn is_not_ignored(&self, file_path: &Path) -> bool {
         if !self.extensions.is_empty() && !file_path.is_dir() {
             let extension = file_path
                 .extension()
@@ -248,7 +248,7 @@ impl FileFilter {
             if path.is_dir() {
                 files.extend(self.list_source_files(&path.to_string_lossy())?);
             } else {
-                let is_valid_src = self.is_ext_and_not_ignored(&path);
+                let is_valid_src = self.is_not_ignored(&path);
                 if is_valid_src {
                     let file_name = path
                         .clone()
@@ -315,6 +315,7 @@ mod tests {
         let mut file_filter = setup_ignore("!pybind11", &[]);
         file_filter.parse_submodules();
         assert!(file_filter.ignored.is_empty());
+        assert!(file_filter.is_file_not_ignored(&Path::new("pybind11")));
         set_current_dir("tests/assets/ignored_paths/error").unwrap();
         file_filter.parse_submodules();
         assert!(file_filter.ignored.is_empty());
@@ -358,5 +359,7 @@ mod tests {
         assert!(!file_filter.is_file_not_ignored(&Path::new(
             "tests/assets/ignored_paths/.hidden/ignore_me.txt"
         )));
+        assert!(!file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths/.hidden")));
+        assert!(file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths")));
     }
 }

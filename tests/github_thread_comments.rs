@@ -142,7 +142,6 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
         if test_params.bad_existing_comments || test_params.no_token {
             mock = mock.with_body(String::new());
         } else {
-            eprintln!("{asset_path}push_comments_{SHA}.json");
             mock = mock.with_body_from_file(format!("{asset_path}push_comments_{SHA}.json"));
         }
         mock = mock.create();

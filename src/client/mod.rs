@@ -76,17 +76,47 @@ pub trait RestApiClient {
         lines_changed_only: &LinesChangedOnly,
     ) -> impl Future<Output = Result<HashMap<String, FileDiffLines>, RestClientError>> {
         async move {
-            let mut cmd = Command::new("git");
-            cmd.arg("diff");
-            let output = cmd.output().await.map_err(RestClientError::Io)?;
-            if output.status.success() {
-                let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
-                let files = parse_diff(&diff_str, file_filter, lines_changed_only);
-                Ok(files)
-            } else {
-                let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                Err(RestClientError::GitCommandError(err_msg))
+            let git_status = Command::new("git")
+                .args(["status", "--short"])
+                .output()
+                .await
+                .map_err(RestClientError::Io)
+                .map(|output| {
+                    if output.status.success() {
+                        Ok(String::from_utf8_lossy(&output.stdout)
+                            .to_string()
+                            .trim_end_matches('\n')
+                            .lines()
+                            .count())
+                    } else {
+                        let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
+                        Err(RestClientError::GitCommandError(err_msg))
+                    }
+                })??;
+            let mut diff_args = vec!["diff"];
+            if git_status == 0 {
+                log::debug!(
+                    "No changes detected in the working directory; comparing last two commits."
+                );
+                // There are no changes in the working directory.
+                // So, compare the working directory with the last commit.
+                diff_args.extend(["HEAD~1", "HEAD"]);
             }
+            Command::new("git")
+                .args(&diff_args)
+                .output()
+                .await
+                .map_err(RestClientError::Io)
+                .map(|output| {
+                    if output.status.success() {
+                        let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
+                        let files = parse_diff(&diff_str, file_filter, lines_changed_only);
+                        Ok(files)
+                    } else {
+                        let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
+                        Err(RestClientError::GitCommandError(err_msg))
+                    }
+                })?
         }
     }
 

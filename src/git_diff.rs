@@ -98,7 +98,7 @@ pub fn parse_diff(
         if let Some(file_name) = get_filename_from_front_matter(front_matter.trim_start()) {
             let file_name = file_name.strip_prefix('/').unwrap_or(file_name);
             let file_path = PathBuf::from(file_name);
-            if file_filter.is_ext_and_not_ignored(&file_path) {
+            if file_filter.is_not_ignored(&file_path) {
                 let (added_lines, diff_hunks) = parse_patch(&file_diff[hunk_start..]);
                 if lines_changed_only
                     .is_change_valid(!added_lines.is_empty(), !diff_hunks.is_empty())

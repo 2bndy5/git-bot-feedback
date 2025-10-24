@@ -28,9 +28,9 @@ chrono = {version = "0.4.42", features = ["now"]}
 [features]
 regex = ["dep:regex"]
 fast-glob = ["dep:fast-glob"]
-# This feature is intended to be a dev-only feature.
-# It used to expedite tests about rate limit violations
-test-skip-wait-for-rate-limit = []
+
+# feature that enables getting file changes
+file-changes = ["fast-glob", "regex", "tokio/process"]
 
 # GitHub implementation/support
 github = []
@@ -42,8 +42,11 @@ default = ["github"]
 # no features enable any git server implementations
 custom-git-server-impl = []
 
-# feature that enables getting file changes
-file-changes = ["fast-glob", "regex", "tokio/process"]
+# This feature is intended to be a dev-only feature.
+# It is not intended for end users of this library.
+# It used to expedite tests about rate limit violations.
+# This is also used to enable features specific to other tests (e.g., tokio/fs).
+test-skip-wait-for-rate-limit = ["tokio/fs"]
 
 [package.metadata.docs.rs]
 # extra metadata for builds on docs.rs
