@@ -1,23 +1,11 @@
-
-
-def --wrapped run-cmd [...cmd: string] {
-    let app = if ($cmd | first) == "cargo" {
-        ($cmd | first 2) | str join ' '
-    } else {
-        ($cmd | first)
-    }
-    print $"(ansi blue)\nRunning(ansi reset) ($cmd | str join ' ')"
-    let elapsed = timeit {|| ^($cmd | first) ...($cmd | skip 1)}
-    print $"(ansi magenta)($app) took ($elapsed)(ansi reset)"
-}
-
+use .github/common.nu run-cmd
 
 # Run the test suite
 #
 # Requires the following installed:
 # - cargo-llvm-cov
 # - cargo-nextest
-def "nur test" [
+export def "nur test" [
     --clean (-c) # Purge previous test artifacts. Use to refresh coverage data.
     --profile (-p): string = 'default' # The profile defined in .config/nextest.toml
 ] {
@@ -29,7 +17,7 @@ def "nur test" [
         llvm-cov
         --no-report
         --features
-        test-skip-wait-for-rate-limit
+        "test-skip-wait-for-rate-limit,file-changes"
         nextest
         --color
         always
@@ -44,7 +32,7 @@ def "nur test" [
 #
 # Pass "--open" to load the built report in your browser
 # Requires cargo-llvm-cov installed.
-def --wrapped "nur test llvm-cov" [
+export def --wrapped "nur test llvm-cov" [
     ...args: string # Additional arguments for `llvm-cov report --html`.
 ] {
     run-cmd cargo llvm-cov report --html ...$args
@@ -54,16 +42,20 @@ def --wrapped "nur test llvm-cov" [
 # Generate lcov.info
 #
 # Useful for codecov uploads or VSCode extensions like "Coverage Gutters".
-def "nur test lcov" [] {
+export def "nur test lcov" [] {
     run-cmd cargo llvm-cov report --lcov --output-path lcov.info
 }
 
+# Run examples in doc comments as unit tests.
+export def "nur test docs" [] {
+    run-cmd cargo test --doc --features "file-changes"
+}
 
 # Rust API docs
-def "nur docs" [
+export def "nur docs" [
     --open (-o) # Open the built docs in your browser
 ] {
-    mut cmd = [cargo doc --no-deps --lib]
+    mut cmd = [cargo doc --no-deps --lib --all-features]
     if $open {
         $cmd = $cmd | append '--open'
     }
@@ -72,22 +64,28 @@ def "nur docs" [
 
 
 # Run clippy and rustfmt (on packages only)
-def "nur lint" [] {
-    run-cmd ...(
-        [cargo clippy --fix --allow-dirty --allow-staged]
-    )
-    run-cmd ...[cargo fmt]
+export def "nur lint" [
+    --check (-c) # Check only, do not apply fixes
+] {
+    let clippy_args = [cargo, clippy, --features, file-changes]
+    if $check {
+        run-cmd ...$clippy_args -- -D warnings
+        run-cmd cargo fmt -- --check
+    } else {
+        run-cmd ...$clippy_args --fix --allow-dirty --allow-staged
+        run-cmd cargo fmt
+    }
 }
 
 # Run pre-commit hooks manually.
 #
 # Requires `uv` installed.
-def "nur pre-commit" [
+export def "nur pre-commit" [
     --changes-only (-c), # only run pre-commit on changed files (default is all files)
     --upgrade (-u), # upgrade pre-commit hooks defined in the .pre-commit-config.yaml
 ] {
     if $upgrade {
-        run-cmd ...[uvx pre-commit autoupdate]
+        run-cmd uvx pre-commit autoupdate
     }
     mut args = [pre-commit, run]
     if (not $changes_only) {

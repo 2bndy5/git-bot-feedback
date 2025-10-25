@@ -15,7 +15,7 @@ const SHA: &str = "deadbeef";
 const REPO: &str = "2bndy5/git-bot-feedback";
 const PR: i64 = 22;
 const TOKEN: &str = "123456";
-const MOCK_ASSETS_PATH: &str = "tests/comment_test_assets/github/";
+const MOCK_ASSETS_PATH: &str = "tests/assets/thread_comment/github/";
 const EVENT_PAYLOAD: &str = "{\"number\": 22}";
 
 const RESET_RATE_LIMIT_HEADER: &str = "x-ratelimit-reset";
@@ -142,7 +142,6 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
         if test_params.bad_existing_comments || test_params.no_token {
             mock = mock.with_body(String::new());
         } else {
-            eprintln!("{asset_path}push_comments_{SHA}.json");
             mock = mock.with_body_from_file(format!("{asset_path}push_comments_{SHA}.json"));
         }
         mock = mock.create();
@@ -229,11 +228,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
                 .match_body(new_comment_match)
                 .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
                 .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
-                .with_status(if test_params.fail_posting || test_params.no_lgtm {
-                    403
-                } else {
-                    200
-                })
+                .with_status(if test_params.fail_posting { 403 } else { 200 })
                 .create();
             if !test_params.no_token {
                 mock = mock.match_header("Authorization", format!("token {TOKEN}").as_str());

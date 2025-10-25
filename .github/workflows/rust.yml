@@ -10,6 +10,8 @@ on:
       - '**/*.rs'
       - Cargo.toml
       - .github/workflows/rust.yml
+    tags:
+      - 'v*'
   pull_request:
     branches: [main]
     paths:
@@ -26,30 +28,51 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - name: Setup Rust
         run: rustup update --no-self-update
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@main
-      - name: Install cargo-llvm-cov and cargo-nextest
-        run: cargo binstall -y cargo-nextest cargo-llvm-cov
+        uses: cargo-bins/cargo-binstall@a66119fbb1c952daba62640c2609111fe0803621 # v1.15.7
+      - name: Install cargo-llvm-cov, cargo-nextest, and nur
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: cargo binstall -y cargo-nextest cargo-llvm-cov nur
       - name: Cache deps
-        uses: actions/cache@v4
+        uses: actions/cache@v4  # zizmor: ignore[cache-poisoning]
         with:
           path: ~/.cargo
           key: cargo-lib-${{ hashFiles('src/**', 'Cargo.toml') }}
       - run: rustup component add llvm-tools-preview
         # this enables a tool (for default toolchain) needed to measure code coverage.
+      - name: run docs examples
+        run: nur test docs
       - name: Run tests
-        run: >-
-          cargo llvm-cov --no-report nextest
-          --lib
-          --tests
-          --color always
-          --profile ci
+        run: nur test --profile ci
       - name: Generate coverage reports
-        run: cargo llvm-cov report --lcov --output-path lcov.info
-      - uses: codecov/codecov-action@v5
+        run: nur test lcov
+      - uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
           fail_ci_if_error: true
+
+  deploy:
+    needs: [test]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Setup Rust
+        run: rustup update --no-self-update
+      - name: Establish trusted publishing token
+        uses: rust-lang/crates-io-auth-action@041cce5b4b821e6b0ebc9c9c38b58cac4e34dcc2 # v1.0.2
+        id: auth
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish

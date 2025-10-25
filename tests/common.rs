@@ -5,7 +5,16 @@ impl log::Log for Logger {
     }
 
     fn log(&self, record: &log::Record) {
-        println!("{}: {}", record.level().as_str(), record.args());
+        if record.target() == "CI_LOG_GROUPING" {
+            println!("{}", record.args());
+        } else {
+            println!(
+                "[{:>5}]{}: {}",
+                record.level().as_str(),
+                record.module_path().unwrap_or_default(),
+                record.args()
+            );
+        }
     }
 
     fn flush(&self) {}

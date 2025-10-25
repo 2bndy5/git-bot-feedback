@@ -277,3 +277,69 @@ fn bad_request() {
     eprintln!("err: {result:?}");
     assert!(result.is_err_and(|e| matches!(e, RestClientError::Request(_))));
 }
+
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_file_changes() {
+    use std::env;
+
+    use common::logger_init;
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+    use tokio::{fs::OpenOptions, io::AsyncWriteExt, process::Command};
+
+    // Setup temp workspace
+    let tmp_dir = TempDir::new().unwrap();
+    Command::new("git")
+        .current_dir(tmp_dir.path())
+        .args([
+            "clone",
+            "--depth=2",       // only checkout HEAD and its parent commit (HEAD~1)
+            "--branch=v0.1.4", // https://github.com/2bndy5/git-bot-feedback/commit/19c6330e8c4aa0e4ee18482b761277bd294bb6f3
+            "https://github.com/2bndy5/git-bot-feedback.git",
+        ])
+        .output()
+        .await
+        .unwrap();
+    env::set_current_dir(tmp_dir.path().join("git-bot-feedback")).unwrap();
+
+    // setup test client, logging, and file filter
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    let client = TestClient::default();
+    let file_filter = FileFilter::new(&[], &["toml"], None);
+
+    // Now get diff of HEAD and parent commit
+    let changes = client
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On)
+        .await
+        .unwrap();
+    assert_eq!(changes.len(), 1);
+    let expected_changed_file = String::from("Cargo.toml");
+    assert!(changes.contains_key(&expected_changed_file));
+    assert_eq!(
+        changes.get(&expected_changed_file).unwrap().added_lines,
+        vec![4] // line 4 is where the version is defined in Cargo.toml
+    );
+
+    // make uncommitted change and verify it is detected
+    let mut cargo_toml = OpenOptions::new()
+        .append(true)
+        .open(&expected_changed_file)
+        .await
+        .unwrap();
+    cargo_toml.write_all(b"# Dummy change").await.unwrap();
+    cargo_toml.sync_all().await.unwrap();
+
+    // Get diff of working directory
+    let changes = client
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On)
+        .await
+        .unwrap();
+    assert!(changes.contains_key(&expected_changed_file));
+    let added_lines = &changes.get(&expected_changed_file).unwrap().added_lines;
+    assert_eq!(added_lines.len(), 1);
+    // The added line should not be line 4 anymore.
+    // It should be the new line we just added at the end of the file.
+    assert_ne!(*added_lines.first().unwrap(), 4);
+}

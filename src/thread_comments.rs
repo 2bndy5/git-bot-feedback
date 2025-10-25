@@ -1,6 +1,19 @@
-use crate::CommentKind;
+/// An enumeration of possible type of comments being posted.
+///
+/// The default is [`CommentKind::Concerns`].
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+pub enum CommentKind {
+    /// A comment that admonishes concerns for end-users' attention.
+    #[default]
+    Concerns,
 
-/// An enumeration of possible values that control [`FeedBackOptions::thread_comments`].
+    /// A comment that basically says "Looks Good To Me".
+    Lgtm,
+}
+
+/// An enumeration of supported behaviors about posting comments.
+///
+/// See [`ThreadCommentOptions::policy`].
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub enum CommentPolicy {
     /// Each thread comment is posted as a new comment.
@@ -16,6 +29,9 @@ pub enum CommentPolicy {
     Update,
 }
 
+/// Options that control posting comments on a thread.
+///
+/// Used as a parameter value to [`RestApiClient::post_thread_comment()`](fn@crate::client::RestApiClient::post_thread_comment).
 #[derive(Debug)]
 pub struct ThreadCommentOptions {
     /// Controls posting comments on a thread that concerns a Pull Request or Push event.
@@ -84,7 +100,13 @@ impl Default for ThreadCommentOptions {
 }
 
 impl ThreadCommentOptions {
-    pub(crate) fn mark_comment(&self) -> String {
+    /// Ensure that the [`ThreadCommentOptions::comment`] is marked with
+    /// the [`ThreadCommentOptions::marker`].
+    ///
+    /// Typically only used by implementations of
+    /// [`RestApiClient::post_thread_comment`](crate::client::RestApiClient::post_thread_comment)
+    /// and [`RestApiClient::append_step_summary`](crate::client::RestApiClient::append_step_summary).
+    pub fn mark_comment(&self) -> String {
         if !self.comment.starts_with(&self.marker) {
             return format!("{}{}", self.marker, self.comment);
         }
