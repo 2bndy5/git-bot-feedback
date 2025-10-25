@@ -52,6 +52,9 @@ export def bump-version [
         | parse "Upgrading {pkg} from {old} to {new}"
         | first
     )
+    if not $dry_run {
+        run-cmd cargo update --workspace
+    }
     print $"bumped ($result | get old) to ($result | get new)"
     $result | get new
 }
@@ -94,9 +97,9 @@ export def is-on-main [] {
 export def main [component: string] {
     let is_ci = is-in-ci
     let ver = if $is_ci {
-        bump-version --dry-run $component
-    } else {
         bump-version $component
+    } else {
+        bump-version --dry-run $component
     }
     let tag = $"v($ver)"
     gen-changes $tag
