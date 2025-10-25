@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.2.0] - 2025-10-25
+
+### <!-- 1 --> 🚀 Added
+
+- List file changes by @2bndy5 in [#11](https://github.com/2bndy5/git-bot-feedback/pull/11)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Replace deprecated nushell syntax by @2bndy5 in [`921c043`](https://github.com/2bndy5/git-bot-feedback/commit/921c0439a24f8fb387fd816271b67e8be48a2925)
+- Bump slab from 0.4.10 to 0.4.11 by @dependabot[bot] in [#4](https://github.com/2bndy5/git-bot-feedback/pull/4)
+- Bump the actions group across 1 directory with 2 updates by @dependabot[bot] in [#6](https://github.com/2bndy5/git-bot-feedback/pull/6)
+- Bump the cargo group across 1 directory with 9 updates by @dependabot[bot] in [#10](https://github.com/2bndy5/git-bot-feedback/pull/10)
+- Bump git-cliff from 2.10.0 to 2.10.1 in /.github in the pip group by @dependabot[bot] in [#12](https://github.com/2bndy5/git-bot-feedback/pull/12)
+- Bump the actions group with 3 updates by @dependabot[bot] in [#13](https://github.com/2bndy5/git-bot-feedback/pull/13)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Regenerate CHANGELOG by @2bndy5 in [`43b62a8`](https://github.com/2bndy5/git-bot-feedback/commit/43b62a876847409358146d65c7b309e09996583f)
+
+[0.2.0]: https://github.com/2bndy5/git-bot-feedback/compare/v0.1.4...v0.2.0
+
+Full commit diff: [`v0.1.4...v0.2.0`][0.2.0]
+
 ## [0.1.4] - 2025-08-18
 
 ### <!-- 6 --> 📦 Dependency updates
