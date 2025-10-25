@@ -30,7 +30,7 @@ regex = ["dep:regex"]
 fast-glob = ["dep:fast-glob"]
 
 # feature that enables getting file changes
-file-changes = ["fast-glob", "regex", "tokio/process"]
+file-changes = ["fast-glob", "regex", "tokio/process", "tokio/fs"]
 
 # GitHub implementation/support
 github = []
@@ -45,8 +45,7 @@ custom-git-server-impl = []
 # This feature is intended to be a dev-only feature.
 # It is not intended for end users of this library.
 # It used to expedite tests about rate limit violations.
-# This is also used to enable features specific to other tests (e.g., tokio/fs).
-test-skip-wait-for-rate-limit = ["tokio/fs"]
+test-skip-wait-for-rate-limit = []
 
 [package.metadata.docs.rs]
 # extra metadata for builds on docs.rs

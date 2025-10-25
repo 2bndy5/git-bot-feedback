@@ -1,9 +1,9 @@
 use fast_glob::glob_match;
 use std::{
     collections::{HashMap, HashSet},
-    fs,
     path::{Path, PathBuf},
 };
+use tokio::fs;
 
 use super::FileDiffLines;
 use crate::error::DirWalkError;
@@ -44,9 +44,8 @@ impl FileFilter {
     /// A path or pattern is explicitly not ignored if it is prefixed with `!`.
     /// Otherwise it is ignored.
     ///
-    /// # Examples
-    ///
-    /// Some spaces are stripped from each item in the `ignore` list.
+    /// Leading and trailing spaces are stripped from each item in the `ignore` list.
+    /// Also, leading `./` sequences are stripped.
     ///
     /// ```
     /// #[cfg(feature = "file-changes")]
@@ -75,8 +74,8 @@ impl FileFilter {
     ///
     /// It returns 2 sets (in order):
     ///
-    /// - `ignored` paths
-    /// - `not_ignored` paths
+    /// - [`Self::ignored`] paths/patterns
+    /// - [`Self::not_ignored`] paths/patterns
     fn parse_ignore(ignore: &[&str]) -> (HashSet<String>, HashSet<String>) {
         let mut ignored = HashSet::new();
         let mut not_ignored = HashSet::new();
@@ -102,8 +101,8 @@ impl FileFilter {
     /// This function will read a .gitmodules file located in the working directory.
     /// The named submodules' paths will be automatically added to the [`FileFilter::ignored`] set,
     /// unless the submodule's path is already specified in the [`FileFilter::not_ignored`] set.
-    pub fn parse_submodules(&mut self) {
-        if let Ok(read_buf) = fs::read_to_string(".gitmodules") {
+    pub async fn parse_submodules(&mut self) {
+        if let Ok(read_buf) = fs::read_to_string(".gitmodules").await {
             for line in read_buf.split('\n') {
                 let line_trimmed = line.trim();
                 if line_trimmed.starts_with("path") {
@@ -202,6 +201,8 @@ impl FileFilter {
     ///   Not applicable if [`FileFilter::extensions`] is empty.
     /// - Is `file_path` specified in [`FileFilter::not_ignored`]?
     /// - Is `file_path` *not* specified in [`FileFilter::ignored`]?
+    /// - Is `file_path` not a hidden path (any parts of the path start with ".")?
+    ///   Mutually exclusive with last condition; does not apply to "./" or "../".
     pub fn is_not_ignored(&self, file_path: &Path) -> bool {
         if !self.extensions.is_empty() && !file_path.is_dir() {
             let extension = file_path
@@ -233,20 +234,21 @@ impl FileFilter {
     /// conditions are included in the returned map:
     ///
     /// - uses at least 1 of the given [`FileFilter::extensions`].
-    /// - is not specified in the set of [`FileFilter::ignored`] paths/patterns.
     /// - is specified in the internal list [`FileFilter::not_ignored`] paths/patterns
-    ///   (which supersedes [`FileFilter::ignored`] paths/patterns).
-    pub fn list_source_files(
+    /// - is not specified in the set of [`FileFilter::ignored`] paths/patterns and
+    ///   is not a hidden path (starts with ".").
+    pub async fn walk_dir(
         &self,
         root_path: &str,
     ) -> Result<HashMap<String, FileDiffLines>, DirWalkError> {
         let mut files: HashMap<String, FileDiffLines> = HashMap::new();
-        let entries = fs::read_dir(root_path)
+        let mut entries = fs::read_dir(root_path)
+            .await
             .map_err(|e| DirWalkError::ReadDirError(root_path.to_string(), e))?;
-        for entry in entries.filter_map(|p| p.ok()) {
+        while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
             if path.is_dir() {
-                files.extend(self.list_source_files(&path.to_string_lossy())?);
+                files.extend(Box::pin(self.walk_dir(&path.to_string_lossy())).await?);
             } else {
                 let is_valid_src = self.is_not_ignored(&path);
                 if is_valid_src {
@@ -310,17 +312,17 @@ mod tests {
         assert!(file_filter.is_file_not_ignored(&PathBuf::from("./src/file_utils/file_filter.rs")));
     }
 
-    #[test]
-    fn ignore_submodules() {
+    #[tokio::test]
+    async fn ignore_submodules() {
         let mut file_filter = setup_ignore("!pybind11", &[]);
-        file_filter.parse_submodules();
+        file_filter.parse_submodules().await;
         assert!(file_filter.ignored.is_empty());
         assert!(file_filter.is_file_not_ignored(&Path::new("pybind11")));
         set_current_dir("tests/assets/ignored_paths/error").unwrap();
-        file_filter.parse_submodules();
+        file_filter.parse_submodules().await;
         assert!(file_filter.ignored.is_empty());
         set_current_dir("../").unwrap();
-        file_filter.parse_submodules();
+        file_filter.parse_submodules().await;
         println!("submodules ignored = {:?}", file_filter.ignored);
 
         // using Vec::contains() because these files don't actually exist in project files
@@ -337,11 +339,11 @@ mod tests {
 
     // *********************** tests for recursive path search
 
-    #[test]
-    fn walk_dir_recursively() {
+    #[tokio::test]
+    async fn walk_dir_recursively() {
         let extensions = vec!["txt", "json"];
         let file_filter = setup_ignore("target", &extensions);
-        let files = file_filter.list_source_files(".").unwrap();
+        let files = file_filter.walk_dir(".").await.unwrap();
         println!("discovered files: {:?}", files.keys());
         assert!(!files.is_empty());
         for (file, diff_lines) in files {
