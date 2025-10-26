@@ -5,7 +5,9 @@ repos:
   rev: v6.0.0
   hooks:
     - id: trailing-whitespace
+      ignore: ^tests/assets/.*.diff$
     - id: end-of-file-fixer
+      ignore: ^tests/assets/.*.diff$
     - id: check-yaml
     - id: check-toml
     - id: check-added-large-files

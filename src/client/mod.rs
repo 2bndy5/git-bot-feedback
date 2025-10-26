@@ -9,12 +9,21 @@ use std::future::Future;
 use std::time::Duration;
 use std::{env, fmt::Debug};
 
+#[cfg(feature = "gitea")]
+mod gitea;
+#[cfg(feature = "gitea")]
+pub use gitea::GiteaApiClient;
+
 #[cfg(feature = "github")]
 mod github;
 #[cfg(feature = "github")]
 pub use github::GithubApiClient;
 
-#[cfg(not(any(feature = "github", feature = "custom-git-server-impl")))]
+#[cfg(not(any(
+    feature = "github",
+    feature = "gitea",
+    feature = "custom-git-server-impl",
+)))]
 compile_error!(
     "At least one Git server implementation (eg. 'github') should be enabled via `features`"
 );
@@ -43,10 +52,39 @@ pub struct RestApiRateLimitHeaders {
 
 /// A custom trait that templates necessary functionality with a Git server's REST API.
 pub trait RestApiClient {
-    /// This prints a line to indicate the beginning of a related group of log statements.
+    /// This prints a line to indicate the beginning of a related group of [`log`] statements.
+    ///
+    /// For apps' [`log`] implementations, this function's [`log::info`] output needs to have
+    /// no prefixed data.
+    /// Such behavior can be identified by the log target `"CI_LOG_GROUPING"`.
+    ///
+    /// ```
+    /// # struct MyAppLogger;
+    /// impl log::Log for MyAppLogger {
+    /// #    fn enabled(&self, metadata: &log::Metadata) -> bool {
+    /// #        log::max_level() > metadata.level()
+    /// #    }
+    ///     fn log(&self, record: &log::Record) {
+    ///         if record.target() == "CI_LOG_GROUPING" {
+    ///             println!("{}", record.args());
+    ///         } else {
+    ///             println!(
+    ///                 "[{:>5}]{}: {}",
+    ///                 record.level().as_str(),
+    ///                 record.module_path().unwrap_or_default(),
+    ///                 record.args()
+    ///             );
+    ///         }
+    ///     }
+    /// #    fn flush(&self) {}
+    /// }
+    /// ```
     fn start_log_group(name: &str);
 
-    /// This prints a line to indicate the ending of a related group of log statements.
+    /// This prints a line to indicate the ending of a related group of [`log`] statements.
+    ///
+    /// See also [`RestApiClient::start_log_group`] about special handling of
+    /// the log target `"CI_LOG_GROUPING"`.
     fn end_log_group();
 
     /// A convenience method to create the headers attached to all REST API calls.
@@ -110,8 +148,7 @@ pub trait RestApiClient {
                 .map(|output| {
                     if output.status.success() {
                         let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
-                        let files = parse_diff(&diff_str, file_filter, lines_changed_only);
-                        Ok(files)
+                        parse_diff(&diff_str, file_filter, lines_changed_only)
                     } else {
                         let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
                         Err(RestClientError::GitCommandError(err_msg))

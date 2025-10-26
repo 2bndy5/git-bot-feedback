@@ -1,6 +1,6 @@
 //! This submodule implements functionality exclusively specific to Github's REST API.
 
-use super::{GithubApiClient, serde_structs::ThreadComment};
+use super::{GiteaApiClient, serde_structs::ThreadComment};
 use crate::{
     CommentKind, CommentPolicy, RestApiClient, RestApiRateLimitHeaders, RestClientError,
     ThreadCommentOptions,
@@ -9,15 +9,15 @@ use crate::{
 use reqwest::{Client, Method, Url};
 use std::{collections::HashMap, env, fs};
 
-impl GithubApiClient {
-    /// Instantiate a [`GithubApiClient`] object.
+impl GiteaApiClient {
+    /// Instantiate a [`GiteaApiClient`] object.
     pub fn new() -> Result<Self, RestClientError> {
-        let event_name = env::var("GITHUB_EVENT_NAME").unwrap_or(String::from("unknown"));
+        let event_name = env::var("GITEA_EVENT_NAME").unwrap_or(String::from("unknown"));
         let pull_request = {
             match event_name.as_str() {
                 "pull_request" => {
-                    // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
-                    let event_payload_path = env::var("GITHUB_EVENT_PATH")?;
+                    // GITEA_*** env vars cannot be overwritten in CI runners on GitHub.
+                    let event_payload_path = env::var("GITEA_EVENT_PATH")?;
                     // event payload JSON file can be overwritten/removed in CI runners
                     let file_buf = fs::read_to_string(event_payload_path.clone())?;
                     let payload = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
@@ -28,8 +28,8 @@ impl GithubApiClient {
                 _ => -1,
             }
         };
-        // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
-        let gh_api_url = env::var("GITHUB_API_URL").unwrap_or("https://api.github.com".to_string());
+        // GITEA_*** env vars cannot be overwritten in CI runners on GitHub.
+        let gh_api_url = env::var("GITEA_API_URL")?;
         let api_url = Url::parse(gh_api_url.as_str())?;
 
         Ok(Self {
@@ -40,8 +40,8 @@ impl GithubApiClient {
             pull_request,
             event_name,
             api_url,
-            repo: env::var("GITHUB_REPOSITORY")?,
-            sha: env::var("GITHUB_SHA")?,
+            repo: env::var("GITEA_REPOSITORY")?,
+            sha: env::var("GITEA_SHA")?,
             debug_enabled: env::var("ACTIONS_STEP_DEBUG").is_ok_and(|val| &val == "true"),
             rate_limit_headers: RestApiRateLimitHeaders {
                 reset: "x-ratelimit-reset".to_string(),
@@ -102,13 +102,7 @@ impl GithubApiClient {
     ) -> Result<Option<Url>, RestClientError> {
         let mut comment_url = None;
         let mut comments_url = Some(Url::parse_with_params(url.as_str(), &[("page", "1")])?);
-        let repo = format!(
-            "repos/{}{}/comments",
-            // if we got here, then we know it is on a CI runner as self.repo should be known
-            self.repo,
-            if self.is_pr_event() { "/issues" } else { "" },
-        );
-        let base_comment_url = self.api_url.join(&repo).unwrap();
+        let base_comment_url = format!("{}repos/{}/issues/comments", self.api_url, self.repo);
         while let Some(ref endpoint) = comments_url {
             let request =
                 Self::make_api_request(&self.client, endpoint.as_str(), Method::GET, None, None)?;

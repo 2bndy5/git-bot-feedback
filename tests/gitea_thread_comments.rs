@@ -1,7 +1,8 @@
+#![cfg(feature = "gitea")]
 use chrono::Utc;
 use git_bot_feedback::{
     CommentKind, CommentPolicy, RestApiClient, RestClientError, ThreadCommentOptions,
-    client::GithubApiClient,
+    client::GiteaApiClient,
 };
 use mockito::{Matcher, Server};
 use std::{env, fmt::Display, io::Write, path::Path};
@@ -68,14 +69,11 @@ impl Default for TestParams {
 
 async fn setup(lib_root: &Path, test_params: &TestParams) {
     unsafe {
-        env::set_var(
-            "GITHUB_EVENT_NAME",
-            test_params.event_t.to_string().as_str(),
-        );
-        env::set_var("GITHUB_REPOSITORY", REPO);
-        env::set_var("GITHUB_SHA", SHA);
+        env::set_var("GITEA_EVENT_NAME", test_params.event_t.to_string().as_str());
+        env::set_var("GITEA_REPOSITORY", REPO);
+        env::set_var("GITEA_SHA", SHA);
         if !test_params.no_token {
-            env::set_var("GITHUB_TOKEN", TOKEN);
+            env::set_var("GITEA_TOKEN", TOKEN);
         }
         env::set_var("CI", "true");
         if env::var("ACTIONS_STEP_DEBUG").is_err() {
@@ -92,7 +90,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
             })
             .expect("Failed to create mock event payload.");
         unsafe {
-            env::set_var("GITHUB_EVENT_PATH", event_payload_path.path());
+            env::set_var("GITEA_EVENT_PATH", event_payload_path.path());
         }
     }
 
@@ -101,12 +99,12 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
 
     let mut server = Server::new_async().await;
     unsafe {
-        env::set_var("GITHUB_API_URL", server.url());
+        env::set_var("GITEA_API_URL", server.url());
     }
 
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let client = match GithubApiClient::new() {
+    let client = match GiteaApiClient::new() {
         Ok(c) => c,
         Err(e) => {
             assert!(test_params.bad_pr_info);
@@ -118,35 +116,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
 
     let mut mocks = vec![];
 
-    if test_params.event_t == EventType::Push {
-        let mut mock = server
-            .mock(
-                "GET",
-                format!("/repos/{REPO}/commits/{SHA}/comments").as_str(),
-            )
-            .match_header("Accept", "application/vnd.github.raw+json")
-            .match_body(Matcher::Any)
-            .match_query(Matcher::UrlEncoded("page".to_string(), "1".to_string()))
-            .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
-            .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
-            .with_status(
-                if test_params.fail_get_existing_comments || test_params.no_token {
-                    403
-                } else {
-                    200
-                },
-            );
-        if !test_params.no_token {
-            mock = mock.match_header("Authorization", format!("token {TOKEN}").as_str());
-        }
-        if test_params.bad_existing_comments || test_params.no_token {
-            mock = mock.with_body(String::new());
-        } else {
-            mock = mock.with_body_from_file(format!("{asset_path}push_comments_{SHA}.json"));
-        }
-        mock = mock.create();
-        mocks.push(mock);
-    } else {
+    if test_params.event_t == EventType::PullRequest {
         let pr_endpoint = format!("/repos/{REPO}/issues/{PR}/comments");
         for pg in ["1", "2"] {
             let link = if pg == "1" {
@@ -157,7 +127,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
             mocks.push(
                 server
                     .mock("GET", pr_endpoint.as_str())
-                    .match_header("Accept", "application/vnd.github.raw+json")
+                    .match_header("Accept", "application/json")
                     .match_header("Authorization", format!("token {TOKEN}").as_str())
                     .match_body(Matcher::Any)
                     .match_query(Matcher::UrlEncoded("page".to_string(), pg.to_string()))
@@ -170,18 +140,12 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
             );
         }
     }
-    let comment_url = format!(
-        "/repos/{REPO}{}/comments/76453652",
-        if test_params.event_t == EventType::PullRequest {
-            "/issues"
-        } else {
-            ""
-        }
-    );
+    let comment_url = format!("/repos/{REPO}/issues/comments/76453652");
 
     if !test_params.fail_get_existing_comments
         && !test_params.bad_existing_comments
         && !test_params.no_token
+        && test_params.event_t == EventType::PullRequest
     {
         mocks.push(
             server
@@ -205,7 +169,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
     let posting_comment = match test_params.comment_kind {
         CommentKind::Concerns => true,
         CommentKind::Lgtm => !test_params.no_lgtm,
-    };
+    } && test_params.event_t == EventType::PullRequest;
     if posting_comment {
         if test_params.bad_existing_comments
             || test_params.fail_get_existing_comments
@@ -215,15 +179,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
             let mut mock = server
                 .mock(
                     "POST",
-                    format!(
-                        "/repos/{REPO}/{}/comments",
-                        if test_params.event_t == EventType::PullRequest {
-                            format!("issues/{PR}")
-                        } else {
-                            format!("commits/{SHA}")
-                        }
-                    )
-                    .as_str(),
+                    format!("/repos/{REPO}/issues/{PR}/comments").as_str(),
                 )
                 .match_body(new_comment_match)
                 .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
@@ -255,10 +211,10 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
         marker: MARKER.to_string(),
         no_lgtm: test_params.no_lgtm,
     };
-    GithubApiClient::start_log_group("posting comment");
+    GiteaApiClient::start_log_group("posting comment");
     let result = client.post_thread_comment(opts).await;
-    GithubApiClient::end_log_group();
-    assert!(result.is_ok());
+    GiteaApiClient::end_log_group();
+    result.unwrap();
     for mock in mocks {
         mock.assert();
     }

@@ -47,6 +47,12 @@ pub enum RestClientError {
     /// An error emitted when encountering an invalid [`OutputVariable`].
     #[error("OutputVariable is malformed: {0}")]
     OutputVarError(OutputVariable),
+
+    /// An error emitted when parsing a diff fails.
+    #[error("Unrecognized diff starting with: {0}")]
+    #[cfg(feature = "file-changes")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+    MalformedDiffError(String),
 }
 
 /// The possible errors emitted by file utilities
