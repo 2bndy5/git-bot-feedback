@@ -41,7 +41,7 @@ impl GithubApiClient {
         let gh_api_url = env::var("GITHUB_API_URL").unwrap_or("https://api.github.com".to_string());
         let api_url = Url::parse(gh_api_url.as_str())?;
 
-        Ok(GithubApiClient {
+        Ok(Self {
             client: Client::builder()
                 .default_headers(Self::make_headers()?)
                 .user_agent(USER_AGENT)

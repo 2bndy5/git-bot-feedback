@@ -1,12 +1,13 @@
+#![cfg(feature = "gitea")]
 #![cfg(feature = "file-changes")]
 use chrono::Utc;
 mod common;
 use common::logger_init;
-use mockito::{Matcher, Server};
+use mockito::Server;
 use tempfile::{NamedTempFile, TempDir};
 
 use git_bot_feedback::{
-    DiffHunkHeader, FileFilter, LinesChangedOnly, RestApiClient, client::GithubApiClient,
+    DiffHunkHeader, FileFilter, LinesChangedOnly, RestApiClient, client::GiteaApiClient,
 };
 use std::{env, io::Write, path::Path};
 
@@ -34,6 +35,7 @@ const EVENT_PAYLOAD: &str = r#"{"number": 42}"#;
 const RESET_RATE_LIMIT_HEADER: &str = "x-ratelimit-reset";
 const REMAINING_RATE_LIMIT_HEADER: &str = "x-ratelimit-remaining";
 const MALFORMED_RESPONSE_PAYLOAD: &str = "{\"message\":\"Resource not accessible by integration\"}";
+const ASSET_PATH: &str = "tests/assets/file_changes/gitea/patch.diff";
 
 async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     let tmp = TempDir::new().expect("Failed to create a temp dir for test");
@@ -49,12 +51,12 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     }
 
     unsafe {
-        env::set_var("GITHUB_REPOSITORY", REPO);
-        env::set_var("GITHUB_SHA", SHA);
-        env::set_var("GITHUB_TOKEN", TOKEN);
+        env::set_var("GITEA_REPOSITORY", REPO);
+        env::set_var("GITEA_SHA", SHA);
+        env::set_var("GITEA_TOKEN", TOKEN);
         env::set_var("CI", "true");
         env::set_var(
-            "GITHUB_EVENT_NAME",
+            "GITEA_EVENT_NAME",
             if test_params.event_t == EventType::Push {
                 "push"
             } else {
@@ -62,7 +64,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             },
         );
         env::set_var(
-            "GITHUB_EVENT_PATH",
+            "GITEA_EVENT_PATH",
             if test_params.no_event_payload {
                 Path::new("not_a_file.txt")
             } else {
@@ -72,19 +74,16 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     };
     let mut server = Server::new_async().await;
     unsafe {
-        env::set_var("GITHUB_API_URL", server.url());
+        env::set_var("GITEA_API_URL", server.url());
     }
 
     let reset_timestamp = (Utc::now().timestamp() + 60).to_string();
-    let asset_path = format!(
-        "{}/tests/assets/file_changes/github",
-        lib_root.to_str().unwrap()
-    );
+    let asset_path = format!("{}/{ASSET_PATH}", lib_root.to_str().unwrap());
 
     env::set_current_dir(tmp.path()).unwrap();
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let gh_client = GithubApiClient::new();
+    let gh_client = GiteaApiClient::new();
     if test_params.fail_serde_event_payload || test_params.no_event_payload {
         assert!(gh_client.is_err());
         return;
@@ -93,59 +92,38 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
 
     let mut mocks = vec![];
     let diff_end_point = format!(
-        "/repos/{REPO}/{}",
+        "/repos/{REPO}/{}.diff",
         if EventType::PullRequest == test_params.event_t {
-            format!("pulls/{PR}/files")
+            format!("pulls/{PR}")
         } else {
             format!("commits/{SHA}")
         }
     );
-    let pg_count = if test_params.fail_serde_diff || test_params.fail_request {
-        1
+    let mut mock = server
+        .mock("GET", diff_end_point.as_str())
+        .match_header("Accept", "text/plain")
+        .match_header("Authorization", format!("token {TOKEN}").as_str())
+        .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+        .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str());
+    if test_params.fail_serde_diff {
+        mock = mock.with_body(MALFORMED_RESPONSE_PAYLOAD);
+    } else if test_params.fail_request {
+        mock = mock.with_status(404).with_body(MALFORMED_RESPONSE_PAYLOAD);
     } else {
-        2
-    };
-    for pg in 1..=pg_count {
-        let link = if pg == 1 {
-            format!("<{}{diff_end_point}?page=2>; rel=\"next\"", server.url())
-        } else {
-            "".to_string()
-        };
-        let mut mock = server
-            .mock("GET", diff_end_point.as_str())
-            .match_header("Accept", "application/vnd.github.raw+json")
-            .match_header("Authorization", format!("token {TOKEN}").as_str())
-            .match_query(Matcher::UrlEncoded("page".to_string(), pg.to_string()))
-            .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
-            .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
-            .with_header("link", link.as_str());
-        if test_params.fail_serde_diff {
-            mock = mock.with_body(MALFORMED_RESPONSE_PAYLOAD);
-        } else if test_params.fail_request {
-            mock = mock.with_status(404).with_body(MALFORMED_RESPONSE_PAYLOAD);
-        } else {
-            mock = mock.with_body_from_file(format!(
-                "{asset_path}/{}_files_pg{pg}.json",
-                if test_params.event_t == EventType::Push {
-                    "push"
-                } else {
-                    "pr"
-                }
-            ));
-        }
-        mocks.push(mock.create());
+        mock = mock.with_body_from_file(asset_path);
     }
+    mocks.push(mock.create());
 
     let log_scope = if test_params.event_t == EventType::Push {
         Some("push")
     } else {
         None
     };
-    let file_filter = FileFilter::new(&["", "!src/*"], &["cpp", "hpp"], log_scope);
-    assert!(file_filter.is_file_ignored(&Path::new("./Cargo.toml")));
+    let file_filter = FileFilter::new(&["", "!src/*"], &["rs", "yml"], log_scope);
     let files = client
-        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Off, None, false)
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Off)
         .await;
+    assert!(file_filter.is_file_ignored(&Path::new("./Cargo.toml")));
     match files {
         Err(e) => {
             if !(test_params.fail_serde_diff || test_params.fail_request) {
@@ -153,13 +131,13 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             }
         }
         Ok(files) => {
-            assert_eq!(files.len(), 2);
+            assert_eq!(files.len(), 5);
             for (file, diff_ctx) in files {
-                assert!(["src/demo.cpp", "src/demo.hpp"].contains(&file.as_str()));
-                if file == "src/demo.hpp" {
+                assert!(file.starts_with("src/"));
+                if file == "src/lib.rs" {
                     let diff_hunk = DiffHunkHeader {
-                        old_start: 5,
-                        old_lines: 10,
+                        old_start: 1,
+                        old_lines: 20,
                         new_start: 5,  // don't care
                         new_lines: 10, // don't care
                     };
@@ -167,9 +145,15 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
                     let diff_hunk = DiffHunkHeader {
                         old_start: 5, // don't care
                         old_lines: 0, // this is why we don't care
-                        new_start: 4,
-                        new_lines: 12,
+                        new_start: 30,
+                        new_lines: 10, // don't care because old_lines is 0;
+                                       // proposed hunk's old lines interpreted as
+                                       // spanning 1 line at new_start
                     };
+                    eprintln!(
+                        "Checking that hunk {:?} is not in diff for file {:?}",
+                        diff_hunk, diff_ctx
+                    );
                     assert!(diff_ctx.is_hunk_in_diff(&diff_hunk).is_none());
                 }
             }

@@ -105,6 +105,12 @@ pub enum RestClientError {
     /// An error emitted when encountering an invalid [`OutputVariable`](crate::output_variable::OutputVariable).
     #[error("OutputVariable is malformed: {0}")]
     OutputVar(#[from] OutputVariableError),
+
+    /// An error emitted when parsing a diff fails.
+    #[error("Unrecognized diff starting with: {0}")]
+    #[cfg(feature = "file-changes")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+    MalformedDiffError(String),
 }
 
 impl RestClientError {

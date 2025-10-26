@@ -17,7 +17,7 @@ export def "nur test" [
         llvm-cov
         --no-report
         --features
-        "test-skip-wait-for-rate-limit,file-changes"
+        "test-skip-wait-for-rate-limit,file-changes,gitea"
         nextest
         --color
         always
@@ -48,7 +48,7 @@ export def "nur test lcov" [] {
 
 # Run examples in doc comments as unit tests.
 export def "nur test docs" [] {
-    run-cmd cargo test --doc --features "file-changes"
+    run-cmd cargo test --doc --features "file-changes,gitea"
 }
 
 # Build examples.
@@ -82,7 +82,7 @@ export def "nur docs" [
 export def "nur lint" [
     --check (-c) # Check only, do not apply fixes
 ] {
-    let clippy_args = [cargo, clippy, --features, file-changes]
+    let clippy_args = [cargo, clippy, --features, "file-changes,gitea"]
     if $check {
         run-cmd ...$clippy_args -- -D warnings
         run-cmd cargo fmt -- --check

@@ -36,6 +36,9 @@ file-changes = ["fast-glob", "regex"]
 # GitHub implementation/support
 github = []
 
+# Gitea implementation/support
+gitea = []
+
 # features enabled by default
 default = ["github"]
 

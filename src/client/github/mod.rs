@@ -180,7 +180,12 @@ impl RestApiClient for GithubApiClient {
                 .send_api_request(&self.client, request, &self.rate_limit_headers)
                 .await
                 .map_err(|e| e.add_request_context("get list of changed files"))?;
-            url = self.try_next_page(response.headers());
+            url = Self::try_next_page(response.headers());
+            if let Err(e) = response.error_for_status_ref() {
+                let body = response.text().await?;
+                log::error!("Failed to get list of changed files: {e:?}\n{body}");
+                return Err(RestClientError::Request(e));
+            }
             let body = response.text().await?;
             let files_list = if !is_pr {
                 let json_value: serde_structs::PushEventFiles = serde_json::from_str(&body)
@@ -204,7 +209,7 @@ impl RestApiClient for GithubApiClient {
                         old = file.previous_filename.unwrap_or(file.filename.clone()),
                         new = file.filename,
                     );
-                    for (name, info) in parse_diff(&diff, file_filter, lines_changed_only) {
+                    for (name, info) in parse_diff(&diff, file_filter, lines_changed_only)? {
                         files.entry(name).or_insert(info);
                     }
                 } else if file.changes == 0 {

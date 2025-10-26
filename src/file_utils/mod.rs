@@ -110,6 +110,9 @@ impl FileDiffLines {
 
     /// Is the range from [`DiffHunkHeader`] contained in a single item of
     /// [`FileDiffLines::diff_hunks`]?
+    /// 
+    /// Useful to see if a hunk of a proposed patch falls within the diff of
+    /// the current commit's changes.
     pub fn is_hunk_in_diff(&self, hunk: &DiffHunkHeader) -> Option<(u32, u32)> {
         let (start_line, end_line) = if hunk.old_lines > 0 {
             // if old hunk's total lines is > 0
