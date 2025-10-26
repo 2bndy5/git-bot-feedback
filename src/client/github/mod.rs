@@ -14,11 +14,14 @@ use reqwest::{Client, Method, Url};
 
 use crate::{
     FileAnnotation, OutputVariable, ReviewAction, ReviewOptions, ThreadCommentOptions,
-    client::{ClientError, RestApiClient, RestApiRateLimitHeaders},
+    client::{
+        ClientError, RestApiClient, RestApiRateLimitHeaders,
+        common::{PullRequestInfo, PullRequestState},
+    },
 };
 mod graphql;
 mod serde_structs;
-use serde_structs::{FullReview, PullRequestInfo, PullRequestState, ReviewDiffComment};
+use serde_structs::{FullReview, ReviewDiffComment};
 mod specific_api;
 
 #[cfg(feature = "file-changes")]

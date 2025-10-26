@@ -1,0 +1,2616 @@
+diff --git a/.gitattributes b/.gitattributes
+index a110ae0..4c9a5d9 100644
+--- a/.gitattributes
++++ b/.gitattributes
+@@ -14,6 +14,7 @@
+ *.lock text eol=lf
+ .gitattributes text eol=lf
+ .gitignore text eol=lf
++**.gitmodules text eol=lf
+ *.txt text eol=lf
+ *.nu text eol=lf
+ nurfile text eol=lf
+diff --git a/.github/common.nu b/.github/common.nu
+new file mode 100644
+index 0000000..f216f81
+--- /dev/null
++++ b/.github/common.nu
+@@ -0,0 +1,11 @@
++
++export def --wrapped run-cmd [...cmd: string] {
++    let app = if ($cmd | first) == "cargo" {
++        ($cmd | first 2) | str join ' '
++    } else {
++        ($cmd | first)
++    }
++    print $"(ansi blue)\nRunning(ansi reset) ($cmd | str join ' ')"
++    let elapsed = timeit {|| ^($cmd | first) ...($cmd | skip 1)}
++    print $"(ansi magenta)($app) took ($elapsed)(ansi reset)"
++}
+diff --git a/.github/dependabot.yml b/.github/dependabot.yml
+index 8cdfc0f..40f3292 100644
+--- a/.github/dependabot.yml
++++ b/.github/dependabot.yml
+@@ -21,3 +21,11 @@ updates:
+       cargo:
+         patterns:
+           - "*"
++  - package-ecosystem: pip
++    directory: .github/
++    schedule:
++      interval: "monthly"
++    groups:
++      pip:
++        patterns:
++          - "*"
+diff --git a/.github/requirements.txt b/.github/requirements.txt
+new file mode 100644
+index 0000000..5e9e449
+--- /dev/null
++++ b/.github/requirements.txt
+@@ -0,0 +1 @@
++git-cliff==2.10.0
+diff --git a/.github/workflows/bump-n-release.nu b/.github/workflows/bump-n-release.nu
+index 62be356..18de8eb 100644
+--- a/.github/workflows/bump-n-release.nu
++++ b/.github/workflows/bump-n-release.nu
+@@ -27,20 +27,26 @@
+ #
+ #    NOTE: In a CI run, the GITHUB_TOKEN env var to authenticate access.
+ #    Locally, you can use `gh login` to interactively authenticate the user account.
++use ../common.nu run-cmd
+ 
+-
+-let IN_CI = $env | get --optional CI | default "false" | ($in == "true") or ($in == true)
++export def is-in-ci [] {
++    $env | get --optional CI | default "false" | ($in == "true") or ($in == true)
++}
+ 
+ # Bump the version per the given component name (major, minor, patch)
+-def bump-version [
++export def bump-version [
+     component: string # the version component to bump
++    --dry-run, # do not actually write changes to disk
+ ] {
+     mut args = [--bump $component]
+-    if (not $IN_CI) {
++    if ($dry_run) {
+         $args = $args | append "--dry-run"
+     }
+     let result = (
+-        cargo set-version ...$args e>| lines
++        (^cargo set-version ...$args)
++        | complete
++        | get stderr
++        | lines
+         | first
+         | str trim
+         | parse "Upgrading {pkg} from {old} to {new}"
+@@ -54,7 +60,7 @@ def bump-version [
+ #
+ # If `--unreleased` is asserted, then the `git-cliff` output will be saved to .config/ReleaseNotes.md.
+ # Otherwise, the generated changes will span the entire git history and be saved to CHANGELOG.md.
+-def gen-changes [
++export def gen-changes [
+     tag: string, # the new version tag to use for unreleased changes.
+     --unreleased, # only generate changes from unreleased version.
+ ] {
+@@ -68,12 +74,12 @@ def gen-changes [
+         $args = $args | append [--output, $out_path]
+         {out_path: $out_path, log_prefix: "Updated"}
+     }
+-    ^git-cliff ...$args
++    run-cmd git-cliff ...$args
+     print ($prompt | format pattern "{log_prefix} {out_path}")
+ }
+ 
+ # Is the the default branch currently checked out?
+-def is-on-main [] {
++export def is-on-main [] {
+     let branch = (
+         ^git branch
+         | lines
+@@ -85,23 +91,13 @@ def is-on-main [] {
+     $branch
+ }
+ 
+-# Publish this package to crates.io
+-#
+-# This requires a token in $env.CARGO_REGISTRY_TOKEN for authentication.
+-def deploy-crate [] {
+-    ^cargo publish
+-}
+-
+-# Publish a GitHub Release for the given tag.
+-#
+-# This requires a token in $env.GITHUB_TOKEN for authentication.
+-def gh-release [tag: string] {
+-    ^gh release create $tag --notes-file ".config/ReleaseNotes.md"
+-}
+-
+-
+-def main [component: string] {
+-    let ver = bump-version $component
++export def main [component: string] {
++    let is_ci = is-in-ci
++    let ver = if $is_ci {
++        bump-version --dry-run $component
++    } else {
++        bump-version $component
++    }
+     let tag = $"v($ver)"
+     gen-changes $tag
+     gen-changes $tag --unreleased
+@@ -109,15 +105,14 @@ def main [component: string] {
+     if not $is_main {
+         print $"(ansi yellow)Not checked out on default branch!(ansi reset)"
+     }
+-    if $IN_CI and $is_main {
+-        git config --global user.name $"($env.GITHUB_ACTOR)"
+-        git config --global user.email $"($env.GITHUB_ACTOR_ID)+($env.GITHUB_ACTOR)@users.noreply.github.com"
+-        git add --all
+-        git commit -m $"build: bump version to ($tag)"
+-        git push
++    if $is_ci and $is_main {
++        run-cmd git config --global user.name $"($env.GITHUB_ACTOR)"
++        run-cmd git config --global user.email $"($env.GITHUB_ACTOR_ID)+($env.GITHUB_ACTOR)@users.noreply.github.com"
++        run-cmd git add --all
++        run-cmd git commit -m $"build: bump version to ($tag)"
++        run-cmd git push
+         print $"Deploying ($tag)"
+-        deploy-crate
+-        gh-release $tag
++        run-cmd gh release create $tag --notes-file ".config/ReleaseNotes.md"
+     } else if $is_main {
+         print $"(ansi yellow)Not deploying from local clone.(ansi reset)"
+     }
+diff --git a/.github/workflows/bump-n-release.yml b/.github/workflows/bump-n-release.yml
+index 3118359..01ca7e7 100644
+--- a/.github/workflows/bump-n-release.yml
++++ b/.github/workflows/bump-n-release.yml
+@@ -22,44 +22,73 @@ on:
+           - patch
+           - rc
+ 
++permissions: {}
++
+ jobs:
+   bump-release:
+     if: github.event_name == 'workflow_dispatch'
+     runs-on: ubuntu-latest
++    # permissions needed by the BUMP_N_RELEASE token:
++    # permissions:
++    #   contents: write
++    #   pull-requests: read
++    # BUMP_N_RELEASE (PAT) token needed to trigger other CI
++    # permissions used by the `github.token` (which cannot trigger other CI):
++    permissions:
++      contents: read
+     steps:
+       - uses: actions/checkout@v5
+         with:
+           token: ${{ secrets.BUMP_N_RELEASE }}
+           fetch-depth: 0
++          fetch-tags: true
++          persist-credentials: true # needed to git push changes
+ 
+       - name: Setup nushell
+-        uses: hustcer/setup-nu@v3
++        uses: hustcer/setup-nu@985d59ec83ae3e3418f9d36471cda38b9d8b9879 # v3.20
+         with:
+           version: "*"
+ 
+-      - uses: cargo-bins/cargo-binstall@main
+-      - run: cargo binstall -y git-cliff cargo-edit
++      - uses: cargo-bins/cargo-binstall@a66119fbb1c952daba62640c2609111fe0803621 # v1.15.7
++      - name: Install git-cliff
++        run: cargo binstall -y git-cliff
++        env:
++          GITHUB_TOKEN: ${{ github.token }}
++      - name: Install cargo-edit
++        run: >-
++          cargo install
++          --no-default-features
++          --features set-version
++          --bin cargo-set-version
++          cargo-edit
+ 
+       - name: Bump ${{ inputs.component }} version
+         env:
+-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+           GITHUB_TOKEN: ${{ secrets.BUMP_N_RELEASE }}
+         run: nu .github/workflows/bump-n-release.nu ${{ inputs.component }}
+ 
+-  update-changelog:
++  unreleased-changes:
+     if: github.event_name != 'workflow_dispatch'
+     runs-on: ubuntu-latest
++    permissions:
++      contents: read
++      pull-requests: read
+     steps:
+       - uses: actions/checkout@v5
+         with:
+           fetch-depth: 0
+-      - name: Generate a changelog
+-        uses: orhun/git-cliff-action@v4
+-        id: git-cliff
++          fetch-tags: true
++          persist-credentials: false
++      - uses: actions/setup-python@v6
++        id: python-setup
++      - name: Install uv
++        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+         with:
+-          config: .config/cliff.toml
+-          args: --unreleased
++          enable-cache: false
++      - name: Generate a changelog
+         env:
+-          OUTPUT: ${{ runner.temp }}/changes.md
++          GIT_CLIFF_CONFIG: .config/cliff.toml
+           GITHUB_REPO: ${{ github.repository }}
+-      - run: cat "${{ runner.temp }}/changes.md" >> "$GITHUB_STEP_SUMMARY"
++        run: >-
++          uvx --constraints .github/requirements.txt
++          git-cliff --unreleased --output "${GITHUB_STEP_SUMMARY}"
+diff --git a/.github/workflows/pre-commit.yml b/.github/workflows/pre-commit.yml
+index 54a484e..f985c96 100644
+--- a/.github/workflows/pre-commit.yml
++++ b/.github/workflows/pre-commit.yml
+@@ -6,12 +6,15 @@ on:
+   pull_request:
+     branches: [main]
+ 
++permissions: {}
++
+ jobs:
+   all-files:
+-    # also lints python files
+     runs-on: ubuntu-latest
+     steps:
+       - uses: actions/checkout@v5
++        with:
++          persist-credentials: false
+       - uses: actions/setup-python@v6
+         id: python-setup
+       - name: Cache pre-commit environments
+@@ -25,6 +28,8 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - uses: actions/checkout@v5
++        with:
++          persist-credentials: false
+       - name: Setup Rust
+         run: rustup update --no-self-update
+       - name: Cache deps
+@@ -32,20 +37,64 @@ jobs:
+         with:
+           path: ~/.cargo
+           key: cargo-lib-${{ hashFiles('lib/src/**', 'lib/Cargo.toml') }}
+-      - run: cargo clippy
+-      - run: cargo fmt --check
++      - name: Install cargo-binstall
++        uses: cargo-bins/cargo-binstall@a66119fbb1c952daba62640c2609111fe0803621 # v1.15.7
++      - name: Install nur
++        env:
++          GITHUB_TOKEN: ${{ github.token }}
++        run: cargo binstall -y nur
++      - run: nur lint --check
+ 
+-  conventional-commit:
++  check-pr-title:
++    name: Check PR title
+     if: github.event_name == 'pull_request'
+     runs-on: ubuntu-latest
++    permissions:
++      contents: read
+     steps:
+       - uses: actions/checkout@v5
++        with:
++          persist-credentials: false
+       - run: rustup update --no-self-update
+       - name: Install cargo-binstall
+-        uses: cargo-bins/cargo-binstall@main
++        uses: cargo-bins/cargo-binstall@a66119fbb1c952daba62640c2609111fe0803621 # v1.15.7
+       - name: Install committed
++        env:
++          GITHUB_TOKEN: ${{ github.token }}
+         run: cargo binstall -y committed
+-      - name: Check PR title
++      - name: Get PR title
++        id: get-title
++        env:
++          GH_REPO: ${{ github.repository }}
++          GH_TOKEN: ${{ github.token }}
++          PR_NUMBER: ${{ github.event.pull_request.number }}
++        run: |-
++          pr_title=$(gh pr view "${PR_NUMBER}" --repo "${GH_REPO}" --json "title" -q ".title")
++          echo "title=${pr_title}" >> "${GITHUB_OUTPUT}"
++      - name: conventional-commit
++        env:
++          PR_TITLE: "${{ steps.get-title.outputs.title }}"
++        run: echo "${PR_TITLE}" | committed --config .config/committed.toml --commit-file -
++      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
++        with:
++          node-version: latest
++      - name: spell check
++        env:
++          PR_TITLE: "${{ steps.get-title.outputs.title }}"
++        run: echo "${PR_TITLE}" | npx cspell-cli lint stdin
++
++  lint-ci:
++    name: Lint CI workflows
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v5
++        with:
++          persist-credentials: false
++      - uses: actions/setup-python@v6
++        id: python-setup
++      - name: Run zizmor
++        env:
++          GH_TOKEN: ${{ github.token }}
+         run: >-
+-          echo "${{ github.event.pull_request.title }}"
+-          | committed --config .config/committed.toml --commit-file -
++          pipx run
++          zizmor --format github --color always .github/workflows
+diff --git a/.github/workflows/rust.yml b/.github/workflows/rust.yml
+index e29e8f3..34b2b26 100644
+--- a/.github/workflows/rust.yml
++++ b/.github/workflows/rust.yml
+@@ -10,6 +10,8 @@ on:
+       - '**/*.rs'
+       - Cargo.toml
+       - .github/workflows/rust.yml
++    tags:
++      - 'v*'
+   pull_request:
+     branches: [main]
+     paths:
+@@ -26,30 +28,51 @@ jobs:
+     runs-on: ubuntu-latest
+     steps:
+       - uses: actions/checkout@v5
++        with:
++          persist-credentials: false
+       - name: Setup Rust
+         run: rustup update --no-self-update
+       - name: Install cargo-binstall
+-        uses: cargo-bins/cargo-binstall@main
+-      - name: Install cargo-llvm-cov and cargo-nextest
+-        run: cargo binstall -y cargo-nextest cargo-llvm-cov
++        uses: cargo-bins/cargo-binstall@a66119fbb1c952daba62640c2609111fe0803621 # v1.15.7
++      - name: Install cargo-llvm-cov, cargo-nextest, and nur
++        env:
++          GITHUB_TOKEN: ${{ github.token }}
++        run: cargo binstall -y cargo-nextest cargo-llvm-cov nur
+       - name: Cache deps
+-        uses: actions/cache@v4
++        uses: actions/cache@v4  # zizmor: ignore[cache-poisoning]
+         with:
+           path: ~/.cargo
+           key: cargo-lib-${{ hashFiles('src/**', 'Cargo.toml') }}
+       - run: rustup component add llvm-tools-preview
+         # this enables a tool (for default toolchain) needed to measure code coverage.
++      - name: run docs examples
++        run: nur test docs
+       - name: Run tests
+-        run: >-
+-          cargo llvm-cov --no-report nextest
+-          --lib
+-          --tests
+-          --color always
+-          --profile ci
++        run: nur test --profile ci
+       - name: Generate coverage reports
+-        run: cargo llvm-cov report --lcov --output-path lcov.info
+-      - uses: codecov/codecov-action@v5
++        run: nur test lcov
++      - uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
+         with:
+           token: ${{ secrets.CODECOV_TOKEN }}
+           files: lcov.info
+           fail_ci_if_error: true
++
++  deploy:
++    needs: [test]
++    runs-on: ubuntu-latest
++    if: startsWith(github.ref, 'refs/tags/v')
++    permissions:
++      id-token: write
++    steps:
++      - uses: actions/checkout@v5
++        with:
++          persist-credentials: false
++      - name: Setup Rust
++        run: rustup update --no-self-update
++      - name: Establish trusted publishing token
++        uses: rust-lang/crates-io-auth-action@041cce5b4b821e6b0ebc9c9c38b58cac4e34dcc2 # v1.0.2
++        id: auth
++      - name: Publish to crates.io
++        env:
++          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
++        run: cargo publish
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+index 59f02e4..0324f5d 100644
+--- a/.pre-commit-config.yaml
++++ b/.pre-commit-config.yaml
+@@ -2,7 +2,7 @@
+ # See https://pre-commit.com/hooks.html for more hooks
+ repos:
+ - repo: https://github.com/pre-commit/pre-commit-hooks
+-  rev: v5.0.0
++  rev: v6.0.0
+   hooks:
+     - id: trailing-whitespace
+     - id: end-of-file-fixer
+@@ -12,6 +12,6 @@ repos:
+     - id: mixed-line-ending
+       args: ['--fix=lf']
+ - repo: https://github.com/streetsidesoftware/cspell-cli
+-  rev: v9.1.0
++  rev: v9.2.0
+   hooks:
+     - id: cspell
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+new file mode 100644
+index 0000000..976926f
+--- /dev/null
++++ b/.vscode/settings.json
+@@ -0,0 +1,5 @@
++{
++    "rust-analyzer.cargo.features": [
++        "file-changes"
++    ]
++}
+diff --git a/Cargo.lock b/Cargo.lock
+index f1f369d..2fa11e7 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -20,6 +20,12 @@ dependencies = [
+  "libc",
+ ]
+ 
++[[package]]
++name = "arrayvec"
++version = "0.7.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
++
+ [[package]]
+ name = "assert-json-diff"
+ version = "2.0.2"
+@@ -155,6 +161,15 @@ dependencies = [
+  "windows-sys 0.60.2",
+ ]
+ 
++[[package]]
++name = "fast-glob"
++version = "1.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3d26eec0ae9682c457cb0f85de67ad417b716ae852736a5d94c2ad6e92a997c9"
++dependencies = [
++ "arrayvec",
++]
++
+ [[package]]
+ name = "fastrand"
+ version = "2.3.0"
+@@ -258,8 +273,10 @@ name = "git-bot-feedback"
+ version = "0.1.4"
+ dependencies = [
+  "chrono",
++ "fast-glob",
+  "log",
+  "mockito",
++ "regex",
+  "reqwest",
+  "serde",
+  "serde_json",
+@@ -878,9 +895,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "regex"
+-version = "1.11.1"
++version = "1.12.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b544ef1b4eac5dc2db33ea63606ae9ffcfac26c1416a2806ae0bf5f56b201191"
++checksum = "843bc0191f75f3e22651ae5f1e72939ab2f72a4bc30fa80a066bd66edefc24d4"
+ dependencies = [
+  "aho-corasick",
+  "memchr",
+@@ -890,9 +907,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "regex-automata"
+-version = "0.4.9"
++version = "0.4.13"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "809e8dc61f6de73b46c85f4c96486310fe304c434cfa43669d7b40f711150908"
++checksum = "5276caf25ac86c8d810222b3dbb938e512c55c6831a10f3e6ed1c93b84041f1c"
+ dependencies = [
+  "aho-corasick",
+  "memchr",
+@@ -1116,6 +1133,15 @@ version = "1.3.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+ 
++[[package]]
++name = "signal-hook-registry"
++version = "1.4.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b2a4719bff48cee6b39d12c020eeb490953ad2443b7055bd0b21fca26bd8c28b"
++dependencies = [
++ "libc",
++]
++
+ [[package]]
+ name = "similar"
+ version = "2.7.0"
+@@ -1262,6 +1288,7 @@ dependencies = [
+  "mio",
+  "parking_lot",
+  "pin-project-lite",
++ "signal-hook-registry",
+  "socket2",
+  "tokio-macros",
+  "windows-sys 0.61.2",
+diff --git a/Cargo.toml b/Cargo.toml
+index 077e5ce..b7cbc8b 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -15,6 +15,8 @@ serde_json = "1.0.145"
+ thiserror = "2.0.17"
+ tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }
+ url = "2.5.7" # pinned to whatever reqwest uses
++regex = { version = "1.12.2", optional = true }
++fast-glob = { version = "1.0.0", optional = true }
+ 
+ [dev-dependencies]
+ mockito = "1.7.0"
+@@ -24,6 +26,28 @@ tempfile = "3.23.0"
+ chrono = {version = "0.4.42", features = ["now"]}
+ 
+ [features]
++regex = ["dep:regex"]
++fast-glob = ["dep:fast-glob"]
++
++# feature that enables getting file changes
++file-changes = ["fast-glob", "regex", "tokio/process", "tokio/fs"]
++
++# GitHub implementation/support
++github = []
++
++# features enabled by default
++default = ["github"]
++
++# optional feature to silence a compiler error if/when
++# no features enable any git server implementations
++custom-git-server-impl = []
++
+ # This feature is intended to be a dev-only feature.
+-# It used to expedite tests about rate limit violations
++# It is not intended for end users of this library.
++# It used to expedite tests about rate limit violations.
+ test-skip-wait-for-rate-limit = []
++
++[package.metadata.docs.rs]
++# extra metadata for builds on docs.rs
++features = ["file-changes"]
++rustdoc-args = ["--cfg", "docsrs"]
+diff --git a/README.md b/README.md
+index 1522b37..d826bc6 100644
+--- a/README.md
++++ b/README.md
+@@ -22,6 +22,15 @@ Feedback on a git server using this library can be in the form of
+ 
+ More features are planned, like PR reviews and file annotations.
+ 
++## Optional Features
++
++These [cargo features][dep-features] are optional and disabled by default:
++
++- `file-changes`: ability to list files changed with information like
++  which lines have additions or which lines are shown in the diff.
++
++[dep-features]: https://doc.rust-lang.org/cargo/reference/features.html#dependency-features
++
+ ## Supported git servers
+ 
+ Initially this project os designed to work with GitHub.
+diff --git a/cspell.config.yml b/cspell.config.yml
+index abae8dc..c6d3214 100644
+--- a/cspell.config.yml
++++ b/cspell.config.yml
+@@ -5,24 +5,30 @@ words:
+   - bndy
+   - chrono
+   - clippy
++  - docsrs
+   - endfor
+   - endgroup
+   - endmacro
+   - Gitea
++  - gitmodules
+   - hustcer
+   - nextest
+   - nurfile
+   - nushell
+   - orhun
+   - pipx
++  - pybind
+   - reqwest
+   - rustc
++  - rustdoc
+   - rustup
+   - serde
++  - splitn
+   - startswith
+   - thiserror
+   - timeit
+   - topo
++  - zizmor
+ ignorePaths:
+   - .gitignore
+-  - tests/comment_test_assets/**/*.json
++  - tests/assets/**/*.json
+diff --git a/nurfile b/nurfile
+index bc270c0..112cd44 100644
+--- a/nurfile
++++ b/nurfile
+@@ -1,23 +1,11 @@
+-
+-
+-def --wrapped run-cmd [...cmd: string] {
+-    let app = if ($cmd | first) == "cargo" {
+-        ($cmd | first 2) | str join ' '
+-    } else {
+-        ($cmd | first)
+-    }
+-    print $"(ansi blue)\nRunning(ansi reset) ($cmd | str join ' ')"
+-    let elapsed = timeit {|| ^($cmd | first) ...($cmd | skip 1)}
+-    print $"(ansi magenta)($app) took ($elapsed)(ansi reset)"
+-}
+-
++use .github/common.nu run-cmd
+ 
+ # Run the test suite
+ #
+ # Requires the following installed:
+ # - cargo-llvm-cov
+ # - cargo-nextest
+-def "nur test" [
++export def "nur test" [
+     --clean (-c) # Purge previous test artifacts. Use to refresh coverage data.
+     --profile (-p): string = 'default' # The profile defined in .config/nextest.toml
+ ] {
+@@ -29,7 +17,7 @@ def "nur test" [
+         llvm-cov
+         --no-report
+         --features
+-        test-skip-wait-for-rate-limit
++        "test-skip-wait-for-rate-limit,file-changes"
+         nextest
+         --color
+         always
+@@ -44,7 +32,7 @@ def "nur test" [
+ #
+ # Pass "--open" to load the built report in your browser
+ # Requires cargo-llvm-cov installed.
+-def --wrapped "nur test llvm-cov" [
++export def --wrapped "nur test llvm-cov" [
+     ...args: string # Additional arguments for `llvm-cov report --html`.
+ ] {
+     run-cmd cargo llvm-cov report --html ...$args
+@@ -54,16 +42,20 @@ def --wrapped "nur test llvm-cov" [
+ # Generate lcov.info
+ #
+ # Useful for codecov uploads or VSCode extensions like "Coverage Gutters".
+-def "nur test lcov" [] {
++export def "nur test lcov" [] {
+     run-cmd cargo llvm-cov report --lcov --output-path lcov.info
+ }
+ 
++# Run examples in doc comments as unit tests.
++export def "nur test docs" [] {
++    run-cmd cargo test --doc --features "file-changes"
++}
+ 
+ # Rust API docs
+-def "nur docs" [
++export def "nur docs" [
+     --open (-o) # Open the built docs in your browser
+ ] {
+-    mut cmd = [cargo doc --no-deps --lib]
++    mut cmd = [cargo doc --no-deps --lib --all-features]
+     if $open {
+         $cmd = $cmd | append '--open'
+     }
+@@ -72,22 +64,28 @@ def "nur docs" [
+ 
+ 
+ # Run clippy and rustfmt (on packages only)
+-def "nur lint" [] {
+-    run-cmd ...(
+-        [cargo clippy --fix --allow-dirty --allow-staged]
+-    )
+-    run-cmd ...[cargo fmt]
++export def "nur lint" [
++    --check (-c) # Check only, do not apply fixes
++] {
++    let clippy_args = [cargo, clippy, --features, file-changes]
++    if $check {
++        run-cmd ...$clippy_args -- -D warnings
++        run-cmd cargo fmt -- --check
++    } else {
++        run-cmd ...$clippy_args --fix --allow-dirty --allow-staged
++        run-cmd cargo fmt
++    }
+ }
+ 
+ # Run pre-commit hooks manually.
+ #
+ # Requires `uv` installed.
+-def "nur pre-commit" [
++export def "nur pre-commit" [
+     --changes-only (-c), # only run pre-commit on changed files (default is all files)
+     --upgrade (-u), # upgrade pre-commit hooks defined in the .pre-commit-config.yaml
+ ] {
+     if $upgrade {
+-        run-cmd ...[uvx pre-commit autoupdate]
++        run-cmd uvx pre-commit autoupdate
+     }
+     mut args = [pre-commit, run]
+     if (not $changes_only) {
+diff --git a/src/client/github/mod.rs b/src/client/github/mod.rs
+index 5730d7a..6ec0e62 100644
+--- a/src/client/github/mod.rs
++++ b/src/client/github/mod.rs
+@@ -16,6 +16,13 @@ use std::{env, fs::OpenOptions, io::Write};
+ mod serde_structs;
+ mod specific_api;
+ 
++#[cfg(feature = "file-changes")]
++use crate::{FileDiffLines, FileFilter, LinesChangedOnly, client::send_api_request, parse_diff};
++#[cfg(feature = "file-changes")]
++use reqwest::Method;
++#[cfg(feature = "file-changes")]
++use std::{collections::HashMap, path::Path};
++
+ /// A structure to work with Github REST API.
+ pub struct GithubApiClient {
+     /// The HTTP request client to be used for all REST API calls.
+@@ -45,12 +52,41 @@ pub struct GithubApiClient {
+ 
+ // implement the RestApiClient trait for the GithubApiClient
+ impl RestApiClient for GithubApiClient {
+-    /// This prints a line to indicate the beginning of a related group of log statements.
++    /// This prints a line to indicate the beginning of a related group of [`log`] statements.
++    ///
++    /// For apps' [`log`] implementations, this function's [`log::info`] output needs to have
++    /// no prefixed data.
++    /// Such behavior can be identified by the log target `"CI_LOG_GROUPING"`.
++    ///
++    /// ```
++    /// # struct MyAppLogger;
++    /// impl log::Log for MyAppLogger {
++    /// #    fn enabled(&self, metadata: &log::Metadata) -> bool {
++    /// #        log::max_level() > metadata.level()
++    /// #    }
++    ///     fn log(&self, record: &log::Record) {
++    ///         if record.target() == "CI_LOG_GROUPING" {
++    ///             println!("{}", record.args());
++    ///         } else {
++    ///             println!(
++    ///                 "[{:>5}]{}: {}",
++    ///                 record.level().as_str(),
++    ///                 record.module_path().unwrap_or_default(),
++    ///                 record.args()
++    ///             );
++    ///         }
++    ///     }
++    /// #    fn flush(&self) {}
++    /// }
++    /// ```
+     fn start_log_group(name: &str) {
+         log::info!(target: "CI_LOG_GROUPING", "::group::{name}");
+     }
+ 
+-    /// This prints a line to indicate the ending of a related group of log statements.
++    /// This prints a line to indicate the ending of a related group of [`log`] statements.
++    ///
++    /// See also [`GithubApiClient::start_log_group`] about special handling of
++    /// the log target `"CI_LOG_GROUPING"`.
+     fn end_log_group() {
+         log::info!(target: "CI_LOG_GROUPING", "::endgroup::");
+     }
+@@ -155,4 +191,65 @@ impl RestApiClient for GithubApiClient {
+         }
+         Ok(())
+     }
++
++    #[cfg(feature = "file-changes")]
++    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
++    async fn get_list_of_changed_files(
++        &self,
++        file_filter: &FileFilter,
++        lines_changed_only: &LinesChangedOnly,
++    ) -> Result<HashMap<String, FileDiffLines>, RestClientError> {
++        let is_pr = self.is_pr_event();
++        let url_path = if is_pr {
++            format!("pulls/{}/files", self.pull_request)
++        } else {
++            format!("commits/{}", self.sha)
++        };
++        let url = self
++            .api_url
++            .join("repos/")?
++            .join(format!("{}/", &self.repo).as_str())?
++            .join(url_path.as_str())?;
++        let mut url = Some(Url::parse_with_params(url.as_str(), &[("page", "1")])?);
++        let mut files: HashMap<String, FileDiffLines> = HashMap::new();
++        while let Some(ref endpoint) = url {
++            let request =
++                Self::make_api_request(&self.client, endpoint.as_str(), Method::GET, None, None)?;
++            let response =
++                send_api_request(&self.client, request, &self.rate_limit_headers).await?;
++            url = Self::try_next_page(response.headers());
++            let body = response.text().await?;
++            let files_list = if !is_pr {
++                let json_value: serde_structs::PushEventFiles = serde_json::from_str(&body)?;
++                json_value.files
++            } else {
++                serde_json::from_str::<Vec<serde_structs::GithubChangedFile>>(&body)?
++            };
++            for file in files_list {
++                let ext = Path::new(&file.filename).extension().unwrap_or_default();
++                if !file_filter
++                    .extensions
++                    .contains(&ext.to_string_lossy().to_string())
++                {
++                    continue;
++                }
++                if let Some(patch) = file.patch {
++                    let diff = format!(
++                        "diff --git a/{old} b/{new}\n--- a/{old}\n+++ b/{new}\n{patch}\n",
++                        old = file.previous_filename.unwrap_or(file.filename.clone()),
++                        new = file.filename,
++                    );
++                    for (name, info) in parse_diff(&diff, file_filter, lines_changed_only) {
++                        files.entry(name).or_insert(info);
++                    }
++                } else if file.changes == 0 {
++                    // file may have been only renamed.
++                    // include it in case files-changed-only is enabled.
++                    files.entry(file.filename).or_default();
++                }
++                // else changes are too big (per git server limits) or we don't care
++            }
++        }
++        Ok(files)
++    }
+ }
+diff --git a/src/client/github/serde_structs.rs b/src/client/github/serde_structs.rs
+index 5472505..8bb7be2 100644
+--- a/src/client/github/serde_structs.rs
++++ b/src/client/github/serde_structs.rs
+@@ -3,16 +3,16 @@
+ 
+ use serde::Deserialize;
+ 
+-/// A structure for deserializing a Pull Request's info from a response's json.
+-#[derive(Debug, Deserialize, PartialEq, Clone)]
+-pub struct PullRequestInfo {
+-    /// Is this PR a draft?
+-    pub draft: bool,
+-    /// What is current state of this PR?
+-    ///
+-    /// Here we only care if it is `"open"`.
+-    pub state: String,
+-}
++// /// A structure for deserializing a Pull Request's info from a response's json.
++// #[derive(Debug, Deserialize, PartialEq, Clone)]
++// pub struct PullRequestInfo {
++//     /// Is this PR a draft?
++//     pub draft: bool,
++//     /// What is current state of this PR?
++//     ///
++//     /// Here we only care if it is `"open"`.
++//     pub state: String,
++// }
+ 
+ /// A structure for deserializing a comment from a response's json.
+ #[derive(Debug, Deserialize, PartialEq, Clone)]
+@@ -35,3 +35,25 @@ pub struct User {
+     pub login: String,
+     pub id: u64,
+ }
++
++/// A structure for deserializing a single changed file in a CI event.
++#[cfg(feature = "file-changes")]
++#[derive(Debug, Deserialize, PartialEq, Clone)]
++pub struct GithubChangedFile {
++    /// The file's name (including relative path to repo root)
++    pub filename: String,
++    /// If renamed, this will be the file's old name as a [`Some`], otherwise [`None`].
++    pub previous_filename: Option<String>,
++    /// The individual patch that describes the file's changes.
++    pub patch: Option<String>,
++    /// The number of changes to the file contents.
++    pub changes: i64,
++}
++
++/// A structure for deserializing a Push event's changed files.
++#[cfg(feature = "file-changes")]
++#[derive(Debug, Deserialize, PartialEq, Clone)]
++pub struct PushEventFiles {
++    /// The list of changed files.
++    pub files: Vec<GithubChangedFile>,
++}
+diff --git a/src/client/mod.rs b/src/client/mod.rs
+index 8bb0d31..c1f5f2d 100644
+--- a/src/client/mod.rs
++++ b/src/client/mod.rs
+@@ -8,9 +8,24 @@ use reqwest::{
+ use std::future::Future;
+ use std::time::Duration;
+ use std::{env, fmt::Debug};
++
++#[cfg(feature = "github")]
+ mod github;
++#[cfg(feature = "github")]
+ pub use github::GithubApiClient;
+ 
++#[cfg(not(any(feature = "github", feature = "custom-git-server-impl")))]
++compile_error!(
++    "At least one Git server implementation (eg. 'github') should be enabled via `features`"
++);
++
++#[cfg(feature = "file-changes")]
++use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};
++#[cfg(feature = "file-changes")]
++use std::collections::HashMap;
++#[cfg(feature = "file-changes")]
++use tokio::process::Command;
++
+ /// The User-Agent header value included in all HTTP requests.
+ pub static USER_AGENT: &str = concat!(env!("CARGO_CRATE_NAME"), "/", env!("CARGO_PKG_VERSION"));
+ 
+@@ -45,6 +60,66 @@ pub trait RestApiClient {
+     /// This **will not** check if a push event's instigating commit is part of any PR.
+     fn is_pr_event(&self) -> bool;
+ 
++    /// A way to get the list of changed files in the context of the CI event.
++    ///
++    /// This method will parse diff blobs and return a list of changed files.
++    ///
++    /// The default implementation uses `git diff` to get the list of changed files.
++    /// So, the default implementation requires `git` installed and a non-shallow checkout.
++    ///
++    /// Other implementations use the Git server's REST API to get the list of changed files.
++    #[cfg(feature = "file-changes")]
++    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
++    fn get_list_of_changed_files(
++        &self,
++        file_filter: &FileFilter,
++        lines_changed_only: &LinesChangedOnly,
++    ) -> impl Future<Output = Result<HashMap<String, FileDiffLines>, RestClientError>> {
++        async move {
++            let git_status = Command::new("git")
++                .args(["status", "--short"])
++                .output()
++                .await
++                .map_err(RestClientError::Io)
++                .map(|output| {
++                    if output.status.success() {
++                        Ok(String::from_utf8_lossy(&output.stdout)
++                            .to_string()
++                            .trim_end_matches('\n')
++                            .lines()
++                            .count())
++                    } else {
++                        let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
++                        Err(RestClientError::GitCommandError(err_msg))
++                    }
++                })??;
++            let mut diff_args = vec!["diff"];
++            if git_status == 0 {
++                log::debug!(
++                    "No changes detected in the working directory; comparing last two commits."
++                );
++                // There are no changes in the working directory.
++                // So, compare the working directory with the last commit.
++                diff_args.extend(["HEAD~1", "HEAD"]);
++            }
++            Command::new("git")
++                .args(&diff_args)
++                .output()
++                .await
++                .map_err(RestClientError::Io)
++                .map(|output| {
++                    if output.status.success() {
++                        let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
++                        let files = parse_diff(&diff_str, file_filter, lines_changed_only);
++                        Ok(files)
++                    } else {
++                        let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
++                        Err(RestClientError::GitCommandError(err_msg))
++                    }
++                })?
++        }
++    }
++
+     /// A way to post feedback to the Git server's GUI.
+     ///
+     /// The given [`ThreadCommentOptions::comment`] should be compliant with
+@@ -104,25 +179,25 @@ pub trait RestApiClient {
+         req.build().map_err(RestClientError::Request)
+     }
+ 
+-    /// Gets the URL for the next page in a paginated response.
++    /// Gets the URL for the next page from the headers in a paginated response.
+     ///
+     /// Returns [`None`] if current response is the last page.
+     fn try_next_page(headers: &HeaderMap) -> Option<Url> {
+-        if let Some(links) = headers.get("link") {
+-            if let Ok(pg_str) = links.to_str() {
+-                let pages = pg_str.split(", ");
+-                for page in pages {
+-                    if page.ends_with("; rel=\"next\"") {
+-                        if let Some(link) = page.split_once(">;") {
+-                            let url = link.0.trim_start_matches("<").to_string();
+-                            if let Ok(next) = Url::parse(&url) {
+-                                return Some(next);
+-                            } else {
+-                                log::debug!("Failed to parse next page link from response header");
+-                            }
++        if let Some(links) = headers.get("link")
++            && let Ok(pg_str) = links.to_str()
++        {
++            let pages = pg_str.split(", ");
++            for page in pages {
++                if page.ends_with("; rel=\"next\"") {
++                    if let Some(link) = page.split_once(">;") {
++                        let url = link.0.trim_start_matches("<").to_string();
++                        if let Ok(next) = Url::parse(&url) {
++                            return Some(next);
+                         } else {
+-                            log::debug!("Response header link for pagination is malformed");
++                            log::debug!("Failed to parse next page link from response header");
+                         }
++                    } else {
++                        log::debug!("Response header link for pagination is malformed");
+                     }
+                 }
+             }
+diff --git a/src/error.rs b/src/error.rs
+index dcc7dcc..fa33f52 100644
+--- a/src/error.rs
++++ b/src/error.rs
+@@ -1,3 +1,4 @@
++//! Error types used across the git-bot-feedback crate.
+ use thiserror::Error;
+ 
+ use crate::OutputVariable;
+@@ -13,6 +14,12 @@ pub enum RestClientError {
+     #[error("{0}")]
+     Io(#[from] std::io::Error),
+ 
++    /// Error related to Git command execution
++    #[error("Git command error: {0}")]
++    #[cfg(feature = "file-changes")]
++    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
++    GitCommandError(String),
++
+     /// Error related to exceeding REST API Rate limits
+     #[error("Rate Limit exceeded")]
+     RateLimit,
+@@ -41,3 +48,12 @@ pub enum RestClientError {
+     #[error("OutputVariable is malformed: {0}")]
+     OutputVarError(OutputVariable),
+ }
++
++/// The possible errors emitted by file utilities
++#[cfg(feature = "file-changes")]
++#[derive(Debug, Error)]
++#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
++pub enum DirWalkError {
++    #[error("Failed to read directory {0}: {1}")]
++    ReadDirError(String, std::io::Error),
++}
+diff --git a/src/file_utils/file_filter.rs b/src/file_utils/file_filter.rs
+new file mode 100644
+index 0000000..cae535a
+--- /dev/null
++++ b/src/file_utils/file_filter.rs
+@@ -0,0 +1,367 @@
++use fast_glob::glob_match;
++use std::{
++    collections::{HashMap, HashSet},
++    path::{Path, PathBuf},
++};
++use tokio::fs;
++
++use super::FileDiffLines;
++use crate::error::DirWalkError;
++
++/// A structure to encapsulate file path filtering behavior.
++#[derive(Debug, Clone, Default)]
++#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
++pub struct FileFilter {
++    /// A set of paths or glob patterns to be ignored.
++    ///
++    /// These paths/patterns are relative to the working directory.
++    /// An empty entry represents the working directory itself.
++    pub ignored: HashSet<String>,
++
++    /// A set of paths or glob patterns to be explicitly not ignored.
++    ///
++    /// These paths/patterns are relative to the working directory.
++    /// An empty entry represents the working directory itself.
++    pub not_ignored: HashSet<String>,
++
++    /// A set of valid file extensions.
++    ///
++    /// These extensions do not include the leading dot.
++    /// For example, use "txt" instead of ".txt".
++    ///
++    /// A blank extension (`""`) can be used to match files with
++    /// no extension (eg. ".clang-format").
++    pub extensions: HashSet<String>,
++
++    /// An optional scope name for logging purposes.
++    log_scope: Option<String>,
++}
++
++impl FileFilter {
++    /// Convenience constructor to instantiate a [`FileFilter`] object.
++    ///
++    /// The `ignore` parameter is a list of paths (or glob patterns).
++    /// A path or pattern is explicitly not ignored if it is prefixed with `!`.
++    /// Otherwise it is ignored.
++    ///
++    /// Leading and trailing spaces are stripped from each item in the `ignore` list.
++    /// Also, leading `./` sequences are stripped.
++    ///
++    /// ```
++    /// #[cfg(feature = "file-changes")]
++    /// use git_bot_feedback::FileFilter;
++    /// let filter = FileFilter::new(
++    ///     &[" src ", " ! src/lib.rs "],
++    ///     &["rs", "toml"],
++    ///     None,
++    /// );
++    /// assert!(filter.ignored.contains("src"));
++    /// assert!(filter.not_ignored.contains("src/lib.rs"));
++    /// ```
++    pub fn new(ignore: &[&str], extensions: &[&str], log_scope: Option<&str>) -> Self {
++        let (ignored, not_ignored) = Self::parse_ignore(ignore);
++        let extensions = HashSet::from_iter(extensions.iter().map(|v| v.to_string()));
++        Self {
++            ignored,
++            not_ignored,
++            extensions,
++            log_scope: log_scope.map(|s| s.to_string()),
++        }
++    }
++
++    /// This will parse the list of paths specified using [`Self::new`]'s `ignore`
++    /// argument.
++    ///
++    /// It returns 2 sets (in order):
++    ///
++    /// - [`Self::ignored`] paths/patterns
++    /// - [`Self::not_ignored`] paths/patterns
++    fn parse_ignore(ignore: &[&str]) -> (HashSet<String>, HashSet<String>) {
++        let mut ignored = HashSet::new();
++        let mut not_ignored = HashSet::new();
++        for pattern in ignore {
++            let as_posix = pattern.replace('\\', "/");
++            let mut pat = as_posix.as_str().trim();
++            let is_ignored = !pat.starts_with('!');
++            if !is_ignored {
++                pat = pat[1..].trim_start();
++            }
++            if pat.starts_with("./") {
++                pat = &pat[2..];
++            }
++            if is_ignored {
++                ignored.insert(pat.to_string());
++            } else {
++                not_ignored.insert(pat.to_string());
++            }
++        }
++        (ignored, not_ignored)
++    }
++
++    /// This function will read a .gitmodules file located in the working directory.
++    /// The named submodules' paths will be automatically added to the [`FileFilter::ignored`] set,
++    /// unless the submodule's path is already specified in the [`FileFilter::not_ignored`] set.
++    pub async fn parse_submodules(&mut self) {
++        if let Ok(read_buf) = fs::read_to_string(".gitmodules").await {
++            for line in read_buf.split('\n') {
++                let line_trimmed = line.trim();
++                if line_trimmed.starts_with("path") {
++                    // .gitmodules convention defines path to submodule as `path = submodule_path`
++                    if let Some(path) = line_trimmed
++                        .splitn(2, '=') // can be less than 2 items
++                        .skip(1) // skip first to ensure that
++                        .last() // last() returns the second item (or None)
++                        .map(|v| v.trim_start())
++                        && !path.is_empty()
++                    {
++                        let submodule = path.to_string();
++                        log::debug!("Found submodule in path: {submodule}");
++                        let mut is_ignored = true;
++                        for pat in &self.not_ignored {
++                            if pat == &submodule {
++                                is_ignored = false;
++                                break;
++                            }
++                        }
++                        if is_ignored && !self.ignored.contains(&submodule) {
++                            self.ignored.insert(submodule);
++                        }
++                    } else {
++                        log::error!("Failed to parse submodule path from line: {line}");
++                    }
++                }
++            }
++        }
++    }
++
++    /// Describes if a specified `file_name` is contained within the specified set of paths.
++    ///
++    /// The `is_ignored` flag describes which set of paths is used as domains.
++    /// The specified `file_name` can be a direct or distant descendant of any
++    /// paths in the set.
++    ///
++    /// Returns a `true` value of the the path/pattern that matches the given `file_name`.
++    /// If given `file_name` is not in the specified set, then `false` is returned.
++    pub fn is_file_in_list(&self, file_name: &Path, is_ignored: bool) -> bool {
++        let file_name = PathBuf::from(
++            file_name
++                .as_os_str()
++                .to_string_lossy()
++                .to_string()
++                .replace("\\", "/")
++                .trim_start_matches("./"),
++        );
++        let set = if is_ignored {
++            &self.ignored
++        } else {
++            &self.not_ignored
++        };
++        for pattern in set {
++            let pat = PathBuf::from(&pattern);
++            if pattern.is_empty()
++                || glob_match(pattern, file_name.to_string_lossy().as_ref())
++                || (pat.is_file() && file_name == pat)
++                || (pat.is_dir() && file_name.starts_with(pat))
++            {
++                log::debug!(
++                    "{}file {file_name:?} is {}ignored with domain {pattern:?}.",
++                    if let Some(scope) = &self.log_scope {
++                        format!("({}) ", scope)
++                    } else {
++                        "".to_string()
++                    },
++                    if is_ignored { "" } else { "not " }
++                );
++                return true;
++            }
++        }
++        false
++    }
++
++    /// Convenience function to check if a given `file_name` is ignored.
++    ///
++    /// Equivalent to calling
++    /// [`file_filter.is_file_in_list(file_name, true)`](Self::is_file_in_list).
++    pub fn is_file_ignored(&self, file_name: &Path) -> bool {
++        self.is_file_in_list(file_name, true)
++    }
++
++    /// Convenience function to check if a given `file_name` is *not* ignored.
++    ///
++    /// Equivalent to calling
++    /// [`file_filter.is_file_in_list(file_name, false)`](Self::is_file_in_list).
++    pub fn is_file_not_ignored(&self, file_name: &Path) -> bool {
++        self.is_file_in_list(file_name, false)
++    }
++
++    /// A function that checks if `file_path` satisfies the following conditions (in
++    /// ordered priority):
++    ///
++    /// - Does `file_path` use at least 1 of [`FileFilter::extensions`]?
++    ///   Not applicable if [`FileFilter::extensions`] is empty.
++    /// - Is `file_path` specified in [`FileFilter::not_ignored`]?
++    /// - Is `file_path` *not* specified in [`FileFilter::ignored`]?
++    /// - Is `file_path` not a hidden path (any parts of the path start with ".")?
++    ///   Mutually exclusive with last condition; does not apply to "./" or "../".
++    pub fn is_not_ignored(&self, file_path: &Path) -> bool {
++        if !self.extensions.is_empty() && !file_path.is_dir() {
++            let extension = file_path
++                .extension()
++                .unwrap_or_default() // allow for matching files with no extension
++                .to_string_lossy()
++                .to_string();
++            if !self.extensions.contains(&extension) {
++                return false;
++            }
++        }
++        let is_not_ignored = self.is_file_not_ignored(file_path);
++        is_not_ignored || {
++            // if not explicitly unignored
++            let is_ignored = self.is_file_ignored(file_path);
++            let is_hidden = file_path.components().any(|c| {
++                let comp = c.as_os_str().to_string_lossy();
++                comp.starts_with('.') && !["..", "."].contains(&comp.as_ref())
++            });
++            // is implicitly not ignored and not a hidden file/folder
++            !is_ignored && !is_hidden
++        }
++    }
++
++    /// Walks a given `root_path` recursively and returns a map of discovered source files.
++    ///
++    /// Each entry in the returned map is comprises the discovered file's path (as key) and
++    /// an empty [`FileDiffLines`] object (as value). Only files that satisfy the following
++    /// conditions are included in the returned map:
++    ///
++    /// - uses at least 1 of the given [`FileFilter::extensions`].
++    /// - is specified in the internal list [`FileFilter::not_ignored`] paths/patterns
++    /// - is not specified in the set of [`FileFilter::ignored`] paths/patterns and
++    ///   is not a hidden path (starts with ".").
++    pub async fn walk_dir(
++        &self,
++        root_path: &str,
++    ) -> Result<HashMap<String, FileDiffLines>, DirWalkError> {
++        let mut files: HashMap<String, FileDiffLines> = HashMap::new();
++        let mut entries = fs::read_dir(root_path)
++            .await
++            .map_err(|e| DirWalkError::ReadDirError(root_path.to_string(), e))?;
++        while let Ok(Some(entry)) = entries.next_entry().await {
++            let path = entry.path();
++            if path.is_dir() {
++                files.extend(Box::pin(self.walk_dir(&path.to_string_lossy())).await?);
++            } else {
++                let is_valid_src = self.is_not_ignored(&path);
++                if is_valid_src {
++                    let file_name = path
++                        .clone()
++                        .to_string_lossy()
++                        .replace("\\", "/")
++                        .trim_start_matches("./")
++                        .to_string();
++                    files.entry(file_name).or_default();
++                }
++            }
++        }
++        Ok(files)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::FileFilter;
++    use std::{
++        env::set_current_dir,
++        path::{Path, PathBuf},
++    };
++
++    // ************* tests for ignored paths
++
++    fn setup_ignore(input: &str, extension: &[&str]) -> FileFilter {
++        let ignore: Vec<&str> = input.split('|').collect();
++        let file_filter = FileFilter::new(&ignore, extension, None);
++        println!("ignored = {:?}", file_filter.ignored);
++        println!("not ignored = {:?}", file_filter.not_ignored);
++        file_filter
++    }
++
++    #[test]
++    fn ignore_src() {
++        let file_filter = setup_ignore("src", &[]);
++        assert!(file_filter.is_file_ignored(&PathBuf::from("./src/lib.rs")));
++        assert!(!file_filter.is_file_not_ignored(&PathBuf::from("./src/lib.rs")));
++    }
++
++    #[test]
++    fn ignore_root() {
++        let file_filter = setup_ignore("! src/lib.rs | ./", &[]);
++        assert!(file_filter.is_file_ignored(&PathBuf::from("./Cargo.toml")));
++        assert!(file_filter.is_file_not_ignored(&PathBuf::from("./src/lib.rs")));
++    }
++
++    #[test]
++    fn ignore_root_implicit() {
++        let file_filter = setup_ignore("!src|", &[]);
++        assert!(file_filter.is_file_ignored(&PathBuf::from("./Cargo.toml")));
++        assert!(file_filter.is_file_not_ignored(&PathBuf::from("./src/lib.rs")));
++    }
++
++    #[test]
++    fn ignore_glob() {
++        let file_filter = setup_ignore("!src/**/*", &[]);
++        assert!(file_filter.is_file_not_ignored(&PathBuf::from("./src/lib.rs")));
++        assert!(file_filter.is_file_not_ignored(&PathBuf::from("./src/file_utils/file_filter.rs")));
++    }
++
++    #[tokio::test]
++    async fn ignore_submodules() {
++        let mut file_filter = setup_ignore("!pybind11", &[]);
++        file_filter.parse_submodules().await;
++        assert!(file_filter.ignored.is_empty());
++        assert!(file_filter.is_file_not_ignored(&Path::new("pybind11")));
++        set_current_dir("tests/assets/ignored_paths/error").unwrap();
++        file_filter.parse_submodules().await;
++        assert!(file_filter.ignored.is_empty());
++        set_current_dir("../").unwrap();
++        file_filter.parse_submodules().await;
++        println!("submodules ignored = {:?}", file_filter.ignored);
++
++        // using Vec::contains() because these files don't actually exist in project files
++        for ignored_submodule in ["RF24", "RF24Network", "RF24Mesh"] {
++            assert!(file_filter.ignored.contains(ignored_submodule));
++            assert!(
++                !file_filter
++                    .is_file_ignored(&PathBuf::from(ignored_submodule).join("some_src.cpp"))
++            );
++        }
++        assert!(file_filter.not_ignored.contains(&"pybind11".to_string()));
++        assert!(!file_filter.is_file_not_ignored(&PathBuf::from("pybind11/some_src.cpp")));
++    }
++
++    // *********************** tests for recursive path search
++
++    #[tokio::test]
++    async fn walk_dir_recursively() {
++        let extensions = vec!["txt", "json"];
++        let file_filter = setup_ignore("target", &extensions);
++        let files = file_filter.walk_dir(".").await.unwrap();
++        println!("discovered files: {:?}", files.keys());
++        assert!(!files.is_empty());
++        for (file, diff_lines) in files {
++            let ext = PathBuf::from(&file)
++                .extension()
++                .unwrap_or_default()
++                .to_string_lossy()
++                .to_string();
++            assert!(extensions.contains(&ext.as_str()));
++            assert!(!file.contains("\\"));
++            assert!(!file.starts_with("./"));
++            assert!(diff_lines.added_lines.is_empty());
++            assert!(diff_lines.diff_hunks.is_empty());
++        }
++        assert!(!file_filter.is_file_not_ignored(&Path::new(
++            "tests/assets/ignored_paths/.hidden/ignore_me.txt"
++        )));
++        assert!(!file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths/.hidden")));
++        assert!(file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths")));
++    }
++}
+diff --git a/src/file_utils/mod.rs b/src/file_utils/mod.rs
+new file mode 100644
+index 0000000..2bb1dd5
+--- /dev/null
++++ b/src/file_utils/mod.rs
+@@ -0,0 +1,179 @@
++use std::ops::Range;
++
++pub mod file_filter;
++use crate::DiffHunkHeader;
++
++/// An enum to help determine what constitutes a changed file based on the diff contents.
++#[derive(PartialEq, Clone, Debug, Default)]
++#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
++pub enum LinesChangedOnly {
++    /// File is included regardless of changed lines in the diff.
++    ///
++    /// Use [`FileFilter`](crate::FileFilter) to filter files by
++    /// extension and/or path.
++    #[default]
++    Off,
++
++    /// Only include files with lines in the diff.
++    ///
++    /// Note, this *includes* files that only have lines with deletions.
++    /// But, this *excludes* files that have no line changes at all
++    /// (eg. renamed files with unmodified contents, or deleted files, or
++    /// binary files).
++    Diff,
++
++    /// Only include files with lines in the diff that have additions.
++    ///
++    /// Note, this *excludes* files that only have lines with deletions.
++    /// So, this is like [`LinesChangedOnly::Diff`] but stricter.
++    On,
++}
++
++impl LinesChangedOnly {
++    pub(crate) fn is_change_valid(&self, added_lines: bool, diff_hunks: bool) -> bool {
++        match self {
++            LinesChangedOnly::Off => true,
++            LinesChangedOnly::Diff => diff_hunks,
++            LinesChangedOnly::On => added_lines,
++        }
++    }
++}
++
++/// A structure to represent a file's changes per line numbers.
++#[derive(Debug, Clone, Default)]
++#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
++pub struct FileDiffLines {
++    /// The list of lines numbers with additions.
++    pub added_lines: Vec<u32>,
++
++    /// The list of ranges that span only lines numbers with additions.
++    ///
++    /// The line numbers here disregard the old line numbers in the diff hunks.
++    /// Each range describes the beginning and ending of a group of consecutive line numbers.
++    pub added_ranges: Vec<Range<u32>>,
++
++    /// The list of ranges that span the lines numbers present in diff chunks.
++    ///
++    /// The line numbers here disregard the old line numbers in the diff hunks.
++    pub diff_hunks: Vec<Range<u32>>,
++}
++
++impl FileDiffLines {
++    /// Instantiate an object with changed lines information.
++    pub fn with_info(added_lines: Vec<u32>, diff_chunks: Vec<Range<u32>>) -> Self {
++        let added_ranges = Self::consolidate_numbers_to_ranges(&added_lines);
++        Self {
++            added_lines,
++            added_ranges,
++            diff_hunks: diff_chunks,
++        }
++    }
++
++    /// A helper function to consolidate a [Vec<u32>] of line numbers into a
++    /// [Vec<Range<u32>>] in which each range describes the beginning and
++    /// ending of a group of consecutive line numbers.
++    fn consolidate_numbers_to_ranges(lines: &[u32]) -> Vec<Range<u32>> {
++        let mut iter_lines = lines.iter().enumerate();
++        if let Some((_, start)) = iter_lines.next() {
++            let mut range_start = *start;
++            let mut ranges: Vec<Range<u32>> = Vec::new();
++            let last_entry = lines.len() - 1;
++            for (index, number) in iter_lines {
++                if let Some(prev) = lines.get(index - 1)
++                    && (number - 1) != *prev
++                {
++                    // non-consecutive number found
++                    // push the previous range
++                    ranges.push(range_start..(*prev + 1));
++                    // and start a new range
++                    // from the current number
++                    range_start = *number;
++                }
++                if index == last_entry {
++                    // last number
++                    ranges.push(range_start..(*number + 1));
++                }
++            }
++            ranges
++        } else {
++            Vec::new()
++        }
++    }
++
++    pub fn get_ranges(&self, lines_changed_only: &LinesChangedOnly) -> Option<Vec<Range<u32>>> {
++        match lines_changed_only {
++            LinesChangedOnly::Diff => Some(self.diff_hunks.to_vec()),
++            LinesChangedOnly::On => Some(self.added_ranges.to_vec()),
++            _ => None,
++        }
++    }
++
++    /// Is the range from [`DiffHunkHeader`] contained in a single item of
++    /// [`FileDiffLines::diff_hunks`]?
++    pub fn is_hunk_in_diff(&self, hunk: &DiffHunkHeader) -> Option<(u32, u32)> {
++        let (start_line, end_line) = if hunk.old_lines > 0 {
++            // if old hunk's total lines is > 0
++            let start = hunk.old_start;
++            (start, start + hunk.old_lines)
++        } else {
++            // old hunk's total lines is 0, meaning changes were only added
++            let start = hunk.new_start;
++            // make old hunk's range span 1 line
++            (start, start + 1)
++        };
++        let inclusive_end = end_line - 1;
++        for range in &self.diff_hunks {
++            if range.contains(&start_line) && range.contains(&inclusive_end) {
++                return Some((start_line, end_line));
++            }
++        }
++        None
++    }
++
++    /// Similar to [`FileDiffLines::is_hunk_in_diff()`] but looks for a single line instead of
++    /// all lines in a [`DiffHunkHeader`].
++    pub fn is_line_in_diff(&self, line: &u32) -> bool {
++        for range in &self.diff_hunks {
++            if range.contains(line) {
++                return true;
++            }
++        }
++        false
++    }
++}
++
++#[cfg(test)]
++mod test {
++    use super::{FileDiffLines, LinesChangedOnly};
++
++    #[test]
++    fn get_ranges_none() {
++        let file_obj = FileDiffLines::default();
++        let ranges = file_obj.get_ranges(&LinesChangedOnly::Off);
++        assert!(ranges.is_none());
++    }
++
++    #[test]
++    fn get_ranges_diff() {
++        let diff_chunks = vec![1..11];
++        let added_lines = vec![4, 5, 9];
++        let file_obj = FileDiffLines::with_info(added_lines, diff_chunks.clone());
++        let ranges = file_obj.get_ranges(&LinesChangedOnly::Diff);
++        assert_eq!(ranges.unwrap(), diff_chunks);
++    }
++
++    #[test]
++    fn get_ranges_added() {
++        let diff_chunks = vec![1..11];
++        let added_lines = vec![4, 5, 9];
++        let file_obj = FileDiffLines::with_info(added_lines, diff_chunks);
++        let ranges = file_obj.get_ranges(&LinesChangedOnly::On);
++        assert_eq!(ranges.unwrap(), vec![4..6, 9..10]);
++    }
++
++    #[test]
++    fn line_not_in_diff() {
++        let file_obj = FileDiffLines::default();
++        assert!(!file_obj.is_line_in_diff(&42));
++    }
++}
+diff --git a/src/git_diff.rs b/src/git_diff.rs
+new file mode 100644
+index 0000000..45e2c2f
+--- /dev/null
++++ b/src/git_diff.rs
+@@ -0,0 +1,228 @@
++use regex::Regex;
++use std::{collections::HashMap, ops::Range, path::PathBuf};
++
++use crate::{FileDiffLines, FileFilter, LinesChangedOnly};
++
++/// A struct to represent the header information of a diff hunk.
++pub struct DiffHunkHeader {
++    /// The starting line number of the old hunk.
++    pub old_start: u32,
++    /// The total number of lines in the old hunk.
++    pub old_lines: u32,
++    /// The starting line number of the new hunk.
++    pub new_start: u32,
++    /// The total number of lines in the new hunk.
++    pub new_lines: u32,
++}
++
++fn get_filename_from_front_matter(front_matter: &str) -> Option<&str> {
++    let diff_file_name = Regex::new(r"(?m)^\+\+\+\sb?/(.*)$").unwrap();
++    let diff_renamed_file = Regex::new(r"(?m)^rename to (.*)$").unwrap();
++    let diff_binary_file = Regex::new(r"(?m)^Binary\sfiles\s").unwrap();
++    if let Some(captures) = diff_file_name.captures(front_matter) {
++        return Some(captures.get(1).unwrap().as_str());
++    }
++    if front_matter.starts_with("similarity")
++        && let Some(captures) = diff_renamed_file.captures(front_matter)
++    {
++        return Some(captures.get(1).unwrap().as_str());
++    }
++    if !diff_binary_file.is_match(front_matter) {
++        log::warn!("Unrecognized diff starting with:\n{}", front_matter);
++    }
++    None
++}
++
++/// A regex pattern used in multiple functions
++static HUNK_INFO_PATTERN: &str = r"(?m)@@\s\-\d+,?\d*\s\+(\d+),?(\d*)\s@@";
++
++/// Parses a single file's patch containing one or more hunks
++///
++/// Returns a 2-item tuple:
++///
++/// - the line numbers that contain additions
++/// - the ranges of lines that span each hunk
++fn parse_patch(patch: &str) -> (Vec<u32>, Vec<Range<u32>>) {
++    let mut diff_hunks = Vec::new();
++    let mut additions = Vec::new();
++
++    let hunk_info = Regex::new(HUNK_INFO_PATTERN).unwrap();
++    let hunk_headers = hunk_info.captures_iter(patch).collect::<Vec<_>>();
++    if !hunk_headers.is_empty() {
++        // skip the first split because it is anything that precedes first hunk header
++        let hunks = hunk_info.split(patch).skip(1);
++        for (hunk, header) in hunks.zip(hunk_headers) {
++            // header.unwrap() is safe because the hunk_headers.iter() is parallel to hunk_info.split()
++            let [start_line, end_range] = header.extract().1.map(|v| v.parse::<u32>().unwrap_or(1));
++            let mut line_numb_in_diff = start_line;
++            diff_hunks.push(start_line..start_line + end_range);
++            for (line_index, line) in hunk.split('\n').enumerate() {
++                if line.starts_with('+') {
++                    additions.push(line_numb_in_diff);
++                }
++                if line_index > 0 && !line.starts_with('-') {
++                    line_numb_in_diff += 1;
++                }
++            }
++        }
++    }
++    (additions, diff_hunks)
++}
++
++/// Parses a git `diff` string into a map of file names to their corresponding
++/// [`FileDiffLines`].
++///
++/// The `file_filter` is used to filter out files that are not of interest.
++/// The `lines_changed_only` parameter determines whether to include files
++/// based on their contents' changes.
++pub fn parse_diff(
++    diff: &str,
++    file_filter: &FileFilter,
++    lines_changed_only: &LinesChangedOnly,
++) -> HashMap<String, FileDiffLines> {
++    let mut results = HashMap::new();
++    let diff_file_delimiter = Regex::new(r"(?m)^diff --git a/.*$").unwrap();
++    let hunk_info = Regex::new(HUNK_INFO_PATTERN).unwrap();
++
++    let file_diffs = diff_file_delimiter.split(diff);
++    for file_diff in file_diffs {
++        if file_diff.is_empty() || file_diff.starts_with("deleted file") {
++            continue;
++        }
++        let hunk_start = if let Some(first_hunk) = hunk_info.find(file_diff) {
++            first_hunk.start()
++        } else {
++            file_diff.len()
++        };
++        let front_matter = &file_diff[..hunk_start];
++        if let Some(file_name) = get_filename_from_front_matter(front_matter.trim_start()) {
++            let file_name = file_name.strip_prefix('/').unwrap_or(file_name);
++            let file_path = PathBuf::from(file_name);
++            if file_filter.is_not_ignored(&file_path) {
++                let (added_lines, diff_hunks) = parse_patch(&file_diff[hunk_start..]);
++                if lines_changed_only
++                    .is_change_valid(!added_lines.is_empty(), !diff_hunks.is_empty())
++                {
++                    results
++                        .entry(file_name.to_string())
++                        .or_insert_with(|| FileDiffLines::with_info(added_lines, diff_hunks));
++                }
++            }
++        }
++    }
++    results
++}
++
++// ******************* UNIT TESTS ***********************
++#[cfg(test)]
++mod test {
++    use super::parse_diff;
++    use crate::{FileFilter, LinesChangedOnly};
++
++    const RENAMED_DIFF: &'static str = r#"diff --git a/tests/demo/some source.cpp b/tests/demo/some source.c
++similarity index 100%
++rename from /tests/demo/some source.cpp
++rename to /tests/demo/some source.c
++diff --git a/some picture.png b/some picture.png
++new file mode 100644
++Binary files /dev/null and b/some picture.png differ
++"#;
++
++    #[test]
++    fn parse_renamed_diff() {
++        let files = parse_diff(
++            RENAMED_DIFF,
++            &FileFilter::new(&[], &["c"], None),
++            &LinesChangedOnly::Off,
++        );
++        let git_file = files.get("tests/demo/some source.c").unwrap();
++        assert!(git_file.added_lines.is_empty());
++        assert!(git_file.diff_hunks.is_empty());
++    }
++
++    #[test]
++    fn parse_renamed_only_diff() {
++        let files = parse_diff(
++            RENAMED_DIFF,
++            &FileFilter::new(&[], &["c"], None),
++            &LinesChangedOnly::Diff,
++        );
++        assert!(files.is_empty());
++    }
++
++    const RENAMED_DIFF_WITH_CHANGES: &'static str = r#"diff --git a/tests/demo/some source.cpp b/tests/demo/some source.c
++similarity index 99%
++rename from /tests/demo/some source.cpp
++rename to /tests/demo/some source.c
++@@ -3,7 +3,7 @@
++\n \n \n-#include "math.h"
+++#include <math.h>\n \n \n \n"#;
++
++    #[test]
++    fn parse_renamed_diff_with_patch() {
++        let files = parse_diff(
++            &String::from_iter([RENAMED_DIFF_WITH_CHANGES, TERSE_HEADERS]),
++            // ignore src/demo.cpp file (in TERSE_HEADERS) via glob (src/*);
++            // triggers code coverage of a `}` (region end)
++            &FileFilter::new(&["src/*"], &["c", "cpp"], None),
++            &LinesChangedOnly::On,
++        );
++        eprintln!("files: {files:#?}");
++        let git_file = files.get("tests/demo/some source.c").unwrap();
++        assert!(!git_file.is_line_in_diff(&1));
++        assert!(git_file.is_line_in_diff(&4));
++    }
++
++    const TYPICAL_DIFF: &str = "diff --git a/path/for/Some file.cpp b/path/to/Some file.cpp\n\
++                            --- a/path/for/Some file.cpp\n\
++                            +++ b/path/to/Some file.cpp\n\
++                            @@ -3,7 +3,7 @@\n \n \n \n\
++                            -#include <some_lib/render/animation.hpp>\n\
++                            +#include <some_lib/render/animations.hpp>\n \n \n \n";
++
++    #[test]
++    fn parse_typical_diff() {
++        let files = parse_diff(
++            TYPICAL_DIFF,
++            &FileFilter::new(&[], &["cpp"], None),
++            &LinesChangedOnly::On,
++        );
++        assert!(!files.is_empty());
++    }
++
++    const BINARY_DIFF: &'static str = "diff --git a/some picture.png b/some picture.png\n\
++                new file mode 100644\n\
++                Binary files /dev/null and b/some picture.png differ\n";
++
++    #[test]
++    fn parse_binary_diff() {
++        let files = parse_diff(
++            BINARY_DIFF,
++            &FileFilter::new(&[], &["png"], None),
++            &LinesChangedOnly::Diff,
++        );
++        assert!(files.is_empty());
++    }
++
++    const TERSE_HEADERS: &'static str = r#"diff --git a/src/demo.cpp b/src/demo.cpp
++--- a/src/demo.cpp
+++++ b/src/demo.cpp
++@@ -3 +3 @@
++-#include <stdio.h>
+++#include "stdio.h"
++@@ -4,0 +5,2 @@
+++auto main() -> int
+++{
++@@ -18 +17,2 @@ int main(){
++-    return 0;}
+++    return 0;
+++}"#;
++
++    #[test]
++    fn terse_hunk_header() {
++        let file_filter = FileFilter::new(&[], &["cpp"], None);
++        let files = parse_diff(TERSE_HEADERS, &file_filter, &LinesChangedOnly::Diff);
++        let file_diff = files.get("src/demo.cpp").unwrap();
++        assert_eq!(file_diff.diff_hunks, vec![3..4, 5..7, 17..19]);
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index b52c61b..0660267 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1,51 +1,28 @@
+ #![doc = include_str!("../README.md")]
+-pub mod client;
+-pub mod error;
+-
+-use std::fmt::Display;
++#![cfg_attr(docsrs, feature(doc_cfg))]
+ 
++pub mod client;
+ pub use client::{RestApiClient, RestApiRateLimitHeaders};
++pub mod error;
+ pub use error::RestClientError;
+ mod thread_comments;
+-pub use thread_comments::{CommentPolicy, ThreadCommentOptions};
+-
+-/// An enumeration of possible type of comments being posted.
+-///
+-/// The default is [`CommentKind::Concerns`].
+-#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+-pub enum CommentKind {
+-    /// A comment that admonishes concerns for end-users' attention.
+-    #[default]
+-    Concerns,
+-
+-    /// A comment that basically says "Looks Good To Me".
+-    Lgtm,
+-}
+-
+-/// A type to represent an output variable.
+-///
+-/// This is akin to the key/value pairs used in most
+-/// config file formats but with some limitations:
+-///
+-/// - Both [OutputVariable::name] and [OutputVariable::value] must be UTF-8 encoded.
+-/// - The [OutputVariable::value] cannot span multiple lines.
+-#[derive(Debug, Clone)]
+-pub struct OutputVariable {
+-    /// The output variable's name.
+-    pub name: String,
+-
+-    /// The output variable's value.
+-    pub value: String,
+-}
+-
+-impl OutputVariable {
+-    pub(crate) fn validate(&self) -> bool {
+-        !self.value.contains("\n")
+-    }
+-}
+-
+-impl Display for OutputVariable {
+-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+-        write!(f, "{} = {}", self.name, self.value)
+-    }
+-}
++pub use thread_comments::{CommentKind, CommentPolicy, ThreadCommentOptions};
++mod output_variable;
++pub use output_variable::OutputVariable;
++
++#[cfg(feature = "file-changes")]
++mod git_diff;
++#[cfg(feature = "file-changes")]
++pub use git_diff::{DiffHunkHeader, parse_diff};
++#[cfg(feature = "file-changes")]
++mod file_utils;
++#[cfg(feature = "file-changes")]
++pub use file_utils::{FileDiffLines, LinesChangedOnly, file_filter::FileFilter};
++
++// Re-export dependencies for users of optional feature
++#[cfg(feature = "file-changes")]
++#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
++pub use fast_glob;
++#[cfg(feature = "file-changes")]
++#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
++pub use regex;
+diff --git a/src/output_variable.rs b/src/output_variable.rs
+new file mode 100644
+index 0000000..2fd3ade
+--- /dev/null
++++ b/src/output_variable.rs
+@@ -0,0 +1,33 @@
++use std::fmt::Display;
++
++/// A type to represent an output variable.
++///
++/// This is akin to the key/value pairs used in most
++/// config file formats but with some limitations:
++///
++/// - Both [OutputVariable::name] and [OutputVariable::value] must be UTF-8 encoded.
++/// - The [OutputVariable::value] cannot span multiple lines.
++#[derive(Debug, Clone)]
++pub struct OutputVariable {
++    /// The output variable's name.
++    pub name: String,
++
++    /// The output variable's value.
++    pub value: String,
++}
++
++impl OutputVariable {
++    /// Validate that the output variable is well-formed.
++    ///
++    /// Typically only used by implementations of
++    /// [`RestApiClient::write_output_variables`](crate::client::RestApiClient::write_output_variables).
++    pub fn validate(&self) -> bool {
++        !self.value.contains("\n")
++    }
++}
++
++impl Display for OutputVariable {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        write!(f, "{}={}", self.name, self.value)
++    }
++}
+diff --git a/src/thread_comments.rs b/src/thread_comments.rs
+index 8717f1f..0ed1e57 100644
+--- a/src/thread_comments.rs
++++ b/src/thread_comments.rs
+@@ -1,6 +1,19 @@
+-use crate::CommentKind;
++/// An enumeration of possible type of comments being posted.
++///
++/// The default is [`CommentKind::Concerns`].
++#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
++pub enum CommentKind {
++    /// A comment that admonishes concerns for end-users' attention.
++    #[default]
++    Concerns,
+ 
+-/// An enumeration of possible values that control [`FeedBackOptions::thread_comments`].
++    /// A comment that basically says "Looks Good To Me".
++    Lgtm,
++}
++
++/// An enumeration of supported behaviors about posting comments.
++///
++/// See [`ThreadCommentOptions::policy`].
+ #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+ pub enum CommentPolicy {
+     /// Each thread comment is posted as a new comment.
+@@ -16,6 +29,9 @@ pub enum CommentPolicy {
+     Update,
+ }
+ 
++/// Options that control posting comments on a thread.
++///
++/// Used as a parameter value to [`RestApiClient::post_thread_comment()`](fn@crate::client::RestApiClient::post_thread_comment).
+ #[derive(Debug)]
+ pub struct ThreadCommentOptions {
+     /// Controls posting comments on a thread that concerns a Pull Request or Push event.
+@@ -84,7 +100,13 @@ impl Default for ThreadCommentOptions {
+ }
+ 
+ impl ThreadCommentOptions {
+-    pub(crate) fn mark_comment(&self) -> String {
++    /// Ensure that the [`ThreadCommentOptions::comment`] is marked with
++    /// the [`ThreadCommentOptions::marker`].
++    ///
++    /// Typically only used by implementations of
++    /// [`RestApiClient::post_thread_comment`](crate::client::RestApiClient::post_thread_comment)
++    /// and [`RestApiClient::append_step_summary`](crate::client::RestApiClient::append_step_summary).
++    pub fn mark_comment(&self) -> String {
+         if !self.comment.starts_with(&self.marker) {
+             return format!("{}{}", self.marker, self.comment);
+         }
+diff --git a/tests/assets/file_changes/github/pr_files_pg1.json b/tests/assets/file_changes/github/pr_files_pg1.json
+new file mode 100644
+index 0000000..5a70fd9
+--- /dev/null
++++ b/tests/assets/file_changes/github/pr_files_pg1.json
+@@ -0,0 +1,27 @@
++[
++  {
++    "sha": "52501fa1dc96d6bc6f8a155816df041b1de975d9",
++    "filename": ".github/workflows/cpp-lint-package.yml",
++    "status": "modified",
++    "additions": 9,
++    "deletions": 5,
++    "changes": 14,
++    "blob_url": "https://github.com/cpp-linter/test-cpp-linter-action/blob/635a9c57bdcca07b99ddef52c2640337c50280b1/.github%2Fworkflows%2Fcpp-lint-package.yml",
++    "raw_url": "https://github.com/cpp-linter/test-cpp-linter-action/raw/635a9c57bdcca07b99ddef52c2640337c50280b1/.github%2Fworkflows%2Fcpp-lint-package.yml",
++    "contents_url": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/contents/.github%2Fworkflows%2Fcpp-lint-package.yml?ref=635a9c57bdcca07b99ddef52c2640337c50280b1",
++    "patch": "@@ -7,16 +7,17 @@ on:\n         description: 'which branch to test'\n         default: 'main'\n         required: true\n+  pull_request:\n \n jobs:\n   cpp-linter:\n     runs-on: windows-latest\n \n     strategy:\n       matrix:\n-        clang-version: ['7', '8', '9','10', '11', '12', '13', '14', '15', '16', '17']\n+        clang-version: ['10', '11', '12', '13', '14', '15', '16', '17']\n         repo: ['cpp-linter/cpp-linter']\n-        branch: ['${{ inputs.branch }}']\n+        branch: ['pr-review-suggestions']\n       fail-fast: false\n \n     steps:\n@@ -62,10 +63,13 @@ jobs:\n           -i=build \n           -p=build \n           -V=${{ runner.temp }}/llvm \n-          -f=false \n           --extra-arg=\"-std=c++14 -Wall\" \n-          --thread-comments=${{ matrix.clang-version == '12' }} \n-          -a=${{ matrix.clang-version == '12' }}\n+          --file-annotations=false\n+          --lines-changed-only=false\n+          --extension=h,c\n+          --thread-comments=${{ matrix.clang-version == '16' }} \n+          --tidy-review=${{ matrix.clang-version == '16' }}\n+          --format-review=${{ matrix.clang-version == '16' }}\n \n       - name: Fail fast?!\n         if: steps.linter.outputs.checks-failed > 0"
++  },
++  {
++    "sha": "1bf553e06e4b7c6c9a9be5da4845acbdeb04f6a5",
++    "filename": "src/demo.cpp",
++    "previous_filename": "src/demo.c",
++    "status": "modified",
++    "additions": 11,
++    "deletions": 10,
++    "changes": 21,
++    "blob_url": "https://github.com/cpp-linter/test-cpp-linter-action/blob/635a9c57bdcca07b99ddef52c2640337c50280b1/src%2Fdemo.cpp",
++    "raw_url": "https://github.com/cpp-linter/test-cpp-linter-action/raw/635a9c57bdcca07b99ddef52c2640337c50280b1/src%2Fdemo.cpp",
++    "contents_url": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/contents/src%2Fdemo.cpp?ref=635a9c57bdcca07b99ddef52c2640337c50280b1",
++    "patch": "@@ -1,17 +1,18 @@\n /** This is a very ugly test code (doomed to fail linting) */\n #include \"demo.hpp\"\n-#include <cstdio>\n-#include <cstddef>\n+#include <stdio.h>\n \n-// using size_t from cstddef\n-size_t dummyFunc(size_t i) { return i; }\n \n-int main()\n-{\n-    for (;;)\n-        break;\n+\n+\n+int main(){\n+\n+    for (;;) break;\n+\n \n     printf(\"Hello world!\\n\");\n \n-    return 0;\n-}\n+\n+\n+\n+    return 0;}"
++  }
++]
+diff --git a/tests/assets/file_changes/github/pr_files_pg2.json b/tests/assets/file_changes/github/pr_files_pg2.json
+new file mode 100644
+index 0000000..987a239
+--- /dev/null
++++ b/tests/assets/file_changes/github/pr_files_pg2.json
+@@ -0,0 +1,14 @@
++[
++    {
++        "sha": "f93d0122ae2e3c1952c795837d71c432036b55eb",
++        "filename": "src/demo.hpp",
++        "status": "modified",
++        "additions": 3,
++        "deletions": 8,
++        "changes": 11,
++        "blob_url": "https://github.com/cpp-linter/test-cpp-linter-action/blob/635a9c57bdcca07b99ddef52c2640337c50280b1/src%2Fdemo.hpp",
++        "raw_url": "https://github.com/cpp-linter/test-cpp-linter-action/raw/635a9c57bdcca07b99ddef52c2640337c50280b1/src%2Fdemo.hpp",
++        "contents_url": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/contents/src%2Fdemo.hpp?ref=635a9c57bdcca07b99ddef52c2640337c50280b1",
++        "patch": "@@ -5,12 +5,10 @@\n class Dummy {\n     char* useless;\n     int numb;\n+    Dummy() :numb(0), useless(\"\\0\"){}\n \n     public:\n-    void *not_usefull(char *str){\n-        useless = str;\n-        return 0;\n-    }\n+    void *not_useful(char *str){useless = str;}\n };\n \n \n@@ -28,14 +26,11 @@ class Dummy {\n \n \n \n-\n-\n-\n-\n \n \n struct LongDiff\n {\n+\n     long diff;\n \n };"
++    }
++]
+diff --git a/tests/assets/file_changes/github/push_files_pg1.json b/tests/assets/file_changes/github/push_files_pg1.json
+new file mode 100644
+index 0000000..b10268e
+--- /dev/null
++++ b/tests/assets/file_changes/github/push_files_pg1.json
+@@ -0,0 +1,28 @@
++{
++  "files": [
++    {
++      "sha": "52501fa1dc96d6bc6f8a155816df041b1de975d9",
++      "filename": ".github/workflows/cpp-lint-package.yml",
++      "status": "modified",
++      "additions": 9,
++      "deletions": 5,
++      "changes": 14,
++      "blob_url": "https://github.com/cpp-linter/test-cpp-linter-action/blob/635a9c57bdcca07b99ddef52c2640337c50280b1/.github%2Fworkflows%2Fcpp-lint-package.yml",
++      "raw_url": "https://github.com/cpp-linter/test-cpp-linter-action/raw/635a9c57bdcca07b99ddef52c2640337c50280b1/.github%2Fworkflows%2Fcpp-lint-package.yml",
++      "contents_url": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/contents/.github%2Fworkflows%2Fcpp-lint-package.yml?ref=635a9c57bdcca07b99ddef52c2640337c50280b1",
++      "patch": "@@ -7,16 +7,17 @@ on:\n         description: 'which branch to test'\n         default: 'main'\n         required: true\n+  pull_request:\n \n jobs:\n   cpp-linter:\n     runs-on: windows-latest\n \n     strategy:\n       matrix:\n-        clang-version: ['7', '8', '9','10', '11', '12', '13', '14', '15', '16', '17']\n+        clang-version: ['10', '11', '12', '13', '14', '15', '16', '17']\n         repo: ['cpp-linter/cpp-linter']\n-        branch: ['${{ inputs.branch }}']\n+        branch: ['pr-review-suggestions']\n       fail-fast: false\n \n     steps:\n@@ -62,10 +63,13 @@ jobs:\n           -i=build \n           -p=build \n           -V=${{ runner.temp }}/llvm \n-          -f=false \n           --extra-arg=\"-std=c++14 -Wall\" \n-          --thread-comments=${{ matrix.clang-version == '12' }} \n-          -a=${{ matrix.clang-version == '12' }}\n+          --file-annotations=false\n+          --lines-changed-only=false\n+          --extension=h,c\n+          --thread-comments=${{ matrix.clang-version == '16' }} \n+          --tidy-review=${{ matrix.clang-version == '16' }}\n+          --format-review=${{ matrix.clang-version == '16' }}\n \n       - name: Fail fast?!\n         if: steps.linter.outputs.checks-failed > 0"
++    },
++    {
++      "sha": "1bf553e06e4b7c6c9a9be5da4845acbdeb04f6a5",
++      "filename": "src/demo.cpp",
++      "previous_filename": "src/demo.c",
++      "status": "modified",
++      "additions": 11,
++      "deletions": 10,
++      "changes": 0,
++      "blob_url": "https://github.com/cpp-linter/test-cpp-linter-action/blob/635a9c57bdcca07b99ddef52c2640337c50280b1/src%2Fdemo.cpp",
++      "raw_url": "https://github.com/cpp-linter/test-cpp-linter-action/raw/635a9c57bdcca07b99ddef52c2640337c50280b1/src%2Fdemo.cpp",
++      "contents_url": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/contents/src%2Fdemo.cpp?ref=635a9c57bdcca07b99ddef52c2640337c50280b1"
++    }
++  ]
++}
+diff --git a/tests/assets/file_changes/github/push_files_pg2.json b/tests/assets/file_changes/github/push_files_pg2.json
+new file mode 100644
+index 0000000..573f532
+--- /dev/null
++++ b/tests/assets/file_changes/github/push_files_pg2.json
+@@ -0,0 +1,16 @@
++{
++  "files": [
++    {
++      "sha": "f93d0122ae2e3c1952c795837d71c432036b55eb",
++      "filename": "src/demo.hpp",
++      "status": "modified",
++      "additions": 3,
++      "deletions": 8,
++      "changes": 11,
++      "blob_url": "https://github.com/cpp-linter/test-cpp-linter-action/blob/635a9c57bdcca07b99ddef52c2640337c50280b1/src%2Fdemo.hpp",
++      "raw_url": "https://github.com/cpp-linter/test-cpp-linter-action/raw/635a9c57bdcca07b99ddef52c2640337c50280b1/src%2Fdemo.hpp",
++      "contents_url": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/contents/src%2Fdemo.hpp?ref=635a9c57bdcca07b99ddef52c2640337c50280b1",
++      "patch": "@@ -5,12 +5,10 @@\n class Dummy {\n     char* useless;\n     int numb;\n+    Dummy() :numb(0), useless(\"\\0\"){}\n \n     public:\n-    void *not_usefull(char *str){\n-        useless = str;\n-        return 0;\n-    }\n+    void *not_useful(char *str){useless = str;}\n };\n \n \n@@ -28,14 +26,11 @@ class Dummy {\n \n \n \n-\n-\n-\n-\n \n \n struct LongDiff\n {\n+\n     long diff;\n \n };"
++    }
++  ]
++}
+diff --git a/tests/assets/ignored_paths/.gitmodules b/tests/assets/ignored_paths/.gitmodules
+new file mode 100644
+index 0000000..3696a31
+--- /dev/null
++++ b/tests/assets/ignored_paths/.gitmodules
+@@ -0,0 +1,12 @@
++[submodule "RF24"]
++	path = RF24
++	url = https://github.com/nRF24/RF24.git
++[submodule "RF24Network"]
++	path = RF24Network
++	url = https://github.com/nRF24/RF24Network.git
++[submodule "RF24Mesh"]
++	path = RF24Mesh
++	url = https://github.com/nRF24/RF24Mesh.git
++[submodule "pybind11"]
++	path = pybind11
++	url = https://github.com/pybind/pybind11.git
+diff --git a/tests/assets/ignored_paths/.hidden/ignore_me.txt b/tests/assets/ignored_paths/.hidden/ignore_me.txt
+new file mode 100644
+index 0000000..83788f1
+--- /dev/null
++++ b/tests/assets/ignored_paths/.hidden/ignore_me.txt
+@@ -0,0 +1 @@
++This file is here for completeness when testing file filters.
+diff --git a/tests/assets/ignored_paths/error/.gitmodules b/tests/assets/ignored_paths/error/.gitmodules
+new file mode 100644
+index 0000000..008f493
+--- /dev/null
++++ b/tests/assets/ignored_paths/error/.gitmodules
+@@ -0,0 +1,6 @@
++[submodule "RF24"]
++	path =
++	url = https://github.com/nRF24/RF24.git
++[submodule "RF24Network"]
++	path > RF24Network
++	url = https://github.com/nRF24/RF24Network.git
+diff --git a/tests/comment_test_assets/github/pr_comments_pg1.json b/tests/assets/thread_comment/github/pr_comments_pg1.json
+similarity index 100%
+rename from tests/comment_test_assets/github/pr_comments_pg1.json
+rename to tests/assets/thread_comment/github/pr_comments_pg1.json
+diff --git a/tests/comment_test_assets/github/pr_comments_pg2.json b/tests/assets/thread_comment/github/pr_comments_pg2.json
+similarity index 100%
+rename from tests/comment_test_assets/github/pr_comments_pg2.json
+rename to tests/assets/thread_comment/github/pr_comments_pg2.json
+diff --git a/tests/comment_test_assets/github/push_comments_deadbeef.json b/tests/assets/thread_comment/github/push_comments_deadbeef.json
+similarity index 100%
+rename from tests/comment_test_assets/github/push_comments_deadbeef.json
+rename to tests/assets/thread_comment/github/push_comments_deadbeef.json
+diff --git a/tests/common.rs b/tests/common.rs
+index 40401d0..c97cb2d 100644
+--- a/tests/common.rs
++++ b/tests/common.rs
+@@ -5,7 +5,16 @@ impl log::Log for Logger {
+     }
+ 
+     fn log(&self, record: &log::Record) {
+-        println!("{}: {}", record.level().as_str(), record.args());
++        if record.target() == "CI_LOG_GROUPING" {
++            println!("{}", record.args());
++        } else {
++            println!(
++                "[{:>5}]{}: {}",
++                record.level().as_str(),
++                record.module_path().unwrap_or_default(),
++                record.args()
++            );
++        }
+     }
+ 
+     fn flush(&self) {}
+diff --git a/tests/generic_client.rs b/tests/generic_client.rs
+index 698927c..ab0a818 100644
+--- a/tests/generic_client.rs
++++ b/tests/generic_client.rs
+@@ -277,3 +277,69 @@ fn bad_request() {
+     eprintln!("err: {result:?}");
+     assert!(result.is_err_and(|e| matches!(e, RestClientError::Request(_))));
+ }
++
++#[tokio::test]
++#[cfg(feature = "file-changes")]
++async fn list_file_changes() {
++    use std::env;
++
++    use common::logger_init;
++    use git_bot_feedback::{FileFilter, LinesChangedOnly};
++    use tempfile::TempDir;
++    use tokio::{fs::OpenOptions, io::AsyncWriteExt, process::Command};
++
++    // Setup temp workspace
++    let tmp_dir = TempDir::new().unwrap();
++    Command::new("git")
++        .current_dir(tmp_dir.path())
++        .args([
++            "clone",
++            "--depth=2",       // only checkout HEAD and its parent commit (HEAD~1)
++            "--branch=v0.1.4", // https://github.com/2bndy5/git-bot-feedback/commit/19c6330e8c4aa0e4ee18482b761277bd294bb6f3
++            "https://github.com/2bndy5/git-bot-feedback.git",
++        ])
++        .output()
++        .await
++        .unwrap();
++    env::set_current_dir(tmp_dir.path().join("git-bot-feedback")).unwrap();
++
++    // setup test client, logging, and file filter
++    logger_init();
++    log::set_max_level(log::LevelFilter::Debug);
++    let client = TestClient::default();
++    let file_filter = FileFilter::new(&[], &["toml"], None);
++
++    // Now get diff of HEAD and parent commit
++    let changes = client
++        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On)
++        .await
++        .unwrap();
++    assert_eq!(changes.len(), 1);
++    let expected_changed_file = String::from("Cargo.toml");
++    assert!(changes.contains_key(&expected_changed_file));
++    assert_eq!(
++        changes.get(&expected_changed_file).unwrap().added_lines,
++        vec![4] // line 4 is where the version is defined in Cargo.toml
++    );
++
++    // make uncommitted change and verify it is detected
++    let mut cargo_toml = OpenOptions::new()
++        .append(true)
++        .open(&expected_changed_file)
++        .await
++        .unwrap();
++    cargo_toml.write_all(b"# Dummy change").await.unwrap();
++    cargo_toml.sync_all().await.unwrap();
++
++    // Get diff of working directory
++    let changes = client
++        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On)
++        .await
++        .unwrap();
++    assert!(changes.contains_key(&expected_changed_file));
++    let added_lines = &changes.get(&expected_changed_file).unwrap().added_lines;
++    assert_eq!(added_lines.len(), 1);
++    // The added line should not be line 4 anymore.
++    // It should be the new line we just added at the end of the file.
++    assert_ne!(*added_lines.first().unwrap(), 4);
++}
+diff --git a/tests/github_file_changes.rs b/tests/github_file_changes.rs
+new file mode 100644
+index 0000000..07c5b83
+--- /dev/null
++++ b/tests/github_file_changes.rs
+@@ -0,0 +1,236 @@
++#![cfg(feature = "file-changes")]
++use chrono::Utc;
++mod common;
++use common::logger_init;
++use mockito::{Matcher, Server};
++use tempfile::{NamedTempFile, TempDir};
++
++use git_bot_feedback::{
++    DiffHunkHeader, FileFilter, LinesChangedOnly, RestApiClient, client::GithubApiClient,
++};
++use std::{env, io::Write, path::Path};
++
++#[derive(PartialEq, Default)]
++enum EventType {
++    #[default]
++    Push,
++    PullRequest,
++}
++
++#[derive(Default)]
++struct TestParams {
++    event_t: EventType,
++    fail_serde_diff: bool,
++    fail_serde_event_payload: bool,
++    no_event_payload: bool,
++}
++
++const REPO: &str = "2bndy5/git-bot-feedback";
++const SHA: &str = "DEADBEEF";
++const PR: u8 = 42;
++const TOKEN: &str = "123456";
++const EVENT_PAYLOAD: &str = r#"{"number": 42}"#;
++const RESET_RATE_LIMIT_HEADER: &str = "x-ratelimit-reset";
++const REMAINING_RATE_LIMIT_HEADER: &str = "x-ratelimit-remaining";
++const MALFORMED_RESPONSE_PAYLOAD: &str = "{\"message\":\"Resource not accessible by integration\"}";
++
++async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
++    let tmp = TempDir::new().expect("Failed to create a temp dir for test");
++    let mut event_payload = NamedTempFile::new_in(tmp.path())
++        .expect("Failed to spawn a tmp file for test event payload");
++    if EventType::PullRequest == test_params.event_t
++        && !test_params.fail_serde_event_payload
++        && !test_params.no_event_payload
++    {
++        event_payload
++            .write_all(EVENT_PAYLOAD.as_bytes())
++            .expect("Failed to write data to test event payload file")
++    }
++
++    unsafe {
++        env::set_var("GITHUB_REPOSITORY", REPO);
++        env::set_var("GITHUB_SHA", SHA);
++        env::set_var("GITHUB_TOKEN", TOKEN);
++        env::set_var("CI", "true");
++        env::set_var(
++            "GITHUB_EVENT_NAME",
++            if test_params.event_t == EventType::Push {
++                "push"
++            } else {
++                "pull_request"
++            },
++        );
++        env::set_var(
++            "GITHUB_EVENT_PATH",
++            if test_params.no_event_payload {
++                Path::new("not_a_file.txt")
++            } else {
++                event_payload.path()
++            },
++        );
++    };
++    let mut server = Server::new_async().await;
++    unsafe {
++        env::set_var("GITHUB_API_URL", server.url());
++    }
++
++    let reset_timestamp = (Utc::now().timestamp() + 60).to_string();
++    let asset_path = format!(
++        "{}/tests/assets/file_changes/github",
++        lib_root.to_str().unwrap()
++    );
++
++    env::set_current_dir(tmp.path()).unwrap();
++    logger_init();
++    log::set_max_level(log::LevelFilter::Debug);
++    let gh_client = GithubApiClient::new();
++    if test_params.fail_serde_event_payload || test_params.no_event_payload {
++        assert!(gh_client.is_err());
++        return;
++    }
++    let client = gh_client.unwrap();
++
++    let mut mocks = vec![];
++    let diff_end_point = format!(
++        "/repos/{REPO}/{}",
++        if EventType::PullRequest == test_params.event_t {
++            format!("pulls/{PR}/files")
++        } else {
++            format!("commits/{SHA}")
++        }
++    );
++    let pg_count = if test_params.fail_serde_diff { 1 } else { 2 };
++    for pg in 1..=pg_count {
++        let link = if pg == 1 {
++            format!("<{}{diff_end_point}?page=2>; rel=\"next\"", server.url())
++        } else {
++            "".to_string()
++        };
++        let mut mock = server
++            .mock("GET", diff_end_point.as_str())
++            .match_header("Accept", "application/vnd.github.raw+json")
++            .match_header("Authorization", format!("token {TOKEN}").as_str())
++            .match_query(Matcher::UrlEncoded("page".to_string(), pg.to_string()))
++            .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
++            .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
++            .with_header("link", link.as_str());
++        if test_params.fail_serde_diff {
++            mock = mock.with_body(MALFORMED_RESPONSE_PAYLOAD);
++        } else {
++            mock = mock.with_body_from_file(format!(
++                "{asset_path}/{}_files_pg{pg}.json",
++                if test_params.event_t == EventType::Push {
++                    "push"
++                } else {
++                    "pr"
++                }
++            ));
++        }
++        mocks.push(mock.create());
++    }
++
++    let log_scope = if test_params.event_t == EventType::Push {
++        Some("push")
++    } else {
++        None
++    };
++    let file_filter = FileFilter::new(&["", "!src/*"], &["cpp", "hpp"], log_scope);
++    let files = client
++        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Off)
++        .await;
++    assert!(file_filter.is_file_ignored(&Path::new("./Cargo.toml")));
++    match files {
++        Err(e) => {
++            if !test_params.fail_serde_diff {
++                panic!("Failed to get changed files: {e:?}");
++            }
++        }
++        Ok(files) => {
++            assert_eq!(files.len(), 2);
++            for (file, diff_ctx) in files {
++                assert!(["src/demo.cpp", "src/demo.hpp"].contains(&file.as_str()));
++                if file == "src/demo.hpp" {
++                    let diff_hunk = DiffHunkHeader {
++                        old_start: 5,
++                        old_lines: 10,
++                        new_start: 5,
++                        new_lines: 10,
++                    };
++                    assert!(diff_ctx.is_hunk_in_diff(&diff_hunk).is_some());
++                    let diff_hunk = DiffHunkHeader {
++                        old_start: 5,
++                        old_lines: 0,
++                        new_start: 4,
++                        new_lines: 12,
++                    };
++                    assert!(diff_ctx.is_hunk_in_diff(&diff_hunk).is_none());
++                }
++            }
++        }
++    }
++    for mock in mocks {
++        mock.assert();
++    }
++}
++
++async fn test_get_changes(test_params: &TestParams) {
++    let tmp_dir = TempDir::new().unwrap();
++    let lib_root = env::current_dir().unwrap();
++    env::set_current_dir(tmp_dir.path()).unwrap();
++    get_paginated_changes(&lib_root, test_params).await;
++    env::set_current_dir(lib_root.as_path()).unwrap();
++    drop(tmp_dir);
++}
++
++#[tokio::test]
++async fn get_push_files_paginated() {
++    test_get_changes(&TestParams::default()).await
++}
++
++#[tokio::test]
++async fn get_pr_files_paginated() {
++    test_get_changes(&TestParams {
++        event_t: EventType::PullRequest,
++        ..Default::default()
++    })
++    .await
++}
++
++#[tokio::test]
++async fn fail_push_files_paginated() {
++    test_get_changes(&TestParams {
++        fail_serde_diff: true,
++        ..Default::default()
++    })
++    .await
++}
++
++#[tokio::test]
++async fn fail_pr_files_paginated() {
++    test_get_changes(&TestParams {
++        event_t: EventType::PullRequest,
++        fail_serde_diff: true,
++        ..Default::default()
++    })
++    .await
++}
++
++#[tokio::test]
++async fn fail_event_payload() {
++    test_get_changes(&TestParams {
++        event_t: EventType::PullRequest,
++        fail_serde_event_payload: true,
++        ..Default::default()
++    })
++    .await
++}
++
++#[tokio::test]
++async fn no_event_payload() {
++    test_get_changes(&TestParams {
++        event_t: EventType::PullRequest,
++        no_event_payload: true,
++        ..Default::default()
++    })
++    .await
++}
+diff --git a/tests/github_comments.rs b/tests/github_thread_comments.rs
+similarity index 97%
+rename from tests/github_comments.rs
+rename to tests/github_thread_comments.rs
+index 0521679..bf5dc9a 100644
+--- a/tests/github_comments.rs
++++ b/tests/github_thread_comments.rs
+@@ -15,7 +15,7 @@ const SHA: &str = "deadbeef";
+ const REPO: &str = "2bndy5/git-bot-feedback";
+ const PR: i64 = 22;
+ const TOKEN: &str = "123456";
+-const MOCK_ASSETS_PATH: &str = "tests/comment_test_assets/github/";
++const MOCK_ASSETS_PATH: &str = "tests/assets/thread_comment/github/";
+ const EVENT_PAYLOAD: &str = "{\"number\": 22}";
+ 
+ const RESET_RATE_LIMIT_HEADER: &str = "x-ratelimit-reset";
+@@ -142,7 +142,6 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
+         if test_params.bad_existing_comments || test_params.no_token {
+             mock = mock.with_body(String::new());
+         } else {
+-            eprintln!("{asset_path}push_comments_{SHA}.json");
+             mock = mock.with_body_from_file(format!("{asset_path}push_comments_{SHA}.json"));
+         }
+         mock = mock.create();
+@@ -229,11 +228,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
+                 .match_body(new_comment_match)
+                 .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+                 .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+-                .with_status(if test_params.fail_posting || test_params.no_lgtm {
+-                    403
+-                } else {
+-                    200
+-                })
++                .with_status(if test_params.fail_posting { 403 } else { 200 })
+                 .create();
+             if !test_params.no_token {
+                 mock = mock.match_header("Authorization", format!("token {TOKEN}").as_str());

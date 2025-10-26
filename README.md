@@ -32,14 +32,28 @@ consumers to choose the TLS backend of their choice; see [reqwest's features][re
 
 ## Supported git servers
 
-Initially this project os designed to work with GitHub.
-But the API is designed to easily add support for other git servers.
+This project is designed to easily add support for various git servers.
 The following is just a list of git servers that are planned (in order or priority).
 
 - [x] GitHub
 - [ ] GitLab
-- [ ] Gitea
+- [x] Gitea
+
+  Gitea does not support
+
+  - posting thread comments for commits (push events)
+  - programmatically deleting a PR reviews' individual comments,
+    rather we can only resolve them (currently).
+    However, deleting an entire PR review is supported.
 - [ ] BitBucket
+
+### Optional support
+
+Each supported implementation of the above git servers can be controlled via
+[cargo features][dep-features]. They are enabled by default.
+
+- `github` enables support of GitHub implementation
+- `gitea` enables support of Gitea implementation
 
 ## LGPL license
 

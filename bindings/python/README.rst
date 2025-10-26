@@ -26,14 +26,21 @@ loop is required.
 Supported git servers
 ---------------------
 
-Initially, this project is designed to work with GitHub.
-But the API is designed to easily add support for other git servers.
+This project is designed to easily add support for various git servers.
 The following is just a list of git servers that are planned (in order or priority).
 
 - GitHub
 - GitLab
 - Gitea
+
+  Gitea does not support
+
+  - posting thread comments for commits (push events)
+  - programmatically deleting a PR reviews' individual comments, rather we can
+    only resolve them (currently). However, deleting an entire PR review is supported.
 - BitBucket
+
+Currently, only Github and Gitea are supported.
 
 LGPL license
 ------------

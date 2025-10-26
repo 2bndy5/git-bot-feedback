@@ -1,13 +1,10 @@
 //! This submodule implements functionality exclusively specific to Github's REST API.
 
-use super::{
-    GithubApiClient,
-    serde_structs::{PullRequestEventPayload, ThreadComment},
-};
+use super::{GithubApiClient, serde_structs::ThreadComment};
 use crate::{
     AnnotationLevel, CommentKind, CommentPolicy, FileAnnotation, RestApiClient,
     RestApiRateLimitHeaders, ThreadCommentOptions,
-    client::{ClientError, USER_AGENT},
+    client::{ClientError, USER_AGENT, common::PullRequestEventPayload},
 };
 use reqwest::{
     Client, Method, Url,

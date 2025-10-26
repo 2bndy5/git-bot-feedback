@@ -1,6 +1,13 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, missing_docs)]
+// I wish there was a way to just disable this for the README,
+// but it has to applied to the whole crate because of the `#!`
+// prefix in `#![doc = include_str!()]`.
+#![allow(
+    clippy::doc_lazy_continuation,
+    reason = "false positive for list in README.md (which renders as expected)"
+)]
 
 pub mod client;
 pub use client::{RestApiClient, RestApiRateLimitHeaders};
