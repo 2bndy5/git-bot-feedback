@@ -40,7 +40,7 @@ jobs:
           path: ~/.cargo
           key: cargo-lib-${{ hashFiles('lib/src/**', 'lib/Cargo.toml') }}
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@ae3bd540883cc0f031cc0468e20b833703d5445c # v1.15.8
+        uses: cargo-bins/cargo-binstall@ae04fb5e853ae6cd3ad7de4a1d554a8b646d12aa # v1.15.11
       - name: Install nur
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -59,7 +59,7 @@ jobs:
           persist-credentials: false
       - run: rustup update --no-self-update
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@ae3bd540883cc0f031cc0468e20b833703d5445c # v1.15.8
+        uses: cargo-bins/cargo-binstall@ae04fb5e853ae6cd3ad7de4a1d554a8b646d12aa # v1.15.11
       - name: Install committed
         env:
           GITHUB_TOKEN: ${{ github.token }}
