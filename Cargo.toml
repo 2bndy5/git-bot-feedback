@@ -7,7 +7,7 @@ repository = "https://github.com/2bndy5/git-bot-feedback"
 license-file = "LICENSE"
 
 [dependencies]
-log = "0.4.28"
+log = "0.4.29"
 chrono = "0.4.42"
 reqwest = "0.12.24"
 serde = { version = "1", features = ["derive"] }
@@ -19,7 +19,7 @@ regex = { version = "1.12.2", optional = true }
 fast-glob = { version = "1.0.0", optional = true }
 
 [dev-dependencies]
-mockito = "1.7.0"
+mockito = "1.7.1"
 tempfile = "3.23.0"
 
 [build-dependencies]
