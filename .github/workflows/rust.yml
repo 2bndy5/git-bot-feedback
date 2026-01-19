@@ -27,19 +27,19 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - name: Setup Rust
         run: rustup update --no-self-update
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@ae3bd540883cc0f031cc0468e20b833703d5445c # v1.15.8
+        uses: cargo-bins/cargo-binstall@e7cc28468cf17df7cb288daea80c0c5437af360b # v1.16.7
       - name: Install cargo-llvm-cov, cargo-nextest, and nur
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: cargo binstall -y cargo-nextest cargo-llvm-cov nur
       - name: Cache deps
-        uses: actions/cache@v4  # zizmor: ignore[cache-poisoning]
+        uses: actions/cache@v5  # zizmor: ignore[cache-poisoning]
         with:
           path: ~/.cargo
           key: cargo-lib-${{ hashFiles('src/**', 'Cargo.toml') }}
@@ -51,7 +51,7 @@ jobs:
         run: nur test --profile ci
       - name: Generate coverage reports
         run: nur test lcov
-      - uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
+      - uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
@@ -64,13 +64,13 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
       - name: Setup Rust
         run: rustup update --no-self-update
       - name: Establish trusted publishing token
-        uses: rust-lang/crates-io-auth-action@041cce5b4b821e6b0ebc9c9c38b58cac4e34dcc2 # v1.0.2
+        uses: rust-lang/crates-io-auth-action@b7e9a28eded4986ec6b1fa40eeee8f8f165559ec # v1.0.3
         id: auth
       - name: Publish to crates.io
         env:
