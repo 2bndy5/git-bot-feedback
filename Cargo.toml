@@ -30,7 +30,7 @@ regex = ["dep:regex"]
 fast-glob = ["dep:fast-glob"]
 
 # feature that enables getting file changes
-file-changes = ["fast-glob", "regex", "tokio/process", "tokio/fs"]
+file-changes = ["fast-glob", "regex"]
 
 # GitHub implementation/support
 github = []

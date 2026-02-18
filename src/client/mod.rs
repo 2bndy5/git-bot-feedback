@@ -22,9 +22,7 @@ compile_error!(
 #[cfg(feature = "file-changes")]
 use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};
 #[cfg(feature = "file-changes")]
-use std::collections::HashMap;
-#[cfg(feature = "file-changes")]
-use tokio::process::Command;
+use std::{collections::HashMap, process::Command};
 
 /// The User-Agent header value included in all HTTP requests.
 pub static USER_AGENT: &str = concat!(env!("CARGO_CRATE_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -79,7 +77,6 @@ pub trait RestApiClient {
             let git_status = Command::new("git")
                 .args(["status", "--short"])
                 .output()
-                .await
                 .map_err(RestClientError::Io)
                 .map(|output| {
                     if output.status.success() {
@@ -105,7 +102,6 @@ pub trait RestApiClient {
             Command::new("git")
                 .args(&diff_args)
                 .output()
-                .await
                 .map_err(RestClientError::Io)
                 .map(|output| {
                     if output.status.success() {
