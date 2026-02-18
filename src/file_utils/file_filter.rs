@@ -1,9 +1,9 @@
 use fast_glob::glob_match;
 use std::{
     collections::{HashMap, HashSet},
+    fs,
     path::{Path, PathBuf},
 };
-use tokio::fs;
 
 use super::FileDiffLines;
 use crate::error::DirWalkError;
@@ -102,7 +102,7 @@ impl FileFilter {
     /// The named submodules' paths will be automatically added to the [`FileFilter::ignored`] set,
     /// unless the submodule's path is already specified in the [`FileFilter::not_ignored`] set.
     pub async fn parse_submodules(&mut self) {
-        if let Ok(read_buf) = fs::read_to_string(".gitmodules").await {
+        if let Ok(read_buf) = fs::read_to_string(".gitmodules") {
             for line in read_buf.split('\n') {
                 let line_trimmed = line.trim();
                 if line_trimmed.starts_with("path") {
@@ -242,11 +242,12 @@ impl FileFilter {
         root_path: &str,
     ) -> Result<HashMap<String, FileDiffLines>, DirWalkError> {
         let mut files: HashMap<String, FileDiffLines> = HashMap::new();
-        let mut entries = fs::read_dir(root_path)
-            .await
+        let entries = fs::read_dir(root_path)
             .map_err(|e| DirWalkError::ReadDirError(root_path.to_string(), e))?;
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            let path = entry.path();
+        for entry in entries {
+            let path = entry
+                .map_err(|e| DirWalkError::ReadDirError(root_path.to_string(), e))?
+                .path();
             if path.is_dir() {
                 files.extend(Box::pin(self.walk_dir(&path.to_string_lossy())).await?);
             } else {

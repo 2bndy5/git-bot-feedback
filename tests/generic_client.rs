@@ -281,12 +281,11 @@ fn bad_request() {
 #[tokio::test]
 #[cfg(feature = "file-changes")]
 async fn list_file_changes() {
-    use std::env;
+    use std::{env, fs::OpenOptions, io::Write, process::Command};
 
     use common::logger_init;
     use git_bot_feedback::{FileFilter, LinesChangedOnly};
     use tempfile::TempDir;
-    use tokio::{fs::OpenOptions, io::AsyncWriteExt, process::Command};
 
     // Setup temp workspace
     let tmp_dir = TempDir::new().unwrap();
@@ -299,7 +298,6 @@ async fn list_file_changes() {
             "https://github.com/2bndy5/git-bot-feedback.git",
         ])
         .output()
-        .await
         .unwrap();
     env::set_current_dir(tmp_dir.path().join("git-bot-feedback")).unwrap();
 
@@ -326,10 +324,9 @@ async fn list_file_changes() {
     let mut cargo_toml = OpenOptions::new()
         .append(true)
         .open(&expected_changed_file)
-        .await
         .unwrap();
-    cargo_toml.write_all(b"# Dummy change").await.unwrap();
-    cargo_toml.sync_all().await.unwrap();
+    cargo_toml.write_all(b"# Dummy change").unwrap();
+    cargo_toml.sync_all().unwrap();
 
     // Get diff of working directory
     let changes = client
