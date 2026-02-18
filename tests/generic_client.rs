@@ -305,14 +305,14 @@ async fn list_file_changes() {
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
     let client = TestClient::default();
-    let file_filter = FileFilter::new(&[], &["toml"], None);
+    let file_filter = FileFilter::new(&[], &["toml", "md"], None);
 
     // Now get diff of HEAD and parent commit
     let changes = client
-        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On)
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &None::<u8>, false)
         .await
         .unwrap();
-    assert_eq!(changes.len(), 1);
+    assert_eq!(changes.len(), 2);
     let expected_changed_file = String::from("Cargo.toml");
     assert!(changes.contains_key(&expected_changed_file));
     assert_eq!(
@@ -327,16 +327,55 @@ async fn list_file_changes() {
         .unwrap();
     cargo_toml.write_all(b"# Dummy change").unwrap();
     cargo_toml.sync_all().unwrap();
+    Command::new("git")
+        .args(["add", &expected_changed_file])
+        .output()
+        .unwrap();
 
     // Get diff of working directory
     let changes = client
-        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On)
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &None::<u8>, false)
         .await
         .unwrap();
+    // only the staged change should be detected, not the uncommitted change
+    assert_eq!(changes.len(), 1);
     assert!(changes.contains_key(&expected_changed_file));
     let added_lines = &changes.get(&expected_changed_file).unwrap().added_lines;
     assert_eq!(added_lines.len(), 1);
     // The added line should not be line 4 anymore.
     // It should be the new line we just added at the end of the file.
     assert_ne!(*added_lines.first().unwrap(), 4);
+
+    // test custom diff base provided as an invalid git ref
+    assert!(matches!(
+        client
+            .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Diff, &Some("1.0"), true)
+            .await
+            .unwrap_err(),
+        RestClientError::GitCommandError(_)
+    ));
+
+    // test custom diff base provided as a number of parents from HEAD
+    let changes = client
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &Some(1), true)
+        .await
+        .unwrap();
+    assert!(changes.contains_key(&expected_changed_file));
+    assert_eq!(changes.len(), 2);
+
+    // test custom diff base provided as a valid git ref
+    let valid_ref = {
+        let git_out = Command::new("git")
+            .args(["rev-parse", "HEAD~1"])
+            .output()
+            .unwrap()
+            .stdout;
+        String::from_utf8_lossy(&git_out).trim().to_string()
+    };
+    let changes = client
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &Some(valid_ref), true)
+        .await
+        .unwrap();
+    assert!(changes.contains_key(&expected_changed_file));
+    assert_eq!(changes.len(), 2);
 }

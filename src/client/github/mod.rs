@@ -21,7 +21,7 @@ use crate::{FileDiffLines, FileFilter, LinesChangedOnly, client::send_api_reques
 #[cfg(feature = "file-changes")]
 use reqwest::Method;
 #[cfg(feature = "file-changes")]
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, fmt::Display, path::Path};
 
 /// A structure to work with Github REST API.
 pub struct GithubApiClient {
@@ -194,10 +194,12 @@ impl RestApiClient for GithubApiClient {
 
     #[cfg(feature = "file-changes")]
     #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
-    async fn get_list_of_changed_files(
+    async fn get_list_of_changed_files<T: Display>(
         &self,
         file_filter: &FileFilter,
         lines_changed_only: &LinesChangedOnly,
+        _base_diff: &Option<T>,
+        _ignore_index: bool,
     ) -> Result<HashMap<String, FileDiffLines>, RestClientError> {
         let is_pr = self.is_pr_event();
         let url_path = if is_pr {
