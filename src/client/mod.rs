@@ -140,7 +140,6 @@ pub trait RestApiClient {
                 .map(|output| {
                     if output.status.success() {
                         let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
-                        log::info!("git {diff_args:?} returned:\n{}", diff_str);
                         let files = parse_diff(&diff_str, file_filter, lines_changed_only);
                         Ok(files)
                     } else {
