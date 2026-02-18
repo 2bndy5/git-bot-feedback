@@ -128,6 +128,10 @@ pub trait RestApiClient {
                     }
                     Err(e) => return Err(RestClientError::Io(e)),
                 }
+            } else if git_status == 0 {
+                // No base diff provided and there are no staged changes,
+                // just get the diff of the last commit.
+                diff_args.push("HEAD~1".to_string());
             }
             Command::new("git")
                 .args(&diff_args)
@@ -136,6 +140,7 @@ pub trait RestApiClient {
                 .map(|output| {
                     if output.status.success() {
                         let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
+                        log::info!("git {diff_args:?} returned:\n{}", diff_str);
                         let files = parse_diff(&diff_str, file_filter, lines_changed_only);
                         Ok(files)
                     } else {
