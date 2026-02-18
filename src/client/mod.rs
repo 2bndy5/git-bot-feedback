@@ -22,7 +22,7 @@ compile_error!(
 #[cfg(feature = "file-changes")]
 use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};
 #[cfg(feature = "file-changes")]
-use std::{collections::HashMap, process::Command};
+use std::{collections::HashMap, fmt::Display, process::Command};
 
 /// The User-Agent header value included in all HTTP requests.
 pub static USER_AGENT: &str = concat!(env!("CARGO_CRATE_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -68,36 +68,66 @@ pub trait RestApiClient {
     /// Other implementations use the Git server's REST API to get the list of changed files.
     #[cfg(feature = "file-changes")]
     #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
-    fn get_list_of_changed_files(
+    fn get_list_of_changed_files<T: Display>(
         &self,
         file_filter: &FileFilter,
         lines_changed_only: &LinesChangedOnly,
+        base_diff: &Option<T>,
+        ignore_index: bool,
     ) -> impl Future<Output = Result<HashMap<String, FileDiffLines>, RestClientError>> {
         async move {
-            let git_status = Command::new("git")
-                .args(["status", "--short"])
-                .output()
-                .map_err(RestClientError::Io)
-                .map(|output| {
-                    if output.status.success() {
-                        Ok(String::from_utf8_lossy(&output.stdout)
-                            .to_string()
-                            .trim_end_matches('\n')
-                            .lines()
-                            .count())
-                    } else {
-                        let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                        Err(RestClientError::GitCommandError(err_msg))
+            let git_status = if ignore_index {
+                0
+            } else {
+                Command::new("git")
+                    .args(["status", "--short"])
+                    .output()
+                    .map_err(RestClientError::Io)
+                    .map(|output| {
+                        if output.status.success() {
+                            Ok(String::from_utf8_lossy(&output.stdout)
+                                .to_string()
+                                // trim last newline to prevent an extra empty line being counted as a changed file
+                                .trim_end_matches('\n')
+                                .lines()
+                                // we only care about staged changes
+                                .filter(|l| !l.starts_with(' '))
+                                .count())
+                        } else {
+                            let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
+                            Err(RestClientError::GitCommandError(err_msg))
+                        }
+                    })??
+            };
+            let mut diff_args = vec!["diff".to_string()];
+            if git_status != 0 {
+                // There are changes in the working directory.
+                // So, compare include the staged changes.
+                diff_args.push("--staged".to_string());
+            }
+            if let Some(base) = base_diff {
+                let base = base.to_string();
+                match Command::new("git")
+                    .args(["rev-parse", base.as_str()])
+                    .output()
+                {
+                    Ok(output) => {
+                        if output.status.success() {
+                            diff_args.push(base);
+                        } else if base.chars().all(|c| c.is_ascii_digit()) {
+                            // if all chars form a decimal number, then
+                            // try using it as a number of parents from HEAD
+                            diff_args.push(format!("HEAD~{base}"));
+                            // note, if still not a valid git reference, then
+                            // the error will be raised by the `git diff` command later
+                        } else {
+                            let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
+                            // Given diff base did not resolve to a valid git reference
+                            return Err(RestClientError::GitCommandError(err_msg));
+                        }
                     }
-                })??;
-            let mut diff_args = vec!["diff"];
-            if git_status == 0 {
-                log::debug!(
-                    "No changes detected in the working directory; comparing last two commits."
-                );
-                // There are no changes in the working directory.
-                // So, compare the working directory with the last commit.
-                diff_args.extend(["HEAD~1", "HEAD"]);
+                    Err(e) => return Err(RestClientError::Io(e)),
+                }
             }
             Command::new("git")
                 .args(&diff_args)

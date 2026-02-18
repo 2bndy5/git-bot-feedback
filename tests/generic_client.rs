@@ -309,7 +309,7 @@ async fn list_file_changes() {
 
     // Now get diff of HEAD and parent commit
     let changes = client
-        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On)
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &None::<u8>, false)
         .await
         .unwrap();
     assert_eq!(changes.len(), 1);
@@ -327,10 +327,14 @@ async fn list_file_changes() {
         .unwrap();
     cargo_toml.write_all(b"# Dummy change").unwrap();
     cargo_toml.sync_all().unwrap();
+    Command::new("git")
+        .args(["add", &expected_changed_file])
+        .output()
+        .unwrap();
 
     // Get diff of working directory
     let changes = client
-        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On)
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &None::<u8>, false)
         .await
         .unwrap();
     assert!(changes.contains_key(&expected_changed_file));
