@@ -6,7 +6,8 @@ use mockito::{Matcher, Server};
 use tempfile::{NamedTempFile, TempDir};
 
 use git_bot_feedback::{
-    DiffHunkHeader, FileFilter, LinesChangedOnly, RestApiClient, client::GithubApiClient,
+    DiffHunkHeader, FileFilter, LinesChangedOnly, RestApiClient, RestClientError,
+    client::GithubApiClient,
 };
 use std::{env, io::Write, path::Path};
 
@@ -29,7 +30,8 @@ const REPO: &str = "2bndy5/git-bot-feedback";
 const SHA: &str = "DEADBEEF";
 const PR: u8 = 42;
 const TOKEN: &str = "123456";
-const EVENT_PAYLOAD: &str = r#"{"number": 42}"#;
+const EVENT_PAYLOAD: &str =
+    r#"{"pull_request": {"draft": false, "state": "open", "number": 42, "locked": false}}"#;
 const RESET_RATE_LIMIT_HEADER: &str = "x-ratelimit-reset";
 const REMAINING_RATE_LIMIT_HEADER: &str = "x-ratelimit-remaining";
 const MALFORMED_RESPONSE_PAYLOAD: &str = "{\"message\":\"Resource not accessible by integration\"}";
@@ -83,12 +85,20 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     env::set_current_dir(tmp.path()).unwrap();
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let gh_client = GithubApiClient::new();
-    if test_params.fail_serde_event_payload || test_params.no_event_payload {
-        assert!(gh_client.is_err());
-        return;
-    }
-    let client = gh_client.unwrap();
+    let client = match GithubApiClient::new() {
+        Ok(c) => c,
+        Err(e) => {
+            if test_params.fail_serde_event_payload {
+                assert!(matches!(e, RestClientError::Json { .. }));
+                return;
+            } else if test_params.no_event_payload {
+                assert!(matches!(e, RestClientError::Io { .. }));
+                return;
+            } else {
+                panic!("Unexpected error creating GithubApiClient: {e}");
+            }
+        }
+    };
 
     let mut mocks = vec![];
     let diff_end_point = format!(

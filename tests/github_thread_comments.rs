@@ -16,7 +16,6 @@ const REPO: &str = "2bndy5/git-bot-feedback";
 const PR: i64 = 22;
 const TOKEN: &str = "123456";
 const MOCK_ASSETS_PATH: &str = "tests/assets/thread_comment/github/";
-const EVENT_PAYLOAD: &str = "{\"number\": 22}";
 
 const RESET_RATE_LIMIT_HEADER: &str = "x-ratelimit-reset";
 const REMAINING_RATE_LIMIT_HEADER: &str = "x-ratelimit-remaining";
@@ -50,6 +49,7 @@ struct TestParams {
     no_token: bool,
     no_repo_env_var: bool,
     no_sha_env_var: bool,
+    pr_locked: bool,
 }
 
 impl Default for TestParams {
@@ -68,6 +68,7 @@ impl Default for TestParams {
             no_token: false,
             no_repo_env_var: false,
             no_sha_env_var: false,
+            pr_locked: false,
         }
     }
 }
@@ -98,12 +99,21 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
     }
     let mut event_payload_path = NamedTempFile::new_in("./").unwrap();
     if test_params.event_t == EventType::PullRequest {
-        event_payload_path
-            .write_all(if test_params.bad_pr_info {
-                "EVENT_PAYLOAD".as_bytes()
-            } else {
-                EVENT_PAYLOAD.as_bytes()
+        let event_payload = if test_params.bad_pr_info {
+            "EVENT_PAYLOAD".to_string()
+        } else {
+            serde_json::json!({
+                "pull_request": {
+                    "draft": false,
+                    "state": "open",
+                    "number": PR,
+                    "locked": test_params.pr_locked,
+                }
             })
+            .to_string()
+        };
+        event_payload_path
+            .write_all(event_payload.as_bytes())
             .expect("Failed to create mock event payload.");
         if !test_params.no_pr_info_env_var {
             unsafe {
@@ -129,19 +139,15 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
     let client = match GithubApiClient::new() {
         Ok(c) => c,
         Err(e) => {
-            assert!(
-                test_params.bad_pr_info
-                    || test_params.no_pr_info_env_var
-                    || test_params.no_repo_env_var
-                    || test_params.no_sha_env_var
-            );
             if test_params.no_pr_info_env_var
                 || test_params.no_repo_env_var
                 || test_params.no_sha_env_var
             {
                 assert!(matches!(e, RestClientError::EnvVar { .. }));
-            } else {
+            } else if test_params.bad_pr_info {
                 assert!(matches!(e, RestClientError::Json { .. }));
+            } else {
+                panic!("Unexpected error creating GithubApiClient: {e}");
             }
             return;
         }
@@ -150,58 +156,66 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
 
     let mut mocks = vec![];
 
-    if test_params.event_t == EventType::Push {
-        let mut mock = server
-            .mock(
-                "GET",
-                format!("/repos/{REPO}/commits/{SHA}/comments").as_str(),
-            )
-            .match_header("Accept", "application/vnd.github.raw+json")
-            .match_body(Matcher::Any)
-            .match_query(Matcher::UrlEncoded("page".to_string(), "1".to_string()))
-            .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
-            .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
-            .with_status(
-                if test_params.fail_get_existing_comments || test_params.no_token {
-                    403
-                } else {
-                    200
-                },
-            );
-        if !test_params.no_token {
-            mock = mock.match_header("Authorization", format!("token {TOKEN}").as_str());
-        }
-        if test_params.bad_existing_comments || test_params.no_token {
-            mock = mock.with_body(String::new());
-        } else {
-            mock = mock.with_body_from_file(format!("{asset_path}push_comments_{SHA}.json"));
-        }
-        mock = mock.create();
-        mocks.push(mock);
-    } else {
-        let pr_endpoint = format!("/repos/{REPO}/issues/{PR}/comments");
-        for pg in ["1", "2"] {
-            let link = if pg == "1" {
-                format!("<{}{pr_endpoint}?page=2>; rel=\"next\"", server.url())
-            } else {
-                "".to_string()
-            };
-            mocks.push(
-                server
-                    .mock("GET", pr_endpoint.as_str())
+    if !test_params.no_token {
+        match test_params.event_t {
+            EventType::Push => {
+                let mut mock = server
+                    .mock(
+                        "GET",
+                        format!("/repos/{REPO}/commits/{SHA}/comments").as_str(),
+                    )
                     .match_header("Accept", "application/vnd.github.raw+json")
-                    .match_header("Authorization", format!("token {TOKEN}").as_str())
                     .match_body(Matcher::Any)
-                    .match_query(Matcher::UrlEncoded("page".to_string(), pg.to_string()))
-                    .with_body_from_file(format!("{asset_path}pr_comments_pg{pg}.json"))
+                    .match_query(Matcher::UrlEncoded("page".to_string(), "1".to_string()))
                     .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
                     .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
-                    .with_header("link", link.as_str())
-                    .with_status(if test_params.fail_dismissal { 403 } else { 200 })
-                    .create(),
-            );
+                    .match_header("Authorization", format!("token {TOKEN}").as_str())
+                    .with_status(if test_params.fail_get_existing_comments {
+                        403
+                    } else {
+                        200
+                    });
+                if test_params.bad_existing_comments {
+                    mock = mock.with_body(String::new());
+                } else {
+                    mock =
+                        mock.with_body_from_file(format!("{asset_path}push_comments_{SHA}.json"));
+                }
+                mock = mock.create();
+                mocks.push(mock);
+            }
+            EventType::PullRequest => {
+                if !test_params.pr_locked {
+                    let pr_endpoint = format!("/repos/{REPO}/issues/{PR}/comments");
+                    for pg in ["1", "2"] {
+                        let link = if pg == "1" {
+                            format!("<{}{pr_endpoint}?page=2>; rel=\"next\"", server.url())
+                        } else {
+                            "".to_string()
+                        };
+                        mocks.push(
+                            server
+                                .mock("GET", pr_endpoint.as_str())
+                                .match_header("Accept", "application/vnd.github.raw+json")
+                                .match_header("Authorization", format!("token {TOKEN}").as_str())
+                                .match_body(Matcher::Any)
+                                .match_query(Matcher::UrlEncoded(
+                                    "page".to_string(),
+                                    pg.to_string(),
+                                ))
+                                .with_body_from_file(format!("{asset_path}pr_comments_pg{pg}.json"))
+                                .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+                                .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+                                .with_header("link", link.as_str())
+                                .with_status(if test_params.fail_dismissal { 403 } else { 200 })
+                                .create(),
+                        );
+                    }
+                }
+            }
         }
     }
+
     let comment_url = format!(
         "/repos/{REPO}{}/comments/76453652",
         if test_params.event_t == EventType::PullRequest {
@@ -214,6 +228,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
     if !test_params.fail_get_existing_comments
         && !test_params.bad_existing_comments
         && !test_params.no_token
+        && (test_params.event_t == EventType::Push || !test_params.pr_locked)
     {
         mocks.push(
             server
@@ -238,11 +253,13 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
         CommentKind::Concerns => true,
         CommentKind::Lgtm => !test_params.no_lgtm && !test_params.bad_existing_comments,
     };
-    if posting_comment {
+    if posting_comment
+        && (test_params.event_t == EventType::Push || !test_params.pr_locked)
+        && !test_params.no_token
+    {
         if test_params.bad_existing_comments
             || test_params.fail_get_existing_comments
             || test_params.comment_policy == CommentPolicy::Anew
-            || test_params.no_token
         {
             let mut mock = server
                 .mock(
@@ -292,6 +309,8 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
     client.end_log_group("");
     if test_params.bad_existing_comments {
         assert!(matches!(result, Err(RestClientError::Json { .. })));
+    } else if test_params.no_token {
+        assert!(matches!(result, Err(RestClientError::EnvVar { .. })));
     } else {
         assert!(result.is_ok());
     }
@@ -466,6 +485,16 @@ async fn no_repo_env() {
 async fn no_sha_env() {
     test_comment(&TestParams {
         no_sha_env_var: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn pr_locked() {
+    test_comment(&TestParams {
+        event_t: EventType::PullRequest,
+        pr_locked: true,
         ..Default::default()
     })
     .await;

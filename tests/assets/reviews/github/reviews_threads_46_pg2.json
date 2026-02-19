@@ -1,0 +1,315 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "reviewThreads": {
+          "nodes": [
+            {
+              "id": "thread_10",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_10_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.cpp",
+                    "line": 5,
+                    "startLine": null,
+                    "originalLine": 5,
+                    "originalStartLine": null,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  },
+                  {
+                    "id": "thread_10_comment_1",
+                    "body": "<!-- git-bot-feedback -->\noutdated bot comment",
+                    "path": "src/demo.cpp",
+                    "line": 5,
+                    "startLine": null,
+                    "originalLine": 5,
+                    "originalStartLine": null,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyMlrOcPghBA==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_11",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_11_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.cpp",
+                    "line": 11,
+                    "startLine": 6,
+                    "originalLine": 11,
+                    "originalStartLine": 6,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyM1rOcPghCQ==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_12",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_12_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.cpp",
+                    "line": 18,
+                    "startLine": 15,
+                    "originalLine": 18,
+                    "originalStartLine": 15,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyM1rOcPghEA==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_13",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_13_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.hpp",
+                    "line": 11,
+                    "startLine": 8,
+                    "originalLine": 11,
+                    "originalStartLine": 8,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyM1rOcPghGQ==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_14",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_14_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.hpp",
+                    "line": 35,
+                    "startLine": null,
+                    "originalLine": 35,
+                    "originalStartLine": null,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyM1rOcPghHA==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_15",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_15_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.cpp",
+                    "line": 3,
+                    "startLine": 2,
+                    "originalLine": 3,
+                    "originalStartLine": 2,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyM1rOcPghIQ==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_16",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_16_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.cpp",
+                    "line": 4,
+                    "startLine": null,
+                    "originalLine": 4,
+                    "originalStartLine": null,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyM1rOcPghJw==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_17",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_17_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.cpp",
+                    "line": 18,
+                    "startLine": null,
+                    "originalLine": 18,
+                    "originalStartLine": null,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyM1rOcPghLA==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_18",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_18_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.cpp",
+                    "line": 13,
+                    "startLine": null,
+                    "originalLine": 13,
+                    "originalStartLine": null,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyM1rOcPghLw==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_19",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_19_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.hpp",
+                    "line": 8,
+                    "startLine": 6,
+                    "originalLine": 8,
+                    "originalStartLine": 6,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "Y3Vyc29yOnYyOpK0MjAyNC0xMi0yM1QwNjozMjoyM1rOcPghNA==",
+                  "hasNextPage": false
+                }
+              }
+            },
+            {
+              "id": "thread_20",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "thread_20_comment_0",
+                    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+                    "path": "src/demo.hpp",
+                    "line": 11,
+                    "startLine": 10,
+                    "originalLine": 11,
+                    "originalStartLine": 10,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "pg3",
+                  "hasNextPage": true
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "endCursor": "Y3Vyc29yOnYyOpK0MjAyNS0wOC0xOFQxMDozOTowOFrOV8jPWg==",
+            "hasNextPage": false
+          }
+        }
+      }
+    }
+  }
+}
