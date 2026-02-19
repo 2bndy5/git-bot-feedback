@@ -1,18 +1,71 @@
 //! This submodule declares data structures used to
 //! deserialize (and serializer) JSON payload data.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-// /// A structure for deserializing a Pull Request's info from a response's json.
-// #[derive(Debug, Deserialize, PartialEq, Clone)]
-// pub struct PullRequestInfo {
-//     /// Is this PR a draft?
-//     pub draft: bool,
-//     /// What is current state of this PR?
-//     ///
-//     /// Here we only care if it is `"open"`.
-//     pub state: String,
-// }
+use crate::GenericReviewComment;
+
+/// A structure for deserializing a Pull Request's info from a response's json.
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct PullRequestInfo {
+    /// Is this PR a draft?
+    pub draft: bool,
+    /// What is current state of this PR?
+    ///
+    /// Here we only care if it is `"open"`.
+    pub state: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FullReview {
+    pub event: String,
+    pub body: String,
+    pub comments: Vec<ReviewDiffComment>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReviewDiffComment {
+    pub body: String,
+    pub line: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<i64>,
+    pub path: String,
+}
+
+impl From<&GenericReviewComment> for ReviewDiffComment {
+    fn from(comment: &GenericReviewComment) -> Self {
+        Self {
+            body: comment.comment.clone(),
+            line: comment.line_start as i64,
+            start_line: Some(comment.line_start as i64),
+            path: comment.path.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum ReviewState {
+    Pending,
+    Dismissed,
+    Approved,
+    Comment,
+}
+
+/// A structure for deserializing a comment from a response's json.
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct ReviewComment {
+    /// The content of the review's summary comment.
+    pub body: Option<String>,
+    /// The review's ID.
+    pub id: i64,
+    /// The review's node ID.
+    ///
+    /// This is really only useful for GraphQL requests.
+    pub node_id: String,
+    /// The state of the review in question.
+    pub state: ReviewState,
+}
 
 /// A structure for deserializing a comment from a response's json.
 #[derive(Debug, Deserialize, PartialEq, Clone)]

@@ -1,5 +1,5 @@
 //! A module to contain traits and structs that are needed by the rest of the git-bot-feedback crate's API.
-use crate::{OutputVariable, RestClientError, ThreadCommentOptions};
+use crate::{OutputVariable, RestClientError, ReviewOptions, ThreadCommentOptions};
 use chrono::DateTime;
 use reqwest::{
     Client, IntoUrl, Method, Request, Response, Url,
@@ -169,6 +169,13 @@ pub trait RestApiClient {
         let _ = comment;
         Ok(())
     }
+
+    /// Post a batch of PR review comments based on the given suggested patches.
+    fn post_pr_review(
+        &self,
+        files: &HashMap<String, FileDiffLines>,
+        options: &mut ReviewOptions,
+    ) -> impl Future<Output = Result<(), RestClientError>>;
 
     /// Sets the given `vars` as output variables.
     ///

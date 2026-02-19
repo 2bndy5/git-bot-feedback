@@ -1,7 +1,7 @@
 use chrono::Utc;
 use git_bot_feedback::{
-    RestApiClient, RestApiRateLimitHeaders, RestClientError, ThreadCommentOptions,
-    client::send_api_request,
+    FileDiffLines, OutputVariable, RestApiClient, RestApiRateLimitHeaders, RestClientError,
+    ReviewOptions, ThreadCommentOptions, client::send_api_request,
 };
 use mockito::{Matcher, Server};
 use reqwest::{
@@ -42,12 +42,18 @@ impl RestApiClient for TestClient {
         false
     }
 
-    fn write_output_variables(
-        _vars: &[git_bot_feedback::OutputVariable],
-    ) -> Result<(), RestClientError> {
+    fn write_output_variables(_vars: &[OutputVariable]) -> Result<(), RestClientError> {
         Err(RestClientError::Io(std::io::Error::from(
             std::io::ErrorKind::InvalidFilename,
         )))
+    }
+
+    async fn post_pr_review(
+        &self,
+        _files: &std::collections::HashMap<String, FileDiffLines>,
+        _options: &mut ReviewOptions,
+    ) -> Result<(), RestClientError> {
+        Err(RestClientError::RateLimit)
     }
 }
 

@@ -4,8 +4,11 @@
 //! In other (private) submodules we implement behavior specific to Github's REST API.
 
 use crate::{
-    OutputVariable, ThreadCommentOptions,
-    client::{RestApiClient, RestApiRateLimitHeaders},
+    OutputVariable, ReviewAction, ReviewOptions, ThreadCommentOptions,
+    client::{
+        RestApiClient, RestApiRateLimitHeaders,
+        github::serde_structs::{FullReview, PullRequestInfo, ReviewDiffComment},
+    },
     error::RestClientError,
 };
 use reqwest::{
@@ -13,6 +16,7 @@ use reqwest::{
     header::{AUTHORIZATION, HeaderMap, HeaderValue},
 };
 use std::{env, fs::OpenOptions, io::Write};
+mod graphql;
 mod serde_structs;
 mod specific_api;
 
@@ -253,5 +257,89 @@ impl RestApiClient for GithubApiClient {
             }
         }
         Ok(files)
+    }
+
+    async fn post_pr_review(
+        &self,
+        _files: &HashMap<String, FileDiffLines>,
+        options: &mut ReviewOptions,
+    ) -> Result<(), RestClientError> {
+        if !self.is_pr_event() {
+            return Ok(());
+        }
+        let url = self
+            .api_url
+            .join("repos/")?
+            .join(format!("{}/", self.repo).as_str())?
+            .join("pulls/")?
+            .join(self.pull_request.to_string().as_str())?;
+        let request = Self::make_api_request(&self.client, url.as_str(), Method::GET, None, None)?;
+        let response = send_api_request(&self.client, request, &self.rate_limit_headers);
+
+        let url = Url::parse(format!("{}/", url).as_str())?.join("reviews")?;
+        // first determine if the PR is open and not a draft (aka "ready for review").
+        // If the PR is closed or a draft, then we shouldn't post a review, and we can exit early.
+        match response.await {
+            Ok(response) => {
+                match serde_json::from_str::<PullRequestInfo>(&response.text().await?) {
+                    Err(e) => {
+                        log::error!("Failed to deserialize PR info: {e:?}");
+                        return Ok(());
+                    }
+                    Ok(pr_info) => {
+                        if pr_info.draft || pr_info.state != "open" {
+                            // hide/dismiss all bot reviews authored by this software
+                            return self
+                                .hide_outdated_reviews(url, vec![], &options.marker)
+                                .await;
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to get PR info from {e:?}");
+                return Ok(());
+            }
+        }
+
+        // first check existing comments to see if we can reuse any of them.
+        // hide any comments that we won't reuse, so that they don't show up as outdated comments on the PR.
+        let kept_comment_nodes = self.check_reused_comments(options, false).await?;
+        // next hide/resolve any previous reviews that are completely outdated.
+        self.hide_outdated_reviews(url.clone(), kept_comment_nodes, &options.marker)
+            .await?;
+        // Now post the review as is.
+        let payload = FullReview {
+            event: match options.action {
+                ReviewAction::Comment => String::from("COMMENT"),
+                ReviewAction::Approve => String::from("APPROVE"),
+                ReviewAction::RequestChanges => String::from("REQUEST_CHANGES"),
+            },
+            body: options.summary.clone(),
+            comments: options
+                .comments
+                .iter()
+                .map(ReviewDiffComment::from)
+                .collect(),
+        };
+        let request = Self::make_api_request(
+            &self.client,
+            url.as_str(),
+            Method::POST,
+            Some(serde_json::to_string(&payload)?),
+            None,
+        )?;
+        let response = send_api_request(&self.client, request, &self.rate_limit_headers);
+        match response.await {
+            Ok(response) => {
+                if !response.status().is_success() {
+                    log::error!("Failed to post PR review: {}", response.status());
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to post PR review: {e:?}");
+            }
+        }
+        Ok(())
     }
 }
