@@ -242,12 +242,12 @@ impl FileFilter {
         root_path: &str,
     ) -> Result<HashMap<String, FileDiffLines>, DirWalkError> {
         let mut files: HashMap<String, FileDiffLines> = HashMap::new();
-        let entries = fs::read_dir(root_path)
-            .map_err(|e| DirWalkError::ReadDirError(root_path.to_string(), e))?;
+        let entries = fs::read_dir(root_path).map_err(|e| DirWalkError::ReadDir {
+            path: PathBuf::from(root_path),
+            source: e,
+        })?;
         for entry in entries {
-            let path = entry
-                .map_err(|e| DirWalkError::ReadDirError(root_path.to_string(), e))?
-                .path();
+            let path = entry?.path();
             if path.is_dir() {
                 files.extend(Box::pin(self.walk_dir(&path.to_string_lossy())).await?);
             } else {
@@ -269,6 +269,8 @@ impl FileFilter {
 
 #[cfg(test)]
 mod tests {
+    use crate::error::DirWalkError;
+
     use super::FileFilter;
     use std::{
         env::set_current_dir,
@@ -364,5 +366,12 @@ mod tests {
         )));
         assert!(!file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths/.hidden")));
         assert!(file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths")));
+    }
+
+    #[tokio::test]
+    async fn walk_dir_err() {
+        let file_filter = setup_ignore("", &[]);
+        let err = file_filter.walk_dir("not/a/real/path").await.err().unwrap();
+        assert!(matches!(err, DirWalkError::ReadDir { .. }));
     }
 }

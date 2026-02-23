@@ -9,6 +9,8 @@ use crate::{
 use reqwest::{Client, Method, Url};
 use std::{collections::HashMap, env, fs};
 
+type EventPayloadType = serde_json::Map<String, serde_json::Value>;
+
 impl GithubApiClient {
     /// Instantiate a [`GithubApiClient`] object.
     pub fn new() -> Result<Self, RestClientError> {
@@ -17,13 +19,26 @@ impl GithubApiClient {
             match event_name.as_str() {
                 "pull_request" => {
                     // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
-                    let event_payload_path = env::var("GITHUB_EVENT_PATH")?;
+                    let event_payload_path =
+                        env::var("GITHUB_EVENT_PATH").map_err(|e| RestClientError::EnvVar {
+                            name: "GITHUB_EVENT_PATH".into(),
+                            source: e,
+                        })?;
                     // event payload JSON file can be overwritten/removed in CI runners
-                    let file_buf = fs::read_to_string(event_payload_path.clone())?;
-                    let payload = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
-                        &file_buf,
-                    )?;
-                    payload["number"].as_i64().unwrap_or(-1)
+                    let file_buf = fs::read_to_string(event_payload_path.clone()).map_err(|e| {
+                        RestClientError::Io {
+                            task: format!("read event payload from {event_payload_path}"),
+                            source: e,
+                        }
+                    })?;
+                    let payload =
+                        serde_json::from_str::<EventPayloadType>(&file_buf).map_err(|e| {
+                            RestClientError::Json {
+                                task: "deserialize Event Payload".into(),
+                                source: e,
+                            }
+                        })?;
+                    payload.get("number").and_then(|v| v.as_i64()).unwrap_or(-1)
                 }
                 _ => -1,
             }
@@ -40,8 +55,14 @@ impl GithubApiClient {
             pull_request,
             event_name,
             api_url,
-            repo: env::var("GITHUB_REPOSITORY")?,
-            sha: env::var("GITHUB_SHA")?,
+            repo: env::var("GITHUB_REPOSITORY").map_err(|e| RestClientError::EnvVar {
+                name: "GITHUB_REPOSITORY".into(),
+                source: e,
+            })?,
+            sha: env::var("GITHUB_SHA").map_err(|e| RestClientError::EnvVar {
+                name: "GITHUB_SHA".into(),
+                source: e,
+            })?,
             debug_enabled: env::var("ACTIONS_STEP_DEBUG").is_ok_and(|val| &val == "true"),
             rate_limit_headers: RestApiRateLimitHeaders {
                 reset: "x-ratelimit-reset".to_string(),
@@ -86,7 +107,13 @@ impl GithubApiClient {
                     Self::log_response(response, "Failed to post thread comment").await;
                 }
                 Err(e) => {
-                    log::error!("Failed to post thread comment: {e:?}");
+                    return match e {
+                        RestClientError::Request(error) => Err(RestClientError::RequestContext {
+                            task: "post thread comment".into(),
+                            source: error,
+                        }),
+                        e => Err(e), // propagate other error variants
+                    };
                 }
             }
         }
@@ -115,8 +142,15 @@ impl GithubApiClient {
             let result = send_api_request(&self.client, request, &self.rate_limit_headers).await;
             match result {
                 Err(e) => {
-                    log::error!("Failed to get list of existing thread comments: {e:?}");
-                    return Ok(comment_url);
+                    match e {
+                        RestClientError::Request(error) => {
+                            return Err(RestClientError::RequestContext {
+                                task: "get list of existing thread comments".into(),
+                                source: error,
+                            });
+                        }
+                        e => return Err(e), // propagate other error variants
+                    }
                 }
                 Ok(response) => {
                     if !response.status().is_success() {
@@ -129,70 +163,57 @@ impl GithubApiClient {
                     }
                     comments_url = Self::try_next_page(response.headers());
                     let payload =
-                        serde_json::from_str::<Vec<ThreadComment>>(&response.text().await?);
-                    match payload {
-                        Err(e) => {
-                            log::error!(
-                                "Failed to deserialize list of existing thread comments: {e}"
+                        serde_json::from_str::<Vec<ThreadComment>>(&response.text().await?)
+                            .map_err(|e| RestClientError::Json {
+                                task: "deserialize list of existing thread comments".into(),
+                                source: e,
+                            })?;
+                    for comment in payload {
+                        if comment.body.starts_with(comment_marker) {
+                            log::debug!(
+                                "Found bot comment id {} from user {} ({})",
+                                comment.id,
+                                comment.user.login,
+                                comment.user.id,
                             );
-                            continue;
-                        }
-                        Ok(payload) => {
-                            for comment in payload {
-                                if comment.body.starts_with(comment_marker) {
-                                    log::debug!(
-                                        "Found bot comment id {} from user {} ({})",
-                                        comment.id,
-                                        comment.user.login,
-                                        comment.user.id,
-                                    );
-                                    let this_comment_url = Url::parse(
-                                        format!("{base_comment_url}/{}", comment.id).as_str(),
-                                    )?;
-                                    if delete || comment_url.is_some() {
-                                        // if not updating: remove all outdated comments
-                                        // if updating: remove all outdated comments except the last one
+                            let this_comment_url =
+                                Url::parse(format!("{base_comment_url}/{}", comment.id).as_str())?;
+                            if delete || comment_url.is_some() {
+                                // if not updating: remove all outdated comments
+                                // if updating: remove all outdated comments except the last one
 
-                                        // use last saved comment_url (if not None) or current comment url
-                                        let del_url = if let Some(last_url) = &comment_url {
-                                            last_url
-                                        } else {
-                                            &this_comment_url
-                                        };
-                                        let req = Self::make_api_request(
-                                            &self.client,
-                                            del_url.as_str(),
-                                            Method::DELETE,
-                                            None,
-                                            None,
-                                        )?;
-                                        match send_api_request(
-                                            &self.client,
-                                            req,
-                                            &self.rate_limit_headers,
-                                        )
+                                // use last saved comment_url (if not None) or current comment url
+                                let del_url = if let Some(last_url) = &comment_url {
+                                    last_url
+                                } else {
+                                    &this_comment_url
+                                };
+                                let req = Self::make_api_request(
+                                    &self.client,
+                                    del_url.as_str(),
+                                    Method::DELETE,
+                                    None,
+                                    None,
+                                )?;
+                                let result =
+                                    send_api_request(&self.client, req, &self.rate_limit_headers)
                                         .await
-                                        {
-                                            Ok(result) => {
-                                                if !result.status().is_success() {
-                                                    Self::log_response(
-                                                        result,
-                                                        "Failed to delete old thread comment",
-                                                    )
-                                                    .await;
+                                        .map_err(|e| {
+                                            match e {
+                                                RestClientError::Request(error) => {
+                                                    RestClientError::RequestContext {
+                                                        task: "delete old thread comment".into(),
+                                                        source: error,
+                                                    }
                                                 }
+                                                e => e, // propagate other error variants
                                             }
-                                            Err(e) => {
-                                                log::error!(
-                                                    "Failed to delete old thread comment: {e:?}"
-                                                )
-                                            }
-                                        }
-                                    }
-                                    if !delete {
-                                        comment_url = Some(this_comment_url)
-                                    }
-                                }
+                                        })?;
+                                Self::log_response(result, "Failed to delete old thread comment")
+                                    .await;
+                            }
+                            if !delete {
+                                comment_url = Some(this_comment_url)
                             }
                         }
                     }

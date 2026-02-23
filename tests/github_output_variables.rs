@@ -60,9 +60,11 @@ async fn append_output_vars(test_params: TestParams) -> String {
         Err(e) => {
             eprintln!("Encountered error: {e}");
             if test_params.fail_file {
-                assert!(matches!(e, RestClientError::Io(_)));
+                assert!(matches!(e, RestClientError::Io { .. }));
             } else if test_params.bad_var {
-                assert!(matches!(e, RestClientError::OutputVarError(_)));
+                assert!(matches!(e, RestClientError::OutputVar { .. }));
+            } else if test_params.absent {
+                assert!(matches!(e, RestClientError::EnvVar { .. }));
             } else {
                 panic!("Unexpected failure to write to GITHUB_OUTPUT");
             }

@@ -1,52 +1,93 @@
 //! Error types used across the git-bot-feedback crate.
+#[cfg(feature = "file-changes")]
+use std::path::PathBuf;
+
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use crate::OutputVariable;
+use crate::{OutputVariable, client::MAX_RETRIES};
 
 /// The possible error emitted by the REST client API
 #[derive(Debug, Error)]
 pub enum RestClientError {
     /// Error related to making HTTP requests
-    #[error("{0}")]
+    #[error(transparent)]
     Request(#[from] reqwest::Error),
 
-    /// Errors related to standard I/O.
-    #[error("{0}")]
-    Io(#[from] std::io::Error),
+    /// Error related to making HTTP requests, with additional context about the request that caused the error.
+    #[error("Failed to {task}: {source}")]
+    RequestContext {
+        task: String,
+        #[source]
+        source: reqwest::Error,
+    },
 
-    /// Error related to Git command execution
+    /// Errors related to standard I/O.
+    #[error("Failed to {task}: {source}")]
+    Io {
+        task: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    /// Error related to `git` command execution.
     #[error("Git command error: {0}")]
     #[cfg(feature = "file-changes")]
     #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
-    GitCommandError(String),
+    GitCommand(String),
 
-    /// Error related to exceeding REST API Rate limits
-    #[error("Rate Limit exceeded")]
-    RateLimit,
+    /// Error related to exceeding REST API Rate limits and
+    /// no reset time is provided in the response headers.
+    #[error("Primary Rate Limit exceeded (no reset time provided)")]
+    RateLimitNoReset,
+
+    /// Error related to exceeding REST API Rate limits with a known reset time.
+    #[error("Primary Rate Limit exceeded; resets at {0}")]
+    RateLimitPrimary(DateTime<Utc>),
+
+    /// Error related to exhausting all retries after hitting REST API Rate limits.
+    #[error("Rate Limit exceeded after all {MAX_RETRIES} retries exhausted")]
+    RateLimitSecondary,
 
     /// Error emitted when cloning a request object fails.
-    #[error("Failed to clone request object for auto-reties")]
-    RequestCloneError,
+    #[error("Failed to clone request object for auto-retries")]
+    CannotCloneRequest,
 
     /// Error emitted when creating header value fails.
     #[error("Tried to create a header value from invalid string data")]
     InvalidHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
 
+    /// Error emitted when converting a header value to string fails.
+    #[error("Failed to convert header value to string")]
+    UnexpectedHeaderValue(#[from] reqwest::header::ToStrError),
+
+    /// Error emitted when parsing an integer from a header value (string) fails.
+    #[error("Failed to parse integer from header value: {0}")]
+    HeaderParseInt(#[from] std::num::ParseIntError),
+
     /// Error emitted when parsing a URL fails.
-    #[error("{0}")]
-    UrlParseError(#[from] url::ParseError),
+    #[error("Failed to parse URL:{0}")]
+    UrlParse(#[from] url::ParseError),
 
     /// Error emitted when deserializing/serializing request/response JSON data.
-    #[error("{0}")]
-    JsonError(#[from] serde_json::Error),
+    #[error("Failed to {task}: {source}")]
+    Json {
+        task: String,
+        #[source]
+        source: serde_json::Error,
+    },
 
     /// Error emitted when failing to read environment variable
-    #[error("{0}")]
-    EnvVarError(#[from] std::env::VarError),
+    #[error("Failed to get env var '{name}': {source}")]
+    EnvVar {
+        name: String,
+        #[source]
+        source: std::env::VarError,
+    },
 
     /// An error emitted when encountering an invalid [`OutputVariable`].
-    #[error("OutputVariable is malformed: {0}")]
-    OutputVarError(OutputVariable),
+    #[error("OutputVariable is malformed (cannot contain line breaks): {0}")]
+    OutputVar(OutputVariable),
 }
 
 /// The possible errors emitted by file utilities
@@ -54,6 +95,13 @@ pub enum RestClientError {
 #[derive(Debug, Error)]
 #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
 pub enum DirWalkError {
-    #[error("Failed to read directory {0}: {1}")]
-    ReadDirError(String, std::io::Error),
+    #[error("Failed to read {path}: {source}")]
+    ReadDir {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error(transparent)]
+    OsError(#[from] std::io::Error),
 }
