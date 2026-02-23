@@ -39,6 +39,9 @@ pub struct RestApiRateLimitHeaders {
     pub retry: String,
 }
 
+/// The [`Result::Err`] type returned for fallible functions in this trait.
+pub(crate) type ClientError = RestClientError;
+
 /// A custom trait that templates necessary functionality with a Git server's REST API.
 pub trait RestApiClient {
     /// This prints a line to indicate the beginning of a related group of log statements.
@@ -51,7 +54,7 @@ pub trait RestApiClient {
     ///
     /// If an authentication token is provided (via environment variable),
     /// this method shall include the relative information.
-    fn make_headers() -> Result<HeaderMap<HeaderValue>, RestClientError>;
+    fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError>;
 
     /// Is the current CI event **trigger** a Pull Request?
     ///
@@ -74,17 +77,14 @@ pub trait RestApiClient {
         lines_changed_only: &LinesChangedOnly,
         base_diff: &Option<T>,
         ignore_index: bool,
-    ) -> impl Future<Output = Result<HashMap<String, FileDiffLines>, RestClientError>> {
+    ) -> impl Future<Output = Result<HashMap<String, FileDiffLines>, ClientError>> {
         async move {
             let git_status = if ignore_index {
                 0
             } else {
                 match Command::new("git").args(["status", "--short"]).output() {
                     Err(e) => {
-                        return Err(RestClientError::Io {
-                            task: "invoke `git status`".into(),
-                            source: e,
-                        });
+                        return Err(ClientError::io("invoke `git status`", e));
                     }
                     Ok(output) => {
                         if output.status.success() {
@@ -98,7 +98,7 @@ pub trait RestApiClient {
                                 .count()
                         } else {
                             let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                            return Err(RestClientError::GitCommand(err_msg));
+                            return Err(ClientError::GitCommand(err_msg));
                         }
                     }
                 }
@@ -116,10 +116,10 @@ pub trait RestApiClient {
                     .output()
                 {
                     Err(e) => {
-                        return Err(RestClientError::Io {
-                            task: format!("invoke `git rev-parse {base}` to validate reference"),
-                            source: e,
-                        });
+                        return Err(ClientError::io(
+                            format!("invoke `git rev-parse {base}` to validate reference").as_str(),
+                            e,
+                        ));
                     }
                     Ok(output) => {
                         if output.status.success() {
@@ -133,7 +133,7 @@ pub trait RestApiClient {
                         } else {
                             let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
                             // Given diff base did not resolve to a valid git reference
-                            return Err(RestClientError::GitCommand(err_msg));
+                            return Err(ClientError::GitCommand(err_msg));
                         }
                     }
                 }
@@ -143,10 +143,10 @@ pub trait RestApiClient {
                 diff_args.push("HEAD~1".to_string());
             }
             match Command::new("git").args(&diff_args).output() {
-                Err(e) => Err(RestClientError::Io {
-                    task: format!("invoke `git {}`", diff_args.join(" ")),
-                    source: e,
-                }),
+                Err(e) => Err(ClientError::io(
+                    format!("invoke `git {}`", diff_args.join(" ")).as_str(),
+                    e,
+                )),
                 Ok(output) => {
                     if output.status.success() {
                         let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -154,7 +154,7 @@ pub trait RestApiClient {
                         Ok(files)
                     } else {
                         let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                        Err(RestClientError::GitCommand(err_msg))
+                        Err(ClientError::GitCommand(err_msg))
                     }
                 }
             }
@@ -168,7 +168,7 @@ pub trait RestApiClient {
     fn post_thread_comment(
         &self,
         options: ThreadCommentOptions,
-    ) -> impl Future<Output = Result<(), RestClientError>>;
+    ) -> impl Future<Output = Result<(), ClientError>>;
 
     /// Appends a given comment to the CI workflow's summary page.
     ///
@@ -176,7 +176,7 @@ pub trait RestApiClient {
     /// Not all Git servers natively support this type of feedback.
     /// GitHub, and Gitea are known to support this.
     /// For all other git servers, this is a non-op returning [`Ok`]
-    fn append_step_summary(comment: &str) -> Result<(), RestClientError> {
+    fn append_step_summary(comment: &str) -> Result<(), ClientError> {
         let _ = comment;
         Ok(())
     }
@@ -184,7 +184,7 @@ pub trait RestApiClient {
     /// Sets the given `vars` as output variables.
     ///
     /// These variables are designed to be consumed by other steps in the CI workflow.
-    fn write_output_variables(vars: &[OutputVariable]) -> Result<(), RestClientError>;
+    fn write_output_variables(vars: &[OutputVariable]) -> Result<(), ClientError>;
 
     /// Construct a HTTP request to be sent.
     ///
@@ -209,7 +209,7 @@ pub trait RestApiClient {
         method: Method,
         data: Option<String>,
         headers: Option<HeaderMap>,
-    ) -> Result<Request, RestClientError> {
+    ) -> Result<Request, ClientError> {
         let mut req = client.request(method, url);
         if let Some(h) = headers {
             req = req.headers(h);
@@ -217,7 +217,8 @@ pub trait RestApiClient {
         if let Some(d) = data {
             req = req.body(d);
         }
-        req.build().map_err(RestClientError::Request)
+        req.build()
+            .map_err(|e| ClientError::add_request_context(ClientError::Request(e), "build request"))
     }
 
     /// Gets the URL for the next page from the headers in a paginated response.
@@ -269,14 +270,10 @@ pub async fn send_api_request(
     client: &Client,
     request: Request,
     rate_limit_headers: &RestApiRateLimitHeaders,
-) -> Result<Response, RestClientError> {
+) -> Result<Response, ClientError> {
     for i in 0..MAX_RETRIES {
         let response = client
-            .execute(
-                request
-                    .try_clone()
-                    .ok_or(RestClientError::CannotCloneRequest)?,
-            )
+            .execute(request.try_clone().ok_or(ClientError::CannotCloneRequest)?)
             .await?;
         if [403u16, 429u16].contains(&response.status().as_u16()) {
             // rate limit may have been exceeded
@@ -295,9 +292,9 @@ pub async fn send_api_request(
                     && let Some(reset) =
                         DateTime::from_timestamp(reset_value.to_str()?.parse::<i64>()?, 0)
                 {
-                    return Err(RestClientError::RateLimitPrimary(reset));
+                    return Err(ClientError::RateLimitPrimary(reset));
                 }
-                return Err(RestClientError::RateLimitNoReset);
+                return Err(ClientError::RateLimitNoReset);
             }
 
             // check if secondary rate limit is violated. If so, then backoff and try again.
@@ -321,5 +318,5 @@ pub async fn send_api_request(
         }
         return Ok(response);
     }
-    Err(RestClientError::RateLimitSecondary)
+    Err(ClientError::RateLimitSecondary)
 }
