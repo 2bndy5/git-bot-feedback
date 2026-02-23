@@ -46,7 +46,10 @@ struct TestParams {
     fail_posting: bool,
     bad_existing_comments: bool,
     bad_pr_info: bool,
+    no_pr_info_env_var: bool,
     no_token: bool,
+    no_repo_env_var: bool,
+    no_sha_env_var: bool,
 }
 
 impl Default for TestParams {
@@ -61,7 +64,10 @@ impl Default for TestParams {
             fail_posting: false,
             bad_existing_comments: false,
             bad_pr_info: false,
+            no_pr_info_env_var: false,
             no_token: false,
+            no_repo_env_var: false,
+            no_sha_env_var: false,
         }
     }
 }
@@ -72,8 +78,16 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
             "GITHUB_EVENT_NAME",
             test_params.event_t.to_string().as_str(),
         );
-        env::set_var("GITHUB_REPOSITORY", REPO);
-        env::set_var("GITHUB_SHA", SHA);
+        if !test_params.no_repo_env_var {
+            env::set_var("GITHUB_REPOSITORY", REPO);
+        } else if env::var("GITHUB_REPOSITORY").is_ok() {
+            env::remove_var("GITHUB_REPOSITORY");
+        }
+        if !test_params.no_sha_env_var {
+            env::set_var("GITHUB_SHA", SHA);
+        } else if env::var("GITHUB_SHA").is_ok() {
+            env::remove_var("GITHUB_SHA");
+        }
         if !test_params.no_token {
             env::set_var("GITHUB_TOKEN", TOKEN);
         }
@@ -91,8 +105,14 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
                 EVENT_PAYLOAD.as_bytes()
             })
             .expect("Failed to create mock event payload.");
-        unsafe {
-            env::set_var("GITHUB_EVENT_PATH", event_payload_path.path());
+        if !test_params.no_pr_info_env_var {
+            unsafe {
+                env::set_var("GITHUB_EVENT_PATH", event_payload_path.path());
+            }
+        } else if env::var("GITHUB_EVENT_PATH").is_ok() {
+            unsafe {
+                env::remove_var("GITHUB_EVENT_PATH");
+            }
         }
     }
 
@@ -109,8 +129,20 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
     let client = match GithubApiClient::new() {
         Ok(c) => c,
         Err(e) => {
-            assert!(test_params.bad_pr_info);
-            assert!(matches!(e, RestClientError::Json { .. }));
+            assert!(
+                test_params.bad_pr_info
+                    || test_params.no_pr_info_env_var
+                    || test_params.no_repo_env_var
+                    || test_params.no_sha_env_var
+            );
+            if test_params.no_pr_info_env_var
+                || test_params.no_repo_env_var
+                || test_params.no_sha_env_var
+            {
+                assert!(matches!(e, RestClientError::EnvVar { .. }));
+            } else {
+                assert!(matches!(e, RestClientError::Json { .. }));
+            }
             return;
         }
     };
@@ -402,9 +434,38 @@ async fn bad_pr_info() {
 }
 
 #[tokio::test]
+async fn no_pr_info_env() {
+    test_comment(&TestParams {
+        event_t: EventType::PullRequest,
+        bad_pr_info: true,
+        no_pr_info_env_var: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn no_token() {
     test_comment(&TestParams {
         no_token: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn no_repo_env() {
+    test_comment(&TestParams {
+        no_repo_env_var: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn no_sha_env() {
+    test_comment(&TestParams {
+        no_sha_env_var: true,
         ..Default::default()
     })
     .await;
