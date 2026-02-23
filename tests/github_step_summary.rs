@@ -41,8 +41,12 @@ async fn append_summary(test_params: TestParams) -> String {
                 .unwrap();
         }
         Err(e) => {
-            assert!(test_params.fail_summary);
-            assert!(matches!(e, RestClientError::Io(_)));
+            assert!(test_params.fail_summary || test_params.absent);
+            if test_params.absent {
+                assert!(matches!(e, RestClientError::EnvVar { .. }));
+            } else {
+                assert!(matches!(e, RestClientError::Io { .. }));
+            }
         }
     }
     step_summary_content

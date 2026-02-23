@@ -27,7 +27,7 @@ impl RestApiClient for TestClient {
         &self,
         _options: ThreadCommentOptions,
     ) -> Result<(), RestClientError> {
-        Err(RestClientError::RequestCloneError)
+        Err(RestClientError::CannotCloneRequest)
     }
 
     fn start_log_group(name: &str) {
@@ -45,9 +45,10 @@ impl RestApiClient for TestClient {
     fn write_output_variables(
         _vars: &[git_bot_feedback::OutputVariable],
     ) -> Result<(), RestClientError> {
-        Err(RestClientError::Io(std::io::Error::from(
-            std::io::ErrorKind::InvalidFilename,
-        )))
+        Err(RestClientError::Io {
+            task: String::new(),
+            source: std::io::Error::from(std::io::ErrorKind::InvalidFilename),
+        })
     }
 }
 
@@ -127,8 +128,17 @@ async fn simulate_rate_limit(test_params: &RateLimitTestParams) {
     };
     if let RestClientError::Request(e) = err {
         assert!(matches!(e.status(), Some(StatusCode::TOO_MANY_REQUESTS)));
+    } else if test_params.bad_retry_interval
+        || test_params.bad_remaining_count
+        || test_params.bad_reset_timestamp
+    {
+        assert!(matches!(err, RestClientError::HeaderParseInt(_)));
+    } else if test_params.has_reset_timestamp {
+        assert!(matches!(err, RestClientError::RateLimitPrimary(_)));
+    } else if test_params.secondary {
+        assert!(matches!(err, RestClientError::RateLimitSecondary));
     } else {
-        assert!(matches!(err, RestClientError::RateLimit));
+        assert!(matches!(err, RestClientError::RateLimitNoReset));
     }
 }
 
@@ -352,7 +362,7 @@ async fn list_file_changes() {
             .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Diff, &Some("1.0"), true)
             .await
             .unwrap_err(),
-        RestClientError::GitCommandError(_)
+        RestClientError::GitCommand(_)
     ));
 
     // test custom diff base provided as a number of parents from HEAD

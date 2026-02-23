@@ -79,25 +79,29 @@ pub trait RestApiClient {
             let git_status = if ignore_index {
                 0
             } else {
-                Command::new("git")
-                    .args(["status", "--short"])
-                    .output()
-                    .map_err(RestClientError::Io)
-                    .map(|output| {
+                match Command::new("git").args(["status", "--short"]).output() {
+                    Err(e) => {
+                        return Err(RestClientError::Io {
+                            task: "invoke `git status`".into(),
+                            source: e,
+                        });
+                    }
+                    Ok(output) => {
                         if output.status.success() {
-                            Ok(String::from_utf8_lossy(&output.stdout)
+                            String::from_utf8_lossy(&output.stdout)
                                 .to_string()
                                 // trim last newline to prevent an extra empty line being counted as a changed file
                                 .trim_end_matches('\n')
                                 .lines()
                                 // we only care about staged changes
                                 .filter(|l| !l.starts_with(' '))
-                                .count())
+                                .count()
                         } else {
                             let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                            Err(RestClientError::GitCommandError(err_msg))
+                            return Err(RestClientError::GitCommand(err_msg));
                         }
-                    })??
+                    }
+                }
             };
             let mut diff_args = vec!["diff".to_string()];
             if git_status != 0 {
@@ -111,6 +115,12 @@ pub trait RestApiClient {
                     .args(["rev-parse", base.as_str()])
                     .output()
                 {
+                    Err(e) => {
+                        return Err(RestClientError::Io {
+                            task: format!("invoke `git rev-parse {base}` to validate reference"),
+                            source: e,
+                        });
+                    }
                     Ok(output) => {
                         if output.status.success() {
                             diff_args.push(base);
@@ -123,30 +133,31 @@ pub trait RestApiClient {
                         } else {
                             let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
                             // Given diff base did not resolve to a valid git reference
-                            return Err(RestClientError::GitCommandError(err_msg));
+                            return Err(RestClientError::GitCommand(err_msg));
                         }
                     }
-                    Err(e) => return Err(RestClientError::Io(e)),
                 }
             } else if git_status == 0 {
                 // No base diff provided and there are no staged changes,
                 // just get the diff of the last commit.
                 diff_args.push("HEAD~1".to_string());
             }
-            Command::new("git")
-                .args(&diff_args)
-                .output()
-                .map_err(RestClientError::Io)
-                .map(|output| {
+            match Command::new("git").args(&diff_args).output() {
+                Err(e) => Err(RestClientError::Io {
+                    task: format!("invoke `git {}`", diff_args.join(" ")),
+                    source: e,
+                }),
+                Ok(output) => {
                     if output.status.success() {
                         let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
                         let files = parse_diff(&diff_str, file_filter, lines_changed_only);
                         Ok(files)
                     } else {
                         let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                        Err(RestClientError::GitCommandError(err_msg))
+                        Err(RestClientError::GitCommand(err_msg))
                     }
-                })?
+                }
+            }
         }
     }
 
@@ -247,7 +258,7 @@ pub trait RestApiClient {
     }
 }
 
-const MAX_RETRIES: u8 = 5;
+pub(crate) const MAX_RETRIES: u8 = 5;
 
 /// A convenience function to send HTTP requests and respect a REST API rate limits.
 ///
@@ -260,90 +271,55 @@ pub async fn send_api_request(
     rate_limit_headers: &RestApiRateLimitHeaders,
 ) -> Result<Response, RestClientError> {
     for i in 0..MAX_RETRIES {
-        let result = client
+        let response = client
             .execute(
                 request
                     .try_clone()
-                    .ok_or(RestClientError::RequestCloneError)?,
+                    .ok_or(RestClientError::CannotCloneRequest)?,
             )
-            .await
-            .map_err(RestClientError::Request);
-        match result {
-            Ok(response) => {
-                if [403u16, 429u16].contains(&response.status().as_u16()) {
-                    // rate limit may have been exceeded
+            .await?;
+        if [403u16, 429u16].contains(&response.status().as_u16()) {
+            // rate limit may have been exceeded
 
-                    // check if primary rate limit was violated
-                    let mut requests_remaining = None;
-                    if let Some(remaining) = response.headers().get(&rate_limit_headers.remaining) {
-                        if let Ok(count) = remaining.to_str() {
-                            if let Ok(value) = count.parse::<i64>() {
-                                requests_remaining = Some(value);
-                            } else {
-                                log::debug!(
-                                    "Failed to parse i64 from remaining attempts about rate limit: {count}"
-                                );
-                            }
-                        }
-                    } else {
-                        // NOTE: I guess it is sometimes valid for a response to
-                        // not include remaining rate limit attempts
-                        log::debug!("Response headers do not include remaining API usage count");
-                    }
-                    if requests_remaining.is_some_and(|v| v <= 0) {
-                        if let Some(reset_value) = response.headers().get(&rate_limit_headers.reset)
-                        {
-                            if let Ok(epoch) = reset_value.to_str() {
-                                if let Ok(value) = epoch.parse::<i64>() {
-                                    if let Some(reset) = DateTime::from_timestamp(value, 0) {
-                                        log::error!(
-                                            "REST API rate limit exceeded! Resets at {reset}"
-                                        );
-                                        return Err(RestClientError::RateLimit);
-                                    }
-                                } else {
-                                    log::debug!(
-                                        "Failed to parse i64 from reset time about rate limit: {epoch}"
-                                    );
-                                }
-                            }
-                        } else {
-                            log::debug!("Response headers does not include a reset timestamp");
-                        }
-                        return Err(RestClientError::RateLimit);
-                    }
-
-                    // check if secondary rate limit is violated. If so, then backoff and try again.
-                    if let Some(retry_value) = response.headers().get(&rate_limit_headers.retry) {
-                        if let Ok(retry_str) = retry_value.to_str() {
-                            if let Ok(retry) = retry_str.parse::<u64>() {
-                                let interval = Duration::from_secs(retry + (i as u64).pow(2));
-                                #[cfg(feature = "test-skip-wait-for-rate-limit")]
-                                {
-                                    // Output a log statement to use the `interval` variable.
-                                    log::warn!(
-                                        "Skipped waiting {} seconds to expedite test",
-                                        interval.as_secs()
-                                    );
-                                }
-                                #[cfg(not(feature = "test-skip-wait-for-rate-limit"))]
-                                {
-                                    tokio::time::sleep(interval).await;
-                                }
-                            } else {
-                                log::debug!(
-                                    "Failed to parse u64 from retry interval about rate limit: {retry_str}"
-                                );
-                            }
-                        }
-                        continue;
-                    }
-                }
-                return Ok(response);
+            // check if primary rate limit was violated
+            let mut requests_remaining = None;
+            if let Some(remaining) = response.headers().get(&rate_limit_headers.remaining) {
+                requests_remaining = Some(remaining.to_str()?.parse::<i64>()?);
+            } else {
+                // NOTE: I guess it is sometimes valid for a response to
+                // not include remaining rate limit attempts
+                log::debug!("Response headers do not include remaining API usage count");
             }
-            Err(e) => return Err(e),
+            if requests_remaining.is_some_and(|v| v <= 0) {
+                if let Some(reset_value) = response.headers().get(&rate_limit_headers.reset)
+                    && let Some(reset) =
+                        DateTime::from_timestamp(reset_value.to_str()?.parse::<i64>()?, 0)
+                {
+                    return Err(RestClientError::RateLimitPrimary(reset));
+                }
+                return Err(RestClientError::RateLimitNoReset);
+            }
+
+            // check if secondary rate limit is violated. If so, then backoff and try again.
+            if let Some(retry_value) = response.headers().get(&rate_limit_headers.retry) {
+                let interval =
+                    Duration::from_secs(retry_value.to_str()?.parse::<u64>()? + (i as u64).pow(2));
+                #[cfg(feature = "test-skip-wait-for-rate-limit")]
+                {
+                    // Output a log statement to use the `interval` variable.
+                    log::warn!(
+                        "Skipped waiting {} seconds to expedite test",
+                        interval.as_secs()
+                    );
+                }
+                #[cfg(not(feature = "test-skip-wait-for-rate-limit"))]
+                {
+                    tokio::time::sleep(interval).await;
+                }
+                continue;
+            }
         }
+        return Ok(response);
     }
-    log::error!("REST API secondary rate limit exceeded after {MAX_RETRIES} retries.");
-    Err(RestClientError::RateLimit)
+    Err(RestClientError::RateLimitSecondary)
 }

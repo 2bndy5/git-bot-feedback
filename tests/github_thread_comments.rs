@@ -110,7 +110,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
         Ok(c) => c,
         Err(e) => {
             assert!(test_params.bad_pr_info);
-            assert!(matches!(e, RestClientError::JsonError(_)));
+            assert!(matches!(e, RestClientError::Json { .. }));
             return;
         }
     };
@@ -204,7 +204,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
 
     let posting_comment = match test_params.comment_kind {
         CommentKind::Concerns => true,
-        CommentKind::Lgtm => !test_params.no_lgtm,
+        CommentKind::Lgtm => !test_params.no_lgtm && !test_params.bad_existing_comments,
     };
     if posting_comment {
         if test_params.bad_existing_comments
@@ -258,7 +258,11 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
     GithubApiClient::start_log_group("posting comment");
     let result = client.post_thread_comment(opts).await;
     GithubApiClient::end_log_group();
-    assert!(result.is_ok());
+    if test_params.bad_existing_comments {
+        assert!(matches!(result, Err(RestClientError::Json { .. })));
+    } else {
+        assert!(result.is_ok());
+    }
     for mock in mocks {
         mock.assert();
     }
