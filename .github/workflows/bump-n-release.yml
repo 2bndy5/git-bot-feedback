@@ -49,7 +49,7 @@ jobs:
         with:
           version: "*"
 
-      - uses: cargo-bins/cargo-binstall@e7cc28468cf17df7cb288daea80c0c5437af360b # v1.16.7
+      - uses: cargo-bins/cargo-binstall@7691a5b29cda4f5499b819e5618012ba4b6c3334 # v1.17.5
       - name: Install git-cliff
         run: cargo binstall -y git-cliff
         env:
@@ -84,7 +84,7 @@ jobs:
         with:
           python-version: '3.x'
       - name: Install uv
-        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
         with:
           enable-cache: false
       - name: Generate a changelog
