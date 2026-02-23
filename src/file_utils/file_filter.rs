@@ -269,6 +269,8 @@ impl FileFilter {
 
 #[cfg(test)]
 mod tests {
+    use crate::error::DirWalkError;
+
     use super::FileFilter;
     use std::{
         env::set_current_dir,
@@ -364,5 +366,12 @@ mod tests {
         )));
         assert!(!file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths/.hidden")));
         assert!(file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths")));
+    }
+
+    #[tokio::test]
+    async fn walk_dir_err() {
+        let file_filter = setup_ignore("", &[]);
+        let err = file_filter.walk_dir("not/a/real/path").await.err().unwrap();
+        assert!(matches!(err, DirWalkError::ReadDir { .. }));
     }
 }
