@@ -45,10 +45,10 @@ impl RestApiClient for TestClient {
     fn write_output_variables(
         _vars: &[git_bot_feedback::OutputVariable],
     ) -> Result<(), RestClientError> {
-        Err(RestClientError::Io {
-            task: String::new(),
-            source: std::io::Error::from(std::io::ErrorKind::InvalidFilename),
-        })
+        Err(RestClientError::io(
+            "",
+            std::io::Error::from(std::io::ErrorKind::InvalidFilename),
+        ))
     }
 }
 
@@ -285,7 +285,7 @@ fn bad_request() {
     let client = Client::new();
     let result = TestClient::make_api_request(&client, "127.0.0.1", Method::GET, None, None);
     eprintln!("err: {result:?}");
-    assert!(result.is_err_and(|e| matches!(e, RestClientError::Request(_))));
+    assert!(result.is_err_and(|e| matches!(e, RestClientError::RequestContext { .. })));
 }
 
 #[tokio::test]

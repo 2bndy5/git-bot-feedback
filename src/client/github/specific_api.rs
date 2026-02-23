@@ -2,9 +2,8 @@
 
 use super::{GithubApiClient, serde_structs::ThreadComment};
 use crate::{
-    CommentKind, CommentPolicy, RestApiClient, RestApiRateLimitHeaders, RestClientError,
-    ThreadCommentOptions,
-    client::{USER_AGENT, send_api_request},
+    CommentKind, CommentPolicy, RestApiClient, RestApiRateLimitHeaders, ThreadCommentOptions,
+    client::{ClientError, USER_AGENT, send_api_request},
 };
 use reqwest::{Client, Method, Url};
 use std::{collections::HashMap, env, fs};
@@ -13,31 +12,23 @@ type EventPayloadType = serde_json::Map<String, serde_json::Value>;
 
 impl GithubApiClient {
     /// Instantiate a [`GithubApiClient`] object.
-    pub fn new() -> Result<Self, RestClientError> {
+    pub fn new() -> Result<Self, ClientError> {
         let event_name = env::var("GITHUB_EVENT_NAME").unwrap_or(String::from("unknown"));
         let pull_request = {
             match event_name.as_str() {
                 "pull_request" => {
                     // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
-                    let event_payload_path =
-                        env::var("GITHUB_EVENT_PATH").map_err(|e| RestClientError::EnvVar {
-                            name: "GITHUB_EVENT_PATH".into(),
-                            source: e,
-                        })?;
+                    let event_payload_path = env::var("GITHUB_EVENT_PATH")
+                        .map_err(|e| ClientError::env_var("GITHUB_EVENT_PATH", e))?;
                     // event payload JSON file can be overwritten/removed in CI runners
                     let file_buf = fs::read_to_string(event_payload_path.clone()).map_err(|e| {
-                        RestClientError::Io {
-                            task: format!("read event payload from {event_payload_path}"),
-                            source: e,
-                        }
+                        ClientError::io(
+                            format!("read event payload from {event_payload_path}").as_str(),
+                            e,
+                        )
                     })?;
-                    let payload =
-                        serde_json::from_str::<EventPayloadType>(&file_buf).map_err(|e| {
-                            RestClientError::Json {
-                                task: "deserialize Event Payload".into(),
-                                source: e,
-                            }
-                        })?;
+                    let payload = serde_json::from_str::<EventPayloadType>(&file_buf)
+                        .map_err(|e| ClientError::json("deserialize Event Payload", e))?;
                     payload.get("number").and_then(|v| v.as_i64()).unwrap_or(-1)
                 }
                 _ => -1,
@@ -55,14 +46,9 @@ impl GithubApiClient {
             pull_request,
             event_name,
             api_url,
-            repo: env::var("GITHUB_REPOSITORY").map_err(|e| RestClientError::EnvVar {
-                name: "GITHUB_REPOSITORY".into(),
-                source: e,
-            })?,
-            sha: env::var("GITHUB_SHA").map_err(|e| RestClientError::EnvVar {
-                name: "GITHUB_SHA".into(),
-                source: e,
-            })?,
+            repo: env::var("GITHUB_REPOSITORY")
+                .map_err(|e| ClientError::env_var("GITHUB_REPOSITORY", e))?,
+            sha: env::var("GITHUB_SHA").map_err(|e| ClientError::env_var("GITHUB_SHA", e))?,
             debug_enabled: env::var("ACTIONS_STEP_DEBUG").is_ok_and(|val| &val == "true"),
             rate_limit_headers: RestApiRateLimitHeaders {
                 reset: "x-ratelimit-reset".to_string(),
@@ -77,7 +63,7 @@ impl GithubApiClient {
         &self,
         url: Url,
         options: ThreadCommentOptions,
-    ) -> Result<(), RestClientError> {
+    ) -> Result<(), ClientError> {
         let is_lgtm = options.kind == CommentKind::Lgtm;
         let comment_url = self
             .remove_bot_comments(
@@ -107,13 +93,7 @@ impl GithubApiClient {
                     Self::log_response(response, "Failed to post thread comment").await;
                 }
                 Err(e) => {
-                    return match e {
-                        RestClientError::Request(error) => Err(RestClientError::RequestContext {
-                            task: "post thread comment".into(),
-                            source: error,
-                        }),
-                        e => Err(e), // propagate other error variants
-                    };
+                    return Err(e.add_request_context("post thread comment"));
                 }
             }
         }
@@ -126,7 +106,7 @@ impl GithubApiClient {
         url: &Url,
         comment_marker: &str,
         delete: bool,
-    ) -> Result<Option<Url>, RestClientError> {
+    ) -> Result<Option<Url>, ClientError> {
         let mut comment_url = None;
         let mut comments_url = Some(Url::parse_with_params(url.as_str(), &[("page", "1")])?);
         let repo = format!(
@@ -142,15 +122,7 @@ impl GithubApiClient {
             let result = send_api_request(&self.client, request, &self.rate_limit_headers).await;
             match result {
                 Err(e) => {
-                    match e {
-                        RestClientError::Request(error) => {
-                            return Err(RestClientError::RequestContext {
-                                task: "get list of existing thread comments".into(),
-                                source: error,
-                            });
-                        }
-                        e => return Err(e), // propagate other error variants
-                    }
+                    return Err(e.add_request_context("get list of existing thread comments"));
                 }
                 Ok(response) => {
                     if !response.status().is_success() {
@@ -164,9 +136,8 @@ impl GithubApiClient {
                     comments_url = Self::try_next_page(response.headers());
                     let payload =
                         serde_json::from_str::<Vec<ThreadComment>>(&response.text().await?)
-                            .map_err(|e| RestClientError::Json {
-                                task: "deserialize list of existing thread comments".into(),
-                                source: e,
+                            .map_err(|e| {
+                                ClientError::json("deserialize list of existing thread comments", e)
                             })?;
                     for comment in payload {
                         if comment.body.starts_with(comment_marker) {
@@ -199,15 +170,7 @@ impl GithubApiClient {
                                     send_api_request(&self.client, req, &self.rate_limit_headers)
                                         .await
                                         .map_err(|e| {
-                                            match e {
-                                                RestClientError::Request(error) => {
-                                                    RestClientError::RequestContext {
-                                                        task: "delete old thread comment".into(),
-                                                        source: error,
-                                                    }
-                                                }
-                                                e => e, // propagate other error variants
-                                            }
+                                            e.add_request_context("delete old thread comment")
                                         })?;
                                 Self::log_response(result, "Failed to delete old thread comment")
                                     .await;

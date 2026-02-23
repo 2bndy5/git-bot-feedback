@@ -90,6 +90,46 @@ pub enum RestClientError {
     OutputVar(OutputVariable),
 }
 
+impl RestClientError {
+    /// Helper function to create an [`Self::EnvVar`] error with variable name and source error.
+    pub fn env_var(name: &str, source: std::env::VarError) -> Self {
+        Self::EnvVar {
+            name: name.to_string(),
+            source,
+        }
+    }
+
+    /// Helper function to create an [`Self::Io`] error with task context.
+    pub fn io(task: &str, source: std::io::Error) -> Self {
+        Self::Io {
+            task: task.to_string(),
+            source,
+        }
+    }
+
+    /// Builder function to add context to [`Self::Request`] errors.
+    ///
+    /// Returns a [`Self::RequestContext`] error if `self` is a [`Self::Request`] error.
+    /// Otherwise, returns `self` unchanged.
+    pub fn add_request_context(self, task: &str) -> Self {
+        match self {
+            Self::Request(e) => Self::RequestContext {
+                task: task.to_string(),
+                source: e,
+            },
+            _ => self,
+        }
+    }
+
+    /// Helper function to create a [`Self::Json`] error with task context.
+    pub fn json(task: &str, source: serde_json::Error) -> Self {
+        Self::Json {
+            task: task.to_string(),
+            source,
+        }
+    }
+}
+
 /// The possible errors emitted by file utilities
 #[cfg(feature = "file-changes")]
 #[derive(Debug, Error)]
@@ -104,4 +144,18 @@ pub enum DirWalkError {
 
     #[error(transparent)]
     OsError(#[from] std::io::Error),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RestClientError;
+
+    #[test]
+    fn no_added_req_ctx() {
+        let err = RestClientError::CannotCloneRequest;
+        assert!(matches!(
+            err.add_request_context("some task"),
+            RestClientError::CannotCloneRequest
+        ));
+    }
 }

@@ -5,8 +5,7 @@
 
 use crate::{
     OutputVariable, ThreadCommentOptions,
-    client::{RestApiClient, RestApiRateLimitHeaders},
-    error::RestClientError,
+    client::{ClientError, RestApiClient, RestApiRateLimitHeaders},
 };
 use reqwest::{
     Client, Url,
@@ -91,7 +90,7 @@ impl RestApiClient for GithubApiClient {
         log::info!(target: "CI_LOG_GROUPING", "::endgroup::");
     }
 
-    fn make_headers() -> Result<HeaderMap<HeaderValue>, RestClientError> {
+    fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             "Accept",
@@ -110,10 +109,7 @@ impl RestApiClient for GithubApiClient {
         Ok(headers)
     }
 
-    async fn post_thread_comment(
-        &self,
-        options: ThreadCommentOptions,
-    ) -> Result<(), RestClientError> {
+    async fn post_thread_comment(&self, options: ThreadCommentOptions) -> Result<(), ClientError> {
         let is_pr = self.is_pr_event();
         let comments_url = self
             .api_url
@@ -141,55 +137,37 @@ impl RestApiClient for GithubApiClient {
         self.pull_request > 0
     }
 
-    fn append_step_summary(comment: &str) -> Result<(), RestClientError> {
-        let gh_out = env::var("GITHUB_STEP_SUMMARY").map_err(|e| RestClientError::EnvVar {
-            name: "GITHUB_STEP_SUMMARY".into(),
-            source: e,
-        })?;
+    fn append_step_summary(comment: &str) -> Result<(), ClientError> {
+        let gh_out = env::var("GITHUB_STEP_SUMMARY")
+            .map_err(|e| ClientError::env_var("GITHUB_STEP_SUMMARY", e))?;
         // step summary MD file can be overwritten/removed in CI runners
         match OpenOptions::new().append(true).open(gh_out) {
-            Ok(mut gh_out_file) => {
-                writeln!(&mut gh_out_file, "\n{comment}\n").map_err(|e| RestClientError::Io {
-                    task: "write to GITHUB_STEP_SUMMARY file".into(),
-                    source: e,
-                })
-            }
-            Err(e) => Err(RestClientError::Io {
-                task: "open GITHUB_STEP_SUMMARY file".into(),
-                source: e,
-            }),
+            Ok(mut gh_out_file) => writeln!(&mut gh_out_file, "\n{comment}\n")
+                .map_err(|e| ClientError::io("write to GITHUB_STEP_SUMMARY file", e)),
+            Err(e) => Err(ClientError::io("open GITHUB_STEP_SUMMARY file", e)),
         }
     }
 
-    fn write_output_variables(vars: &[OutputVariable]) -> Result<(), RestClientError> {
+    fn write_output_variables(vars: &[OutputVariable]) -> Result<(), ClientError> {
         if vars.is_empty() {
             // Should probably be an error. This check is only here to prevent needlessly
             // fetching the env var GITHUB_OUTPUT value and opening the referenced file.
             return Ok(());
         }
-        let gh_out = env::var("GITHUB_OUTPUT").map_err(|e| RestClientError::EnvVar {
-            name: "GITHUB_OUTPUT".into(),
-            source: e,
-        })?;
+        let gh_out =
+            env::var("GITHUB_OUTPUT").map_err(|e| ClientError::env_var("GITHUB_OUTPUT", e))?;
         match OpenOptions::new().append(true).open(gh_out) {
             Ok(mut gh_out_file) => {
                 for out_var in vars {
                     if !out_var.validate() {
-                        return Err(RestClientError::OutputVar(out_var.clone()));
+                        return Err(ClientError::OutputVar(out_var.clone()));
                     }
-                    writeln!(&mut gh_out_file, "{}={}\n", out_var.name, out_var.value).map_err(
-                        |e| RestClientError::Io {
-                            task: "write to GITHUB_OUTPUT file".into(),
-                            source: e,
-                        },
-                    )?;
+                    writeln!(&mut gh_out_file, "{}={}\n", out_var.name, out_var.value)
+                        .map_err(|e| ClientError::io("write to GITHUB_OUTPUT file", e))?;
                 }
                 Ok(())
             }
-            Err(e) => Err(RestClientError::Io {
-                task: "open GITHUB_OUTPUT file".into(),
-                source: e,
-            }),
+            Err(e) => Err(ClientError::io("open GITHUB_OUTPUT file", e)),
         }
     }
 
@@ -201,7 +179,7 @@ impl RestApiClient for GithubApiClient {
         lines_changed_only: &LinesChangedOnly,
         _base_diff: &Option<T>,
         _ignore_index: bool,
-    ) -> Result<HashMap<String, FileDiffLines>, RestClientError> {
+    ) -> Result<HashMap<String, FileDiffLines>, ClientError> {
         let is_pr = self.is_pr_event();
         let url_path = if is_pr {
             format!("pulls/{}/files", self.pull_request)
@@ -220,31 +198,16 @@ impl RestApiClient for GithubApiClient {
                 Self::make_api_request(&self.client, endpoint.as_str(), Method::GET, None, None)?;
             let response = send_api_request(&self.client, request, &self.rate_limit_headers)
                 .await
-                .map_err(|e| {
-                    match e {
-                        RestClientError::Request(err) => RestClientError::RequestContext {
-                            task: "get list of changed files".into(),
-                            source: err,
-                        },
-                        e => e, // propagate other error variants
-                    }
-                })?;
+                .map_err(|e| e.add_request_context("get list of changed files"))?;
             url = Self::try_next_page(response.headers());
             let body = response.text().await?;
             let files_list = if !is_pr {
                 let json_value: serde_structs::PushEventFiles = serde_json::from_str(&body)
-                    .map_err(|e| RestClientError::Json {
-                        task: "deserialize list of changed files".into(),
-                        source: e,
-                    })?;
+                    .map_err(|e| ClientError::json("deserialize list of changed files", e))?;
                 json_value.files
             } else {
-                serde_json::from_str::<Vec<serde_structs::GithubChangedFile>>(&body).map_err(
-                    |e| RestClientError::Json {
-                        task: "deserialize list of changed files".into(),
-                        source: e,
-                    },
-                )?
+                serde_json::from_str::<Vec<serde_structs::GithubChangedFile>>(&body)
+                    .map_err(|e| ClientError::json("deserialize list of changed files", e))?
             };
             for file in files_list {
                 let ext = Path::new(&file.filename).extension().unwrap_or_default();
