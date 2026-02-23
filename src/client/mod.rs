@@ -116,10 +116,10 @@ pub trait RestApiClient {
                     .output()
                 {
                     Err(e) => {
-                        return Err(ClientError::io(
-                            format!("invoke `git rev-parse {base}` to validate reference").as_str(),
-                            e,
-                        ));
+                        return Err(ClientError::Io {
+                            task: format!("invoke `git rev-parse {base}` to validate reference"),
+                            source: e,
+                        });
                     }
                     Ok(output) => {
                         if output.status.success() {
@@ -143,10 +143,10 @@ pub trait RestApiClient {
                 diff_args.push("HEAD~1".to_string());
             }
             match Command::new("git").args(&diff_args).output() {
-                Err(e) => Err(ClientError::io(
-                    format!("invoke `git {}`", diff_args.join(" ")).as_str(),
-                    e,
-                )),
+                Err(e) => Err(ClientError::Io {
+                    task: format!("invoke `git {}`", diff_args.join(" ")),
+                    source: e,
+                }),
                 Ok(output) => {
                     if output.status.success() {
                         let diff_str = String::from_utf8_lossy(&output.stdout).to_string();

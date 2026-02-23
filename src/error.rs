@@ -145,3 +145,17 @@ pub enum DirWalkError {
     #[error(transparent)]
     OsError(#[from] std::io::Error),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RestClientError;
+
+    #[test]
+    fn no_added_req_ctx() {
+        let err = RestClientError::CannotCloneRequest;
+        assert!(matches!(
+            err.add_request_context("some task"),
+            RestClientError::CannotCloneRequest
+        ));
+    }
+}
