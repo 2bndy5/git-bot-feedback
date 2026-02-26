@@ -159,11 +159,14 @@ impl RestApiClient for GithubApiClient {
         match OpenOptions::new().append(true).open(gh_out) {
             Ok(mut gh_out_file) => {
                 for out_var in vars {
-                    if !out_var.validate() {
-                        return Err(ClientError::OutputVar(out_var.clone()));
-                    }
-                    writeln!(&mut gh_out_file, "{}={}\n", out_var.name, out_var.value)
-                        .map_err(|e| ClientError::io("write to GITHUB_OUTPUT file", e))?;
+                    out_var.validate()?;
+                    writeln!(
+                        &mut gh_out_file,
+                        "{}={}\n",
+                        out_var.name.trim(),
+                        out_var.value.trim()
+                    )
+                    .map_err(|e| ClientError::io("write to GITHUB_OUTPUT file", e))?;
                 }
                 Ok(())
             }
