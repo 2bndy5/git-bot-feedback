@@ -5,7 +5,24 @@ use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use crate::{OutputVariable, client::MAX_RETRIES};
+use crate::client::MAX_RETRIES;
+
+/// The possible errors emitted when validating an [`OutputVariable`].
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum OutputVariableError {
+    /// The output variable's name is empty.
+    #[error("The output variable's name is empty")]
+    NameIsEmpty,
+    /// The output variable's name starts with a number.
+    #[error("The output variable's name starts with a number: '{0}'")]
+    NameStartsWithNumber(String),
+    /// The output variable's name contains non-printable characters.
+    #[error("The output variable's name contains non-printable characters: '{0}'")]
+    NameContainsNonPrintableCharacters(String),
+    /// The output variable's value contains non-printable characters.
+    #[error("The output variable's value contains non-printable characters: '{0}'")]
+    ValueContainsNonPrintableCharacters(String),
+}
 
 /// The possible error emitted by the REST client API
 #[derive(Debug, Error)]
@@ -85,9 +102,9 @@ pub enum RestClientError {
         source: std::env::VarError,
     },
 
-    /// An error emitted when encountering an invalid [`OutputVariable`].
-    #[error("OutputVariable is malformed (cannot contain line breaks): {0}")]
-    OutputVar(OutputVariable),
+    /// An error emitted when encountering an invalid [`OutputVariable`](crate::output_variable::OutputVariable).
+    #[error("OutputVariable is malformed: {0}")]
+    OutputVar(#[from] OutputVariableError),
 }
 
 impl RestClientError {
