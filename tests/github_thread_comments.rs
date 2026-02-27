@@ -287,9 +287,9 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
         marker: MARKER.to_string(),
         no_lgtm: test_params.no_lgtm,
     };
-    GithubApiClient::start_log_group("posting comment");
+    client.start_log_group("posting comment");
     let result = client.post_thread_comment(opts).await;
-    GithubApiClient::end_log_group();
+    client.end_log_group("");
     if test_params.bad_existing_comments {
         assert!(matches!(result, Err(RestClientError::Json { .. })));
     } else {

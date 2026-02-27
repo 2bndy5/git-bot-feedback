@@ -1,4 +1,5 @@
 use git_bot_feedback::{OutputVariable, RestApiClient, RestClientError, client::GithubApiClient};
+use mockito::Server;
 use std::{env, io::Read, path::Path};
 use tempfile::{NamedTempFile, tempdir};
 mod common;
@@ -11,14 +12,14 @@ struct TestParams {
     bad_var: bool,
     empty_pairs: bool,
 }
+const REPO: &str = "2bndy5/git-bot-feedback";
+const SHA: &str = "DEADBEEF";
 
 const VAR_NAME: &str = "STEP_OUTPUT_VAR";
 const VAR_VALUE: &str = "some data";
 
 async fn append_output_vars(test_params: TestParams) -> String {
     let tmp_dir = tempdir().unwrap();
-    logger_init();
-    log::set_max_level(log::LevelFilter::Debug);
     let mut out_var_path = NamedTempFile::new_in(tmp_dir.path()).unwrap();
     if test_params.absent {
         unsafe {
@@ -37,6 +38,22 @@ async fn append_output_vars(test_params: TestParams) -> String {
         }
     }
 
+    unsafe {
+        env::set_var("GITHUB_REPOSITORY", REPO);
+        env::set_var("GITHUB_SHA", SHA);
+        env::set_var("CI", "true");
+        env::set_var("GITHUB_EVENT_NAME", "push");
+    };
+    let server = Server::new_async().await;
+    unsafe {
+        env::set_var("GITHUB_API_URL", server.url());
+    }
+
+    env::set_current_dir(tmp_dir.path()).unwrap();
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    let client = GithubApiClient::new().unwrap();
+
     let out_vars = if test_params.bad_var {
         [OutputVariable {
             name: VAR_NAME.to_string(),
@@ -49,7 +66,7 @@ async fn append_output_vars(test_params: TestParams) -> String {
         }]
     };
     let mut out_vars_content = String::new();
-    match GithubApiClient::write_output_variables(if test_params.empty_pairs {
+    match client.write_output_variables(if test_params.empty_pairs {
         &[]
     } else {
         &out_vars

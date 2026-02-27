@@ -51,6 +51,21 @@ export def "nur test docs" [] {
     run-cmd cargo test --doc --features "file-changes"
 }
 
+# Build examples.
+export def "nur examples" [
+    ...names: string
+] {
+    mut args = [cargo, build]
+    if ($names | length) > 0 {
+        for $name in $names {
+            $args = $args | append [--example $name]
+        }
+    } else {
+        $args = $args | append "--examples"
+    }
+    run-cmd ...$args
+}
+
 # Rust API docs
 export def "nur docs" [
     --open (-o) # Open the built docs in your browser

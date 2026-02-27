@@ -1,13 +1,15 @@
+use async_trait::async_trait;
 use chrono::Utc;
 use git_bot_feedback::{
-    RestApiClient, RestApiRateLimitHeaders, RestClientError, ThreadCommentOptions,
-    client::send_api_request,
+    OutputVariable, RestApiClient, RestApiRateLimitHeaders, RestClientError, ThreadCommentOptions,
 };
 use mockito::{Matcher, Server};
 use reqwest::{
     Client, Method, StatusCode,
     header::{HeaderMap, HeaderName, HeaderValue},
 };
+use url::Url;
+
 mod common;
 use common::logger_init;
 
@@ -15,14 +17,8 @@ use common::logger_init;
 #[derive(Default)]
 struct TestClient;
 
+#[async_trait]
 impl RestApiClient for TestClient {
-    fn make_headers() -> Result<HeaderMap<HeaderValue>, RestClientError> {
-        let map = HeaderMap::new();
-        HeaderValue::from_str("\0")
-            .map(|_| map)
-            .map_err(RestClientError::InvalidHeaderValue)
-    }
-
     async fn post_thread_comment(
         &self,
         _options: ThreadCommentOptions,
@@ -30,21 +26,11 @@ impl RestApiClient for TestClient {
         Err(RestClientError::CannotCloneRequest)
     }
 
-    fn start_log_group(name: &str) {
-        log::info!(target: "CI_LOG_GROUPING", "start_log_group: {name}");
-    }
-
-    fn end_log_group() {
-        log::info!(target: "CI_LOG_GROUPING", "end_log_group");
-    }
-
     fn is_pr_event(&self) -> bool {
         false
     }
 
-    fn write_output_variables(
-        _vars: &[git_bot_feedback::OutputVariable],
-    ) -> Result<(), RestClientError> {
+    fn write_output_variables(&self, _vars: &[OutputVariable]) -> Result<(), RestClientError> {
         Err(RestClientError::io(
             "",
             std::io::Error::from(std::io::ErrorKind::InvalidFilename),
@@ -116,9 +102,19 @@ async fn simulate_rate_limit(test_params: &RateLimitTestParams) {
     } else {
         mock.create();
     }
-    let request =
-        TestClient::make_api_request(&client, server.url(), Method::GET, None, None).unwrap();
-    let result = send_api_request(&client, request, &rate_limit_headers).await;
+    let test_client = TestClient::default();
+    let request = test_client
+        .make_api_request(
+            &client,
+            Url::parse(&server.url()).unwrap(),
+            Method::GET,
+            None,
+            None,
+        )
+        .unwrap();
+    let result = test_client
+        .send_api_request(&client, request, &rate_limit_headers)
+        .await;
     let err = match result {
         Ok(response) => {
             let result = response.error_for_status();
@@ -205,11 +201,11 @@ async fn rate_limit_bad_count() {
 
 #[tokio::test]
 async fn dummy_coverage() {
-    assert!(TestClient::make_headers().is_err());
-    let dummy = TestClient;
-    TestClient::start_log_group("Dummy test");
+    let test_client = TestClient::default();
+    let log_group_name = "Dummy test";
+    test_client.start_log_group(log_group_name);
     assert!(
-        dummy
+        test_client
             .post_thread_comment(ThreadCommentOptions {
                 comment: "some comment text".to_string(),
                 ..Default::default()
@@ -217,10 +213,12 @@ async fn dummy_coverage() {
             .await
             .is_err()
     );
-    TestClient::append_step_summary("").unwrap();
-    TestClient::write_output_variables(&[]).expect_err("Not implemented for generic clients");
-    assert!(!dummy.is_pr_event());
-    TestClient::end_log_group();
+    test_client.append_step_summary("").unwrap();
+    test_client
+        .write_output_variables(&[])
+        .expect_err("Not implemented for generic clients");
+    assert!(!test_client.is_pr_event());
+    test_client.end_log_group(log_group_name);
 }
 
 // ************************************************* try_next_page() tests
@@ -235,7 +233,8 @@ fn bad_link_header() {
     );
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let result = TestClient::try_next_page(&headers);
+    let test_client = TestClient::default();
+    let result = test_client.try_next_page(&headers);
     assert!(result.is_none());
 }
 
@@ -252,7 +251,8 @@ fn bad_link_domain() {
     );
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let result = TestClient::try_next_page(&headers);
+    let test_client = TestClient::default();
+    let result = test_client.try_next_page(&headers);
     assert!(result.is_none());
 }
 
@@ -267,9 +267,16 @@ fn mk_request() {
         HeaderName::from_static("key"),
         header_value.clone(),
     )]));
-    let request =
-        TestClient::make_api_request(&client, url, method, Some(data.clone()), headers.clone())
-            .unwrap();
+    let test_client = TestClient::default();
+    let request = test_client
+        .make_api_request(
+            &client,
+            Url::parse(url).unwrap(),
+            method,
+            Some(data.clone()),
+            headers.clone(),
+        )
+        .unwrap();
     assert_eq!(request.body().unwrap().as_bytes(), Some(data.as_bytes()));
     assert!(
         request
@@ -277,15 +284,6 @@ fn mk_request() {
             .get("key")
             .is_some_and(|v| *v == header_value)
     );
-}
-
-/// uses a relative url to trigger a reqwest::RequestBuilder error.
-#[test]
-fn bad_request() {
-    let client = Client::new();
-    let result = TestClient::make_api_request(&client, "127.0.0.1", Method::GET, None, None);
-    eprintln!("err: {result:?}");
-    assert!(result.is_err_and(|e| matches!(e, RestClientError::RequestContext { .. })));
 }
 
 #[tokio::test]
@@ -319,7 +317,7 @@ async fn list_file_changes() {
 
     // Now get diff of HEAD and parent commit
     let changes = client
-        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &None::<u8>, false)
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, None, false)
         .await
         .unwrap();
     assert_eq!(changes.len(), 2);
@@ -344,7 +342,7 @@ async fn list_file_changes() {
 
     // Get diff of working directory
     let changes = client
-        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &None::<u8>, false)
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, None, false)
         .await
         .unwrap();
     // only the staged change should be detected, not the uncommitted change
@@ -359,7 +357,12 @@ async fn list_file_changes() {
     // test custom diff base provided as an invalid git ref
     assert!(matches!(
         client
-            .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Diff, &Some("1.0"), true)
+            .get_list_of_changed_files(
+                &file_filter,
+                &LinesChangedOnly::Diff,
+                Some("1.0".to_string()),
+                true
+            )
             .await
             .unwrap_err(),
         RestClientError::GitCommand(_)
@@ -367,7 +370,12 @@ async fn list_file_changes() {
 
     // test custom diff base provided as a number of parents from HEAD
     let changes = client
-        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &Some(1), true)
+        .get_list_of_changed_files(
+            &file_filter,
+            &LinesChangedOnly::On,
+            Some(1.to_string()),
+            true,
+        )
         .await
         .unwrap();
     assert!(changes.contains_key(&expected_changed_file));
@@ -383,7 +391,7 @@ async fn list_file_changes() {
         String::from_utf8_lossy(&git_out).trim().to_string()
     };
     let changes = client
-        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, &Some(valid_ref), true)
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, Some(valid_ref), true)
         .await
         .unwrap();
     assert!(changes.contains_key(&expected_changed_file));
