@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::client::MAX_RETRIES;
 
-/// The possible errors emitted when validating an [`OutputVariable`].
+/// The possible errors emitted when validating an [`OutputVariable`](struct@crate::OutputVariable).
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum OutputVariableError {
     /// The output variable's name is empty.

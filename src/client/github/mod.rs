@@ -3,24 +3,24 @@
 //! In the root module, we just implement the RestApiClient trait.
 //! In other (private) submodules we implement behavior specific to Github's REST API.
 
+use std::{env, fs::OpenOptions, io::Write};
+
+use async_trait::async_trait;
+use reqwest::{Client, Url};
+
 use crate::{
     OutputVariable, ThreadCommentOptions,
     client::{ClientError, RestApiClient, RestApiRateLimitHeaders},
 };
-use reqwest::{
-    Client, Url,
-    header::{AUTHORIZATION, HeaderMap, HeaderValue},
-};
-use std::{env, fs::OpenOptions, io::Write};
 mod serde_structs;
 mod specific_api;
 
 #[cfg(feature = "file-changes")]
-use crate::{FileDiffLines, FileFilter, LinesChangedOnly, client::send_api_request, parse_diff};
+use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};
 #[cfg(feature = "file-changes")]
 use reqwest::Method;
 #[cfg(feature = "file-changes")]
-use std::{collections::HashMap, fmt::Display, path::Path};
+use std::{collections::HashMap, path::Path};
 
 /// A structure to work with Github REST API.
 pub struct GithubApiClient {
@@ -50,6 +50,7 @@ pub struct GithubApiClient {
 }
 
 // implement the RestApiClient trait for the GithubApiClient
+#[async_trait]
 impl RestApiClient for GithubApiClient {
     /// This prints a line to indicate the beginning of a related group of [`log`] statements.
     ///
@@ -78,7 +79,7 @@ impl RestApiClient for GithubApiClient {
     /// #    fn flush(&self) {}
     /// }
     /// ```
-    fn start_log_group(name: &str) {
+    fn start_log_group(&self, name: &str) {
         log::info!(target: "CI_LOG_GROUPING", "::group::{name}");
     }
 
@@ -86,27 +87,8 @@ impl RestApiClient for GithubApiClient {
     ///
     /// See also [`GithubApiClient::start_log_group`] about special handling of
     /// the log target `"CI_LOG_GROUPING"`.
-    fn end_log_group() {
+    fn end_log_group(&self, _name: &str) {
         log::info!(target: "CI_LOG_GROUPING", "::endgroup::");
-    }
-
-    fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "Accept",
-            HeaderValue::from_str("application/vnd.github.raw+json")?,
-        );
-        if let Ok(token) = env::var("GITHUB_TOKEN") {
-            log::debug!("Using auth token from GITHUB_TOKEN environment variable");
-            let mut val = HeaderValue::from_str(format!("token {token}").as_str())?;
-            val.set_sensitive(true);
-            headers.insert(AUTHORIZATION, val);
-        } else {
-            log::warn!(
-                "No GITHUB_TOKEN environment variable found! Permission to post comments may be unsatisfied."
-            );
-        }
-        Ok(headers)
     }
 
     async fn post_thread_comment(&self, options: ThreadCommentOptions) -> Result<(), ClientError> {
@@ -137,7 +119,7 @@ impl RestApiClient for GithubApiClient {
         self.pull_request > 0
     }
 
-    fn append_step_summary(comment: &str) -> Result<(), ClientError> {
+    fn append_step_summary(&self, comment: &str) -> Result<(), ClientError> {
         let gh_out = env::var("GITHUB_STEP_SUMMARY")
             .map_err(|e| ClientError::env_var("GITHUB_STEP_SUMMARY", e))?;
         // step summary MD file can be overwritten/removed in CI runners
@@ -148,7 +130,7 @@ impl RestApiClient for GithubApiClient {
         }
     }
 
-    fn write_output_variables(vars: &[OutputVariable]) -> Result<(), ClientError> {
+    fn write_output_variables(&self, vars: &[OutputVariable]) -> Result<(), ClientError> {
         if vars.is_empty() {
             // Should probably be an error. This check is only here to prevent needlessly
             // fetching the env var GITHUB_OUTPUT value and opening the referenced file.
@@ -160,13 +142,8 @@ impl RestApiClient for GithubApiClient {
             Ok(mut gh_out_file) => {
                 for out_var in vars {
                     out_var.validate()?;
-                    writeln!(
-                        &mut gh_out_file,
-                        "{}={}\n",
-                        out_var.name.trim(),
-                        out_var.value.trim()
-                    )
-                    .map_err(|e| ClientError::io("write to GITHUB_OUTPUT file", e))?;
+                    writeln!(&mut gh_out_file, "{out_var}\n")
+                        .map_err(|e| ClientError::io("write to GITHUB_OUTPUT file", e))?;
                 }
                 Ok(())
             }
@@ -176,11 +153,11 @@ impl RestApiClient for GithubApiClient {
 
     #[cfg(feature = "file-changes")]
     #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
-    async fn get_list_of_changed_files<T: Display>(
+    async fn get_list_of_changed_files(
         &self,
         file_filter: &FileFilter,
         lines_changed_only: &LinesChangedOnly,
-        _base_diff: &Option<T>,
+        _base_diff: Option<String>,
         _ignore_index: bool,
     ) -> Result<HashMap<String, FileDiffLines>, ClientError> {
         let is_pr = self.is_pr_event();
@@ -198,11 +175,12 @@ impl RestApiClient for GithubApiClient {
         let mut files: HashMap<String, FileDiffLines> = HashMap::new();
         while let Some(ref endpoint) = url {
             let request =
-                Self::make_api_request(&self.client, endpoint.as_str(), Method::GET, None, None)?;
-            let response = send_api_request(&self.client, request, &self.rate_limit_headers)
+                self.make_api_request(&self.client, endpoint.to_owned(), Method::GET, None, None)?;
+            let response = self
+                .send_api_request(&self.client, request, &self.rate_limit_headers)
                 .await
                 .map_err(|e| e.add_request_context("get list of changed files"))?;
-            url = Self::try_next_page(response.headers());
+            url = self.try_next_page(response.headers());
             let body = response.text().await?;
             let files_list = if !is_pr {
                 let json_value: serde_structs::PushEventFiles = serde_json::from_str(&body)

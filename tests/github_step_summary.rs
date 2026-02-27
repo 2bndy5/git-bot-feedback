@@ -1,8 +1,12 @@
 use git_bot_feedback::{RestApiClient, RestClientError, client::GithubApiClient};
+use mockito::Server;
 use std::{env, io::Read, path::Path};
 use tempfile::{NamedTempFile, tempdir};
 mod common;
 use common::logger_init;
+
+const REPO: &str = "2bndy5/git-bot-feedback";
+const SHA: &str = "DEADBEEF";
 
 const COMMENT: &str = "Some comment text";
 
@@ -14,8 +18,6 @@ struct TestParams {
 
 async fn append_summary(test_params: TestParams) -> String {
     let tmp_dir = tempdir().unwrap();
-    logger_init();
-    log::set_max_level(log::LevelFilter::Debug);
     let mut step_summary_path = NamedTempFile::new_in(tmp_dir.path()).unwrap();
     if test_params.absent {
         unsafe {
@@ -33,8 +35,25 @@ async fn append_summary(test_params: TestParams) -> String {
             );
         }
     }
+
+    unsafe {
+        env::set_var("GITHUB_REPOSITORY", REPO);
+        env::set_var("GITHUB_SHA", SHA);
+        env::set_var("CI", "true");
+        env::set_var("GITHUB_EVENT_NAME", "push");
+    };
+    let server = Server::new_async().await;
+    unsafe {
+        env::set_var("GITHUB_API_URL", server.url());
+    }
+
+    env::set_current_dir(tmp_dir.path()).unwrap();
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    let client = GithubApiClient::new().unwrap();
+
     let mut step_summary_content = String::new();
-    match GithubApiClient::append_step_summary(COMMENT) {
+    match client.append_step_summary(COMMENT) {
         Ok(_) => {
             step_summary_path
                 .read_to_string(&mut step_summary_content)

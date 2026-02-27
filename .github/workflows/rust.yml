@@ -37,7 +37,7 @@ jobs:
       - name: Install cargo-llvm-cov, cargo-nextest, and nur
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: cargo binstall -y cargo-nextest cargo-llvm-cov nur
+        run: cargo binstall -y cargo-nextest cargo-llvm-cov nur --locked
       - name: Cache deps
         uses: actions/cache@v5  # zizmor: ignore[cache-poisoning]
         with:
@@ -47,6 +47,8 @@ jobs:
         # this enables a tool (for default toolchain) needed to measure code coverage.
       - name: run docs examples
         run: nur test docs
+      - name: build examples
+        run: nur examples
       - name: Run tests
         run: nur test --profile ci
       - name: Generate coverage reports

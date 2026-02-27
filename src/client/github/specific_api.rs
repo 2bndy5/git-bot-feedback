@@ -3,9 +3,12 @@
 use super::{GithubApiClient, serde_structs::ThreadComment};
 use crate::{
     CommentKind, CommentPolicy, RestApiClient, RestApiRateLimitHeaders, ThreadCommentOptions,
-    client::{ClientError, USER_AGENT, send_api_request},
+    client::{ClientError, USER_AGENT},
 };
-use reqwest::{Client, Method, Url};
+use reqwest::{
+    Client, Method, Url,
+    header::{AUTHORIZATION, HeaderMap, HeaderValue},
+};
 use std::{collections::HashMap, env, fs};
 
 type EventPayloadType = serde_json::Map<String, serde_json::Value>;
@@ -58,6 +61,25 @@ impl GithubApiClient {
         })
     }
 
+    fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "Accept",
+            HeaderValue::from_str("application/vnd.github.raw+json")?,
+        );
+        if let Ok(token) = env::var("GITHUB_TOKEN") {
+            log::debug!("Using auth token from GITHUB_TOKEN environment variable");
+            let mut val = HeaderValue::from_str(format!("token {token}").as_str())?;
+            val.set_sensitive(true);
+            headers.insert(AUTHORIZATION, val);
+        } else {
+            log::warn!(
+                "No GITHUB_TOKEN environment variable found! Permission to post comments may be unsatisfied."
+            );
+        }
+        Ok(headers)
+    }
+
     /// Update existing comment or remove old comment(s) and post a new comment
     pub async fn update_comment(
         &self,
@@ -81,16 +103,20 @@ impl GithubApiClient {
             } else {
                 Method::POST
             };
-            let request = Self::make_api_request(
+            let request = self.make_api_request(
                 &self.client,
                 comment_url.unwrap_or(url),
                 req_meth,
                 Some(serde_json::json!(&payload).to_string()),
                 None,
             )?;
-            match send_api_request(&self.client, request, &self.rate_limit_headers).await {
+            match self
+                .send_api_request(&self.client, request, &self.rate_limit_headers)
+                .await
+            {
                 Ok(response) => {
-                    Self::log_response(response, "Failed to post thread comment").await;
+                    self.log_response(response, "Failed to post thread comment")
+                        .await;
                 }
                 Err(e) => {
                     return Err(e.add_request_context("post thread comment"));
@@ -118,22 +144,24 @@ impl GithubApiClient {
         let base_comment_url = self.api_url.join(&repo).unwrap();
         while let Some(ref endpoint) = comments_url {
             let request =
-                Self::make_api_request(&self.client, endpoint.as_str(), Method::GET, None, None)?;
-            let result = send_api_request(&self.client, request, &self.rate_limit_headers).await;
+                self.make_api_request(&self.client, endpoint.to_owned(), Method::GET, None, None)?;
+            let result = self
+                .send_api_request(&self.client, request, &self.rate_limit_headers)
+                .await;
             match result {
                 Err(e) => {
                     return Err(e.add_request_context("get list of existing thread comments"));
                 }
                 Ok(response) => {
                     if !response.status().is_success() {
-                        Self::log_response(
+                        self.log_response(
                             response,
                             "Failed to get list of existing thread comments",
                         )
                         .await;
                         return Ok(comment_url);
                     }
-                    comments_url = Self::try_next_page(response.headers());
+                    comments_url = self.try_next_page(response.headers());
                     let payload =
                         serde_json::from_str::<Vec<ThreadComment>>(&response.text().await?)
                             .map_err(|e| {
@@ -159,20 +187,20 @@ impl GithubApiClient {
                                 } else {
                                     &this_comment_url
                                 };
-                                let req = Self::make_api_request(
+                                let req = self.make_api_request(
                                     &self.client,
-                                    del_url.as_str(),
+                                    del_url.to_owned(),
                                     Method::DELETE,
                                     None,
                                     None,
                                 )?;
-                                let result =
-                                    send_api_request(&self.client, req, &self.rate_limit_headers)
-                                        .await
-                                        .map_err(|e| {
-                                            e.add_request_context("delete old thread comment")
-                                        })?;
-                                Self::log_response(result, "Failed to delete old thread comment")
+                                let result = self
+                                    .send_api_request(&self.client, req, &self.rate_limit_headers)
+                                    .await
+                                    .map_err(|e| {
+                                        e.add_request_context("delete old thread comment")
+                                    })?;
+                                self.log_response(result, "Failed to delete old thread comment")
                                     .await;
                             }
                             if !delete {

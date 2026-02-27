@@ -4,7 +4,7 @@ pub mod file_filter;
 use crate::DiffHunkHeader;
 
 /// An enum to help determine what constitutes a changed file based on the diff contents.
-#[derive(PartialEq, Clone, Debug, Default)]
+#[derive(PartialEq, Clone, Copy, Debug, Default)]
 #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
 pub enum LinesChangedOnly {
     /// File is included regardless of changed lines in the diff.
