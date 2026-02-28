@@ -66,27 +66,27 @@ pub enum RestClientError {
     #[error("Rate Limit exceeded after all {MAX_RETRIES} retries exhausted")]
     RateLimitSecondary,
 
-    /// Error emitted when cloning a request object fails.
+    /// Error emitted when failing to clone a request object.
     #[error("Failed to clone request object for auto-retries")]
     CannotCloneRequest,
 
-    /// Error emitted when creating header value fails.
+    /// Error emitted when failing to create a header value.
     #[error("Tried to create a header value from invalid string data")]
     InvalidHeaderValue(#[from] reqwest::header::InvalidHeaderValue),
 
-    /// Error emitted when converting a header value to string fails.
+    /// Error emitted when failing to convert a header value to string.
     #[error("Failed to convert header value to string")]
     UnexpectedHeaderValue(#[from] reqwest::header::ToStrError),
 
-    /// Error emitted when parsing an integer from a header value (string) fails.
+    /// Error emitted when failing to parse an integer from a header value (as a UTF-8 string).
     #[error("Failed to parse integer from header value: {0}")]
     HeaderParseInt(#[from] std::num::ParseIntError),
 
-    /// Error emitted when parsing a URL fails.
+    /// Error emitted when failing to parse a URL.
     #[error("Failed to parse URL:{0}")]
     UrlParse(#[from] url::ParseError),
 
-    /// Error emitted when deserializing/serializing request/response JSON data.
+    /// Error emitted when failing to deserialize/serialize request/response JSON data.
     #[error("Failed to {task}: {source}")]
     Json {
         task: String,
@@ -94,7 +94,7 @@ pub enum RestClientError {
         source: serde_json::Error,
     },
 
-    /// Error emitted when failing to read environment variable
+    /// Error emitted when failing to read an environment variable.
     #[error("Failed to get env var '{name}': {source}")]
     EnvVar {
         name: String,
@@ -147,7 +147,10 @@ impl RestClientError {
     }
 }
 
-/// The possible errors emitted by file utilities
+/// The possible errors emitted by file system operations.
+///
+/// This is only used (via [`FileFilter::walk()`](fn@crate::file_utils::file_filter::FileFilter::walk_dir));
+/// typically when not running within a supported CI environment.
 #[cfg(feature = "file-changes")]
 #[derive(Debug, Error)]
 #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]

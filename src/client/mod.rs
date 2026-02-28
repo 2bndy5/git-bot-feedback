@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use chrono::DateTime;
 use reqwest::{Client, Method, Request, Response, Url, header::HeaderMap};
 
-use crate::{FileAnnotation, OutputVariable, RestClientError, ThreadCommentOptions};
+use crate::{FileAnnotation, OutputVariable, RestClientError, ReviewOptions, ThreadCommentOptions};
 
 #[cfg(feature = "github")]
 mod github;
@@ -174,6 +174,31 @@ pub trait RestApiClient {
         let _ = comment;
         Ok(())
     }
+
+    /// Resolve outdated PR review comments and remove duplicate/reused comments.
+    ///
+    /// This should be used before [`Self::post_pr_review()`] to avoid posting duplicates of existing comments.
+    /// The [`ReviewOptions::comments`] will be modified to only include comments that should be posted for the current PR review.
+    /// After calling this function, the [`ReviewOptions::summary`] can be made to reflect the actual review being posted.
+    ///
+    /// The [`ReviewOptions::marker`] is used to identify comments from this software.
+    /// The [`ReviewOptions::delete_review_comments`] flag will delete outdated review comments.
+    /// The [`ReviewOptions::delete_review_comments`] flag does not apply to review summary comments nor
+    /// threads of discussion within a review.
+    /// A review summary comment will only be hidden/collapsed when all comments in the corresponding
+    /// review are resolved.
+    ///
+    /// This function does nothing for non-PR events.
+    async fn cull_pr_reviews(&mut self, options: &mut ReviewOptions) -> Result<(), ClientError>;
+
+    /// Post a PR review based on the given options.
+    ///
+    /// This is expected to be used after calling [`Self::cull_pr_reviews()`] to
+    /// avoid posting duplicates of existing comments. Once the duplicates are filtered out,
+    /// the [`ReviewOptions::summary`] can be made to reflect the actual review being posted.
+    ///
+    /// This function does nothing for non-PR events.
+    async fn post_pr_review(&mut self, options: &ReviewOptions) -> Result<(), ClientError>;
 
     /// Sets the given `vars` as output variables.
     ///

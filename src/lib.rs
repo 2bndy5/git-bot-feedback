@@ -5,8 +5,11 @@ pub mod client;
 pub use client::{RestApiClient, RestApiRateLimitHeaders};
 pub mod error;
 pub use error::RestClientError;
-mod thread_comments;
-pub use thread_comments::{CommentKind, CommentPolicy, ThreadCommentOptions};
+mod comments;
+pub use comments::{
+    review_comments::{ReviewAction, ReviewComment, ReviewOptions},
+    thread_comments::{CommentKind, CommentPolicy, ThreadCommentOptions},
+};
 mod output_variable;
 pub use output_variable::OutputVariable;
 mod file_annotations;

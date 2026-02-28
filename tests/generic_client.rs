@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use git_bot_feedback::{
     FileAnnotation, OutputVariable, RestApiClient, RestApiRateLimitHeaders, RestClientError,
-    ThreadCommentOptions,
+    ReviewOptions, ThreadCommentOptions,
 };
 use mockito::{Matcher, Server};
 use reqwest::{
@@ -32,10 +32,21 @@ impl RestApiClient for TestClient {
     }
 
     fn write_output_variables(&self, _vars: &[OutputVariable]) -> Result<(), RestClientError> {
-        Err(RestClientError::io(
-            "",
-            std::io::Error::from(std::io::ErrorKind::InvalidFilename),
-        ))
+        Err(RestClientError::Io {
+            task: "write output variables".into(),
+            source: std::io::Error::from(std::io::ErrorKind::InvalidFilename),
+        })
+    }
+
+    async fn cull_pr_reviews(
+        &mut self,
+        _options: &mut ReviewOptions,
+    ) -> Result<(), RestClientError> {
+        Err(RestClientError::RateLimitNoReset)
+    }
+
+    async fn post_pr_review(&mut self, _options: &ReviewOptions) -> Result<(), RestClientError> {
+        Err(RestClientError::RateLimitNoReset)
     }
 }
 

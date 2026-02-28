@@ -1,0 +1,42 @@
+[
+  {
+    "id": 3127829630,
+    "node_id": "not_a_git_bot_feedback_review",
+    "user": {
+      "login": "github-actions[bot]",
+      "id": 41898282,
+      "node_id": "MDM6Qm90NDE4OTgyODI=",
+      "avatar_url": "https://avatars.githubusercontent.com/in/15368?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/github-actions%5Bbot%5D",
+      "html_url": "https://github.com/apps/github-actions",
+      "followers_url": "https://api.github.com/users/github-actions%5Bbot%5D/followers",
+      "following_url": "https://api.github.com/users/github-actions%5Bbot%5D/following{/other_user}",
+      "gists_url": "https://api.github.com/users/github-actions%5Bbot%5D/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/github-actions%5Bbot%5D/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/github-actions%5Bbot%5D/subscriptions",
+      "organizations_url": "https://api.github.com/users/github-actions%5Bbot%5D/orgs",
+      "repos_url": "https://api.github.com/users/github-actions%5Bbot%5D/repos",
+      "events_url": "https://api.github.com/users/github-actions%5Bbot%5D/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/github-actions%5Bbot%5D/received_events",
+      "type": "Bot",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "body": "This is a review from some other bot/, action, or app.",
+    "state": "CHANGES_REQUESTED",
+    "html_url": "https://github.com/cpp-linter/test-cpp-linter-action/pull/46#pullrequestreview-3127829630",
+    "pull_request_url": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/pulls/46",
+    "author_association": "NONE",
+    "_links": {
+      "html": {
+        "href": "https://github.com/cpp-linter/test-cpp-linter-action/pull/46#pullrequestreview-3127829630"
+      },
+      "pull_request": {
+        "href": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/pulls/46"
+      }
+    },
+    "submitted_at": "2025-08-18T10:39:08Z",
+    "commit_id": "35667ba199fee99ab6e6265c776707f46480df0c"
+  }
+]

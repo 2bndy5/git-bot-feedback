@@ -20,8 +20,7 @@ Feedback on a git server using this library can be in the form of
 - append a summary comment to a CI workflow run's summary page
 - mark the start and end of a group of log statements (in the CI workflow run's logs)
 - files annotations
-
-More features are planned, like PR reviews.
+- Pull Request reviews
 
 ## Optional Features
 

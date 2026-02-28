@@ -10,19 +10,19 @@ use std::{
 };
 
 use async_trait::async_trait;
-use reqwest::{Client, Url};
+use reqwest::{Client, Method, Url};
 
 use crate::{
-    FileAnnotation, OutputVariable, ThreadCommentOptions,
+    FileAnnotation, OutputVariable, ReviewAction, ReviewOptions, ThreadCommentOptions,
     client::{ClientError, RestApiClient, RestApiRateLimitHeaders},
 };
+mod graphql;
 mod serde_structs;
+use serde_structs::{FullReview, PullRequestInfo, PullRequestState, ReviewDiffComment};
 mod specific_api;
 
 #[cfg(feature = "file-changes")]
 use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};
-#[cfg(feature = "file-changes")]
-use reqwest::Method;
 #[cfg(feature = "file-changes")]
 use std::{collections::HashMap, path::Path};
 
@@ -32,7 +32,7 @@ pub struct GithubApiClient {
     client: Client,
 
     /// The CI run's event payload from the webhook that triggered the workflow.
-    pull_request: i64,
+    pull_request: Option<PullRequestInfo>,
 
     /// The name of the event that was triggered when running cpp_linter.
     pub event_name: String,
@@ -96,31 +96,26 @@ impl RestApiClient for GithubApiClient {
     }
 
     async fn post_thread_comment(&self, options: ThreadCommentOptions) -> Result<(), ClientError> {
-        let is_pr = self.is_pr_event();
-        let comments_url = self
-            .api_url
-            .join("repos/")?
-            .join(format!("{}/", self.repo).as_str())?
-            .join(if is_pr { "issues/" } else { "commits/" })?
-            .join(
-                format!(
-                    "{}/",
-                    if is_pr {
-                        self.pull_request.to_string()
-                    } else {
-                        self.sha.clone()
-                    }
-                )
-                .as_str(),
-            )?
-            .join("comments")?;
-
+        env::var("GITHUB_TOKEN").map_err(|e| ClientError::env_var("GITHUB_TOKEN", e))?;
+        let comments_url = match &self.pull_request {
+            Some(pr_event) => {
+                if pr_event.locked {
+                    return Ok(()); // cannot comment on locked PRs
+                }
+                self.api_url.join(
+                    format!("repos/{}/issues/{}/comments", self.repo, pr_event.number).as_str(),
+                )?
+            }
+            None => self
+                .api_url
+                .join(format!("repos/{}/commits/{}/comments", self.repo, self.sha).as_str())?,
+        };
         self.update_comment(comments_url, options).await
     }
 
     #[inline]
     fn is_pr_event(&self) -> bool {
-        self.pull_request > 0
+        self.pull_request.is_some()
     }
 
     fn append_step_summary(&self, comment: &str) -> Result<(), ClientError> {
@@ -182,17 +177,19 @@ impl RestApiClient for GithubApiClient {
         _base_diff: Option<String>,
         _ignore_index: bool,
     ) -> Result<HashMap<String, FileDiffLines>, ClientError> {
-        let is_pr = self.is_pr_event();
-        let url_path = if is_pr {
-            format!("pulls/{}/files", self.pull_request)
-        } else {
-            format!("commits/{}", self.sha)
+        let (url, is_pr) = match &self.pull_request {
+            Some(pr_event) => (
+                self.api_url.join(
+                    format!("repos/{}/pulls/{}/files", self.repo, pr_event.number).as_str(),
+                )?,
+                true,
+            ),
+            None => (
+                self.api_url
+                    .join(format!("repos/{}/commits/{}", self.repo, self.sha).as_str())?,
+                false,
+            ),
         };
-        let url = self
-            .api_url
-            .join("repos/")?
-            .join(format!("{}/", &self.repo).as_str())?
-            .join(url_path.as_str())?;
         let mut url = Some(Url::parse_with_params(url.as_str(), &[("page", "1")])?);
         let mut files: HashMap<String, FileDiffLines> = HashMap::new();
         while let Some(ref endpoint) = url {
@@ -238,5 +235,84 @@ impl RestApiClient for GithubApiClient {
             }
         }
         Ok(files)
+    }
+
+    async fn cull_pr_reviews(&mut self, options: &mut ReviewOptions) -> Result<(), ClientError> {
+        if let Some(pr_info) = self.pull_request.as_ref() {
+            if pr_info.locked
+                || (!options.allow_closed && pr_info.state == PullRequestState::Closed)
+            {
+                return Ok(());
+            }
+            env::var("GITHUB_TOKEN").map_err(|e| ClientError::env_var("GITHUB_TOKEN", e))?;
+
+            // Check existing comments to see if we can reuse any of them.
+            // This also removes duplicate comments (if any) from the `options.comments`.
+            let keep_reviews = self.check_reused_comments(options).await?;
+            // Next hide/resolve any previous reviews that are completely outdated.
+            let url = self
+                .api_url
+                .join(format!("repos/{}/pulls/{}/reviews", self.repo, pr_info.number).as_str())?;
+            self.hide_outdated_reviews(url, keep_reviews, &options.marker)
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn post_pr_review(&mut self, options: &ReviewOptions) -> Result<(), ClientError> {
+        if let Some(pr_info) = self.pull_request.as_ref() {
+            if (!options.allow_draft && pr_info.draft)
+                || (!options.allow_closed && pr_info.state == PullRequestState::Closed)
+                || pr_info.locked
+            {
+                return Ok(());
+            }
+            env::var("GITHUB_TOKEN").map_err(|e| ClientError::env_var("GITHUB_TOKEN", e))?;
+            let url = self
+                .api_url
+                .join(format!("repos/{}/pulls/{}/reviews", self.repo, pr_info.number).as_str())?;
+            let payload = FullReview {
+                event: match options.action {
+                    ReviewAction::Comment => String::from("COMMENT"),
+                    ReviewAction::Approve => String::from("APPROVE"),
+                    ReviewAction::RequestChanges => String::from("REQUEST_CHANGES"),
+                },
+                body: format!("{}{}", options.marker, options.summary),
+                comments: options
+                    .comments
+                    .iter()
+                    .map(ReviewDiffComment::from)
+                    .map(|mut r| {
+                        if !r.body.starts_with(&options.marker) {
+                            r.body = format!("{}{}", options.marker, r.body);
+                        }
+                        r
+                    })
+                    .collect(),
+            };
+            let request = self.make_api_request(
+                &self.client,
+                url,
+                Method::POST,
+                Some(
+                    serde_json::to_string(&payload)
+                        .map_err(|e| ClientError::json("serialize PR review payload", e))?,
+                ),
+                None,
+            )?;
+            let response = self
+                .send_api_request(&self.client, request, &self.rate_limit_headers)
+                .await;
+            match response {
+                Ok(response) => {
+                    self.log_response(response, "Failed to post PR review")
+                        .await;
+                }
+                Err(e) => {
+                    return Err(e.add_request_context("post PR review"));
+                }
+            }
+        }
+        Ok(())
     }
 }

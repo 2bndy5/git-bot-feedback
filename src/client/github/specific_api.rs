@@ -1,6 +1,9 @@
 //! This submodule implements functionality exclusively specific to Github's REST API.
 
-use super::{GithubApiClient, serde_structs::ThreadComment};
+use super::{
+    GithubApiClient,
+    serde_structs::{PullRequestEventPayload, ThreadComment},
+};
 use crate::{
     AnnotationLevel, CommentKind, CommentPolicy, FileAnnotation, RestApiClient,
     RestApiRateLimitHeaders, ThreadCommentOptions,
@@ -11,8 +14,6 @@ use reqwest::{
     header::{AUTHORIZATION, HeaderMap, HeaderValue},
 };
 use std::{collections::HashMap, env, fmt::Display, fs};
-
-type EventPayloadType = serde_json::Map<String, serde_json::Value>;
 
 impl GithubApiClient {
     /// Instantiate a [`GithubApiClient`] object.
@@ -31,11 +32,13 @@ impl GithubApiClient {
                             e,
                         )
                     })?;
-                    let payload = serde_json::from_str::<EventPayloadType>(&file_buf)
-                        .map_err(|e| ClientError::json("deserialize Event Payload", e))?;
-                    payload.get("number").and_then(|v| v.as_i64()).unwrap_or(-1)
+                    Some(
+                        serde_json::from_str::<PullRequestEventPayload>(&file_buf)
+                            .map_err(|e| ClientError::json("deserialize Event Payload", e))?
+                            .pull_request,
+                    )
                 }
-                _ => -1,
+                _ => None,
             }
         };
         // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.

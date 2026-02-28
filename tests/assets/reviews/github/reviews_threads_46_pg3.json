@@ -1,0 +1,42 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "reviewThreads": {
+          "nodes": [
+            {
+              "id": "thread_20",
+              "isResolved": false,
+              "isCollapsed": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "id": "do_not_delete",
+                    "body": "user comment in reply to bot comment",
+                    "path": "src/demo.hpp",
+                    "line": 11,
+                    "startLine": 10,
+                    "originalLine": 11,
+                    "originalStartLine": 10,
+                    "pullRequestReview": {
+                      "id": "reuse_this_review",
+                      "isMinimized": false
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "endCursor": "pg4",
+                  "hasNextPage": false
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "endCursor": "Y3Vyc29yOnYyOpK0MjAyNS0wOC0xOFQxMDozOTowOFrOV8jPWg==",
+            "hasNextPage": false
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,5 @@
+use super::DEFAULT_MARKER;
+
 /// An enumeration of possible type of comments being posted.
 ///
 /// The default is [`CommentKind::Concerns`].
@@ -13,7 +15,7 @@ pub enum CommentKind {
 
 /// An enumeration of supported behaviors about posting comments.
 ///
-/// See [`ThreadCommentOptions::policy`].
+/// See [`ThreadCommentOptions::policy`](crate::ThreadCommentOptions::policy).
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub enum CommentPolicy {
     /// Each thread comment is posted as a new comment.
@@ -54,7 +56,7 @@ pub struct ThreadCommentOptions {
     /// this value is not unique enough.
     ///
     /// If the git server employs Markdown syntax for comments, then
-    /// it is recommended to set this to a HTML comment that is unique to
+    /// it is recommended to set this to an HTML comment that is unique to
     /// your CI application:
     ///
     /// ```markdown
@@ -76,16 +78,6 @@ pub struct ThreadCommentOptions {
     /// if any exist.
     pub no_lgtm: bool,
 }
-
-const DEFAULT_MARKER: &str = concat!(
-    "<!-- ",
-    env!("CARGO_CRATE_NAME"),
-    "/",
-    env!("CARGO_PKG_VERSION"),
-    "/",
-    env!("COMPILE_DATETIME"), // env var set by build.rs
-    " -->\n"
-);
 
 impl Default for ThreadCommentOptions {
     fn default() -> Self {
