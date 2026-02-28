@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use git_bot_feedback::{
-    OutputVariable, RestApiClient, RestApiRateLimitHeaders, RestClientError, ThreadCommentOptions,
+    FileAnnotation, OutputVariable, RestApiClient, RestApiRateLimitHeaders, RestClientError,
+    ThreadCommentOptions,
 };
 use mockito::{Matcher, Server};
 use reqwest::{
@@ -218,6 +219,8 @@ async fn dummy_coverage() {
         .write_output_variables(&[])
         .expect_err("Not implemented for generic clients");
     assert!(!test_client.is_pr_event());
+    let annotation = FileAnnotation::default();
+    test_client.write_file_annotations(&[annotation]).unwrap();
     test_client.end_log_group(log_group_name);
 }
 

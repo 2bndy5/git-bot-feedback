@@ -19,8 +19,9 @@ Feedback on a git server using this library can be in the form of
 - setting output variables for other CI tools to consume
 - append a summary comment to a CI workflow run's summary page
 - mark the start and end of a group of log statements (in the CI workflow run's logs)
+- files annotations
 
-More features are planned, like PR reviews and file annotations.
+More features are planned, like PR reviews.
 
 ## Optional Features
 

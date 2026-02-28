@@ -9,6 +9,8 @@ mod thread_comments;
 pub use thread_comments::{CommentKind, CommentPolicy, ThreadCommentOptions};
 mod output_variable;
 pub use output_variable::OutputVariable;
+mod file_annotations;
+pub use file_annotations::{AnnotationLevel, FileAnnotation};
 
 #[cfg(feature = "file-changes")]
 mod git_diff;

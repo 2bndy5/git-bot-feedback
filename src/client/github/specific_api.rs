@@ -2,14 +2,15 @@
 
 use super::{GithubApiClient, serde_structs::ThreadComment};
 use crate::{
-    CommentKind, CommentPolicy, RestApiClient, RestApiRateLimitHeaders, ThreadCommentOptions,
+    AnnotationLevel, CommentKind, CommentPolicy, FileAnnotation, RestApiClient,
+    RestApiRateLimitHeaders, ThreadCommentOptions,
     client::{ClientError, USER_AGENT},
 };
 use reqwest::{
     Client, Method, Url,
     header::{AUTHORIZATION, HeaderMap, HeaderValue},
 };
-use std::{collections::HashMap, env, fs};
+use std::{collections::HashMap, env, fmt::Display, fs};
 
 type EventPayloadType = serde_json::Map<String, serde_json::Value>;
 
@@ -212,5 +213,144 @@ impl GithubApiClient {
             }
         }
         Ok(comment_url)
+    }
+}
+
+impl Display for FileAnnotation {
+    // here we translate the FileAnnotation struct into the specific string format required by Github Actions for file annotations.
+    // See [Github workflow commands documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-a-debug-message).
+    //
+    // Example:
+    // ::notice file={name},line={line},col={col},endLine={endLine},endColumn={endColumn},title={title}::{message}
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut annotation_str = format!(
+            "::{}",
+            match self.severity {
+                AnnotationLevel::Debug => "debug",
+                AnnotationLevel::Notice => "notice",
+                AnnotationLevel::Warning => "warning",
+                AnnotationLevel::Error => "error",
+            }
+        );
+        if !self.path.is_empty() {
+            annotation_str.push_str(" file=");
+            annotation_str.push_str(self.path.as_str());
+            if let Some(start_line) = self.start_line {
+                annotation_str.push_str(format!(",line={start_line}").as_str());
+                let col = self.start_column.map(|c| c.max(1));
+                if let Some(col) = col {
+                    annotation_str.push_str(format!(",col={col}").as_str());
+                }
+                if let Some(end_line) = self.end_line.map(|l| l.max(1))
+                    && end_line > start_line
+                {
+                    annotation_str.push_str(format!(",endline={end_line}").as_str());
+                    if let Some(end_col) = self.end_column.map(|c| c.max(1))
+                        && col.is_none_or(|c| c < end_col)
+                    {
+                        annotation_str.push_str(format!(",endColumn={end_col}").as_str());
+                    }
+                }
+            }
+        }
+        if let Some(title) = &self.title {
+            annotation_str.push_str(",title=");
+            annotation_str.push_str(title.as_str());
+        }
+        write!(f, "{}::{}", annotation_str, self.message)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{AnnotationLevel, FileAnnotation};
+
+    #[test]
+    fn generic_message() {
+        let annotation = FileAnnotation {
+            severity: AnnotationLevel::Debug,
+            message: "This is a debug message".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(annotation.to_string(), "::debug::This is a debug message");
+    }
+
+    #[test]
+    fn annotate_file() {
+        let annotation = FileAnnotation {
+            severity: AnnotationLevel::Warning,
+            message: "This is a warning message".to_string(),
+            path: "src/main.rs".to_string(),
+            title: Some("Warning Title".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            annotation.to_string(),
+            "::warning file=src/main.rs,title=Warning Title::This is a warning message"
+        );
+    }
+
+    #[test]
+    fn annotate_file_with_start_line() {
+        let annotation = FileAnnotation {
+            severity: AnnotationLevel::Error,
+            path: "src/lib.rs".to_string(),
+            message: "This is an error message".to_string(),
+            start_line: Some(10),
+            ..Default::default()
+        };
+        assert_eq!(
+            annotation.to_string(),
+            "::error file=src/lib.rs,line=10::This is an error message"
+        );
+    }
+
+    #[test]
+    fn annotate_file_with_start_line_col() {
+        let annotation = FileAnnotation {
+            severity: AnnotationLevel::Error,
+            path: "src/lib.rs".to_string(),
+            message: "This is an error message".to_string(),
+            start_line: Some(10),
+            start_column: Some(5),
+            ..Default::default()
+        };
+        assert_eq!(
+            annotation.to_string(),
+            "::error file=src/lib.rs,line=10,col=5::This is an error message"
+        );
+    }
+
+    #[test]
+    fn annotate_file_with_line_span() {
+        let annotation = FileAnnotation {
+            severity: AnnotationLevel::Notice,
+            path: "src/lib.rs".to_string(),
+            message: "This is a notice message".to_string(),
+            start_line: Some(10),
+            end_line: Some(20),
+            ..Default::default()
+        };
+        assert_eq!(
+            annotation.to_string(),
+            "::notice file=src/lib.rs,line=10,endline=20::This is a notice message"
+        );
+    }
+    #[test]
+    fn annotate_file_with_line_col_span() {
+        let annotation = FileAnnotation {
+            severity: AnnotationLevel::Notice,
+            path: "src/lib.rs".to_string(),
+            message: "This is a notice message".to_string(),
+            start_line: Some(10),
+            start_column: Some(5),
+            end_line: Some(20),
+            end_column: Some(15),
+            ..Default::default()
+        };
+        assert_eq!(
+            annotation.to_string(),
+            "::notice file=src/lib.rs,line=10,col=5,endline=20,endColumn=15::This is a notice message"
+        );
     }
 }
