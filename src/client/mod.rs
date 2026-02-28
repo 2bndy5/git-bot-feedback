@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use chrono::DateTime;
 use reqwest::{Client, Method, Request, Response, Url, header::HeaderMap};
 
-use crate::{OutputVariable, RestClientError, ThreadCommentOptions};
+use crate::{FileAnnotation, OutputVariable, RestClientError, ThreadCommentOptions};
 
 #[cfg(feature = "github")]
 mod github;
@@ -179,6 +179,14 @@ pub trait RestApiClient {
     ///
     /// These variables are designed to be consumed by other steps in the CI workflow.
     fn write_output_variables(&self, vars: &[OutputVariable]) -> Result<(), ClientError>;
+
+    /// Sets the given `annotations` as file annotations.
+    ///
+    /// Not all Git servers support this on their free tiers, namely GitLab.
+    fn write_file_annotations(&self, annotations: &[FileAnnotation]) -> Result<(), ClientError> {
+        println!("{annotations:#?}");
+        Ok(())
+    }
 
     /// Construct a HTTP request to be sent.
     ///
