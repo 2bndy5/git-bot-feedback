@@ -27,6 +27,20 @@ pub struct FileAnnotation {
     /// This is ignored if [`Self::path`] is blank.
     pub end_line: Option<usize>,
 
+    /// The column number where the annotation starts (1-based).
+    ///
+    /// This is ignored if the [`Self::start_line`] is not provided, or if [`Self::path`] is blank.
+    pub start_column: Option<usize>,
+
+    /// The column number where the annotation ends (1-based).
+    ///
+    /// This is ignored if
+    /// - the [`Self::start_line`] and [`Self::end_line`] are not provided
+    /// - the [`Self::end_line`] is less than or equal to [`Self::start_line`]
+    /// - the [`Self::start_column`] is provided but is not less than this [`Self::end_column`]
+    /// - the [`Self::path`] is blank
+    pub end_column: Option<usize>,
+
     /// The title of the annotation, which will be shown in the Git Server's UI.
     pub title: Option<String>,
 
