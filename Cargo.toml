@@ -8,7 +8,7 @@ license-file = "LICENSE"
 
 [dependencies]
 log = "0.4.29"
-chrono = "0.4.43"
+chrono = "0.4.44"
 reqwest = "0.13.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.149"
@@ -21,10 +21,10 @@ async-trait = "0.1.89"
 
 [dev-dependencies]
 mockito = "1.7.2"
-tempfile = "3.25.0"
+tempfile = "3.26.0"
 
 [build-dependencies]
-chrono = {version = "0.4.43", features = ["now"]}
+chrono = {version = "0.4.44", features = ["now"]}
 
 [features]
 regex = ["dep:regex"]
