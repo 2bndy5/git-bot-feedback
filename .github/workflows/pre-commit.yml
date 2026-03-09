@@ -40,7 +40,7 @@ jobs:
           path: ~/.cargo
           key: cargo-lib-${{ hashFiles('lib/src/**', 'lib/Cargo.toml') }}
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@e7cc28468cf17df7cb288daea80c0c5437af360b # v1.16.7
+        uses: cargo-bins/cargo-binstall@1800853f2578f8c34492ec76154caef8e163fbca # v1.17.7
       - name: Install nur
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -59,7 +59,7 @@ jobs:
           persist-credentials: false
       - run: rustup update --no-self-update
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@e7cc28468cf17df7cb288daea80c0c5437af360b # v1.16.7
+        uses: cargo-bins/cargo-binstall@1800853f2578f8c34492ec76154caef8e163fbca # v1.17.7
       - name: Install committed
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -77,7 +77,7 @@ jobs:
         env:
           PR_TITLE: "${{ steps.get-title.outputs.title }}"
         run: echo "${PR_TITLE}" | committed --config .config/committed.toml --commit-file -
-      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: latest
       - name: spell check
