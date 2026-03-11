@@ -54,7 +54,7 @@ jobs:
       - name: Generate coverage reports
         run: nur test lcov
       - name: Upload coverage reports as artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           name: lcov.info
           path: lcov.info
