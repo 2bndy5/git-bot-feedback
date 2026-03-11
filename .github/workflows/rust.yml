@@ -67,7 +67,7 @@ jobs:
       url: https://app.codecov.io/gh/2bndy5/git-bot-feedback
     steps:
       - name: Download coverage reports
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v8
         with:
           name: lcov.info
           path: lcov.info
