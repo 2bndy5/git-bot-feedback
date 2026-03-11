@@ -27,6 +27,8 @@ permissions: {}
 jobs:
   bump-release:
     if: github.event_name == 'workflow_dispatch'
+    environment:
+      name: stage-deployment
     runs-on: ubuntu-latest
     # permissions needed by the BUMP_N_RELEASE token:
     # permissions:

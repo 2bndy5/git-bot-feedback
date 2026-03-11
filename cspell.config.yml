@@ -5,6 +5,7 @@ words:
   - bndy
   - chrono
   - clippy
+  - cooldown
   - docsrs
   - endfor
   - endgroup
