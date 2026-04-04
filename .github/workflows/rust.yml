@@ -72,7 +72,7 @@ jobs:
           name: lcov.info
           path: lcov.info
       - name: Upload coverage reports
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
@@ -95,7 +95,7 @@ jobs:
       - name: Setup Rust
         run: rustup update --no-self-update
       - name: Establish trusted publishing token
-        uses: rust-lang/crates-io-auth-action@b7e9a28eded4986ec6b1fa40eeee8f8f165559ec # v1.0.3
+        uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
         id: auth
       - name: Publish to crates.io
         env:
