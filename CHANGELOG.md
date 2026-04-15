@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.3.0] - 2026-04-15
+
+### <!-- 1 --> 🚀 Added
+
+- Allow custom base for local diff by @2bndy5 in [#30](https://github.com/2bndy5/git-bot-feedback/pull/30)
+- Propagate more errors to user for adequate handling by @2bndy5 in [#31](https://github.com/2bndy5/git-bot-feedback/pull/31)
+- Use helper functions to reduce error handling code by @2bndy5 in [#33](https://github.com/2bndy5/git-bot-feedback/pull/33)
+- Comprehensive output variable validation by @2bndy5 in [#35](https://github.com/2bndy5/git-bot-feedback/pull/35)
+- Support file annotations by @2bndy5 in [#37](https://github.com/2bndy5/git-bot-feedback/pull/37)
+- Support PR reviews by @2bndy5 in [#34](https://github.com/2bndy5/git-bot-feedback/pull/34)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Use synchronous `std::{fs, process::Command}` by @2bndy5 in [#29](https://github.com/2bndy5/git-bot-feedback/pull/29)
+- Make `RestApiClient` a dyn-compatible async trait by @2bndy5 in [#36](https://github.com/2bndy5/git-bot-feedback/pull/36)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump bytes from 1.10.1 to 1.11.1 by @dependabot[bot] in [#27](https://github.com/2bndy5/git-bot-feedback/pull/27)
+- Bump git-cliff in /.github in the pip group by @dependabot[bot] in [#23](https://github.com/2bndy5/git-bot-feedback/pull/23)
+- Bump the actions group across 1 directory with 8 updates by @dependabot[bot] in [#21](https://github.com/2bndy5/git-bot-feedback/pull/21)
+- Bump the cargo group across 1 directory with 10 updates by @dependabot[bot] in [#28](https://github.com/2bndy5/git-bot-feedback/pull/28)
+- Bump the cargo group across 1 directory with 4 updates by @dependabot[bot] in [#40](https://github.com/2bndy5/git-bot-feedback/pull/40)
+- Bump actions/setup-node from v6 in the actions group by @dependabot[bot] in [#43](https://github.com/2bndy5/git-bot-feedback/pull/43)
+- Bump quinn-proto from 0.11.13 to 0.11.14 by @dependabot[bot] in [#41](https://github.com/2bndy5/git-bot-feedback/pull/41)
+- Bump rand from 0.9.2 to 0.9.4 by @dependabot[bot] in [#49](https://github.com/2bndy5/git-bot-feedback/pull/49)
+- Bump the actions group across 1 directory with 5 updates by @dependabot[bot] in [#48](https://github.com/2bndy5/git-bot-feedback/pull/48)
+- Bump rustls-webpki from 0.103.9 to 0.103.12 by @dependabot[bot] in [#50](https://github.com/2bndy5/git-bot-feedback/pull/50)
+- Bump tokio from 1.50.0 to 1.51.0 in the cargo group by @dependabot[bot] in [#47](https://github.com/2bndy5/git-bot-feedback/pull/47)
+- Bump tokio to v1.52.0 by @2bndy5 in [`b0ef1d5`](https://github.com/2bndy5/git-bot-feedback/commit/b0ef1d5668218c4c445048583e24a78fccf7664a)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Add zizmor config by @2bndy5 in [`9f5b331`](https://github.com/2bndy5/git-bot-feedback/commit/9f5b3318eaa186b3250cf599bfbfecbb743cb755)
+- Satisfy zizmor audit violations by @2bndy5 in [#42](https://github.com/2bndy5/git-bot-feedback/pull/42)
+
+[0.3.0]: https://github.com/2bndy5/git-bot-feedback/compare/v0.2.0...v0.3.0
+
+Full commit diff: [`v0.2.0...v0.3.0`][0.3.0]
+
 ## [0.2.0] - 2025-10-25
 
 ### <!-- 1 --> 🚀 Added
@@ -20,10 +60,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump the cargo group across 1 directory with 9 updates by @dependabot[bot] in [#10](https://github.com/2bndy5/git-bot-feedback/pull/10)
 - Bump git-cliff from 2.10.0 to 2.10.1 in /.github in the pip group by @dependabot[bot] in [#12](https://github.com/2bndy5/git-bot-feedback/pull/12)
 - Bump the actions group with 3 updates by @dependabot[bot] in [#13](https://github.com/2bndy5/git-bot-feedback/pull/13)
+- Bump version to v0.2.0 by @2bndy5 in [`bfbedaf`](https://github.com/2bndy5/git-bot-feedback/commit/bfbedaf5953ef401268ca832c65f19f796ec6cf8)
 
 ### <!-- 9 --> 🗨️ Changed
 
 - Regenerate CHANGELOG by @2bndy5 in [`43b62a8`](https://github.com/2bndy5/git-bot-feedback/commit/43b62a876847409358146d65c7b309e09996583f)
+- Fix bump-n-release script by @2bndy5 in [`b7c8ee3`](https://github.com/2bndy5/git-bot-feedback/commit/b7c8ee3fd68816c3dc2ba6583a1dd832122a2936)
 
 [0.2.0]: https://github.com/2bndy5/git-bot-feedback/compare/v0.1.4...v0.2.0
 
