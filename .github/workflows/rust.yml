@@ -66,6 +66,9 @@ jobs:
       name: test-coverage
       url: https://app.codecov.io/gh/2bndy5/git-bot-feedback
     steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: Download coverage reports
         uses: actions/download-artifact@v8
         with:
