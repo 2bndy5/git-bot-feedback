@@ -95,6 +95,14 @@ impl RestApiClient for GithubApiClient {
         log::info!(target: "CI_LOG_GROUPING", "::endgroup::");
     }
 
+    fn event_name(&self) -> Option<String> {
+        Some(self.event_name.clone())
+    }
+
+    fn is_debug_enabled(&self) -> bool {
+        self.debug_enabled
+    }
+
     async fn post_thread_comment(&self, options: ThreadCommentOptions) -> Result<(), ClientError> {
         env::var("GITHUB_TOKEN").map_err(|e| ClientError::env_var("GITHUB_TOKEN", e))?;
         let comments_url = match &self.pull_request {

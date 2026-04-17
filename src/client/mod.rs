@@ -61,6 +61,21 @@ pub trait RestApiClient {
     /// This **will not** check if a push event's instigating commit is part of any PR.
     fn is_pr_event(&self) -> bool;
 
+    /// Is debug mode enabled?
+    ///
+    /// Typically, A CI platform will have a way to enable debug level logs for a job or workflow.
+    /// This method should be implemented to reflect the supported CI platform's implementation.
+    fn is_debug_enabled(&self) -> bool {
+        false
+    }
+
+    /// Get the name of the current CI event.
+    ///
+    /// This will return [`None`] if the event name is not known for the CI platform.
+    fn event_name(&self) -> Option<String> {
+        None
+    }
+
     /// A way to get the list of changed files in the context of the CI event.
     ///
     /// This method will parse diff blobs and return a list of changed files.

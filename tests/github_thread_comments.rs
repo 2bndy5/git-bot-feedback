@@ -152,7 +152,12 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
             return;
         }
     };
-    assert!(client.debug_enabled);
+    assert!(client.is_debug_enabled());
+    assert!(
+        client
+            .event_name()
+            .is_some_and(|n| n == test_params.event_t.to_string())
+    );
 
     let mut mocks = vec![];
 

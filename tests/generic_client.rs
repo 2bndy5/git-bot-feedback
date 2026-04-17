@@ -115,6 +115,8 @@ async fn simulate_rate_limit(test_params: &RateLimitTestParams) {
         mock.create();
     }
     let test_client = TestClient::default();
+    assert!(!test_client.is_debug_enabled());
+    assert!(test_client.event_name().is_none());
     let request = test_client
         .make_api_request(
             &client,
