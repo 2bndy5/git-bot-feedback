@@ -39,6 +39,16 @@ impl LinesChangedOnly {
     }
 }
 
+impl std::fmt::Display for LinesChangedOnly {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LinesChangedOnly::Off => write!(f, "false"),
+            LinesChangedOnly::Diff => write!(f, "diff"),
+            LinesChangedOnly::On => write!(f, "true"),
+        }
+    }
+}
+
 /// A structure to represent a file's changes per line numbers.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
@@ -145,6 +155,13 @@ impl FileDiffLines {
 #[cfg(test)]
 mod test {
     use super::{FileDiffLines, LinesChangedOnly};
+
+    #[test]
+    fn display_lines_changed_only() {
+        assert_eq!(LinesChangedOnly::Off.to_string(), "false");
+        assert_eq!(LinesChangedOnly::Diff.to_string(), "diff");
+        assert_eq!(LinesChangedOnly::On.to_string(), "true");
+    }
 
     #[test]
     fn get_ranges_none() {
