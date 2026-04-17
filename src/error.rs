@@ -9,6 +9,8 @@ use crate::client::MAX_RETRIES;
 
 /// The possible errors emitted when parsing git diffs.
 #[derive(Debug, thiserror::Error)]
+#[cfg(feature = "file-changes")]
+#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
 pub enum DiffError {
     /// An error emitted when failing to compile a Regular expression pattern.
     #[error("Failed to compile regex pattern: {0}")]
@@ -40,6 +42,8 @@ pub enum OutputVariableError {
 pub enum RestClientError {
     /// Errors related to parsing git diffs.
     #[error(transparent)]
+    #[cfg(feature = "file-changes")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
     DiffError(#[from] DiffError),
 
     /// Error emitted when encountering malformed event information.
