@@ -65,7 +65,7 @@ impl GithubApiClient {
         })
     }
 
-    fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
+    pub(super) fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             "Accept",

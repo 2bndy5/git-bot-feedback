@@ -34,6 +34,7 @@ const EVENT_PAYLOAD: &str =
 const RESET_RATE_LIMIT_HEADER: &str = "x-ratelimit-reset";
 const REMAINING_RATE_LIMIT_HEADER: &str = "x-ratelimit-remaining";
 const MALFORMED_RESPONSE_PAYLOAD: &str = "{\"message\":\"Resource not accessible by integration\"}";
+const USER_AGENT: &str = "abc/123";
 
 async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     let tmp = TempDir::new().expect("Failed to create a temp dir for test");
@@ -85,7 +86,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     env::set_current_dir(tmp.path()).unwrap();
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let client = match init_client() {
+    let mut client = match init_client() {
         Ok(c) => c,
         Err(e) => {
             if test_params.fail_serde_event_payload {
@@ -99,6 +100,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             }
         }
     };
+    client.set_user_agent(USER_AGENT).unwrap();
 
     let mut mocks = vec![];
     let diff_end_point = format!(
@@ -120,6 +122,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             .mock("GET", diff_end_point.as_str())
             .match_header("Accept", "application/vnd.github.raw+json")
             .match_header("Authorization", format!("token {TOKEN}").as_str())
+            .match_header("user-agent", USER_AGENT)
             .match_query(Matcher::UrlEncoded("page".to_string(), pg.to_string()))
             .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
             .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())

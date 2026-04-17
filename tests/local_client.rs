@@ -201,6 +201,7 @@ async fn dummy_coverage() {
         }])
         .unwrap();
     assert!(!test_client.is_pr_event());
+    test_client.set_user_agent("user_agent").unwrap();
     let mut options = ReviewOptions::default();
     test_client.cull_pr_reviews(&mut options).await.unwrap();
     test_client.post_pr_review(&options).await.unwrap();
