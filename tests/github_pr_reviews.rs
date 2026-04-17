@@ -1,7 +1,6 @@
 use chrono::Utc;
 use git_bot_feedback::{
-    RestApiClient, RestClientError, ReviewAction, ReviewComment, ReviewOptions,
-    client::GithubApiClient,
+    RestClientError, ReviewAction, ReviewComment, ReviewOptions, client::init_client,
 };
 use mockito::{Matcher, Server};
 use std::{collections::HashMap, env, fmt::Display, fs, io::Write, path::Path};
@@ -156,6 +155,7 @@ impl TestControlVars {
 /// then run the parametrized test for PR review management.
 async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
     unsafe {
+        env::set_var("GITHUB_ACTIONS", "true");
         env::set_var(
             "GITHUB_EVENT_NAME",
             test_params.event_t.to_string().as_str(),
@@ -203,8 +203,8 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
 
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let mut client = GithubApiClient::new().unwrap();
-    assert!(client.debug_enabled);
+    let mut client = init_client().unwrap();
+    assert!(client.is_debug_enabled());
 
     let mut mocks = vec![];
 
@@ -442,7 +442,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
     let mut opts = ReviewOptions {
         marker: MARKER.to_string(),
         action: test_params.action.clone(),
-        summary: summary,
+        summary,
         comments: test_control_vars.new_review_comments.clone(),
         delete_review_comments: test_params.delete_outdated,
         ..Default::default()

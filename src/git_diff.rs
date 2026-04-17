@@ -119,7 +119,7 @@ mod test {
     use super::parse_diff;
     use crate::{FileFilter, LinesChangedOnly};
 
-    const RENAMED_DIFF: &'static str = r#"diff --git a/tests/demo/some source.cpp b/tests/demo/some source.c
+    const RENAMED_DIFF: &str = r#"diff --git a/tests/demo/some source.cpp b/tests/demo/some source.c
 similarity index 100%
 rename from /tests/demo/some source.cpp
 rename to /tests/demo/some source.c
@@ -150,7 +150,7 @@ Binary files /dev/null and b/some picture.png differ
         assert!(files.is_empty());
     }
 
-    const RENAMED_DIFF_WITH_CHANGES: &'static str = r#"diff --git a/tests/demo/some source.cpp b/tests/demo/some source.c
+    const RENAMED_DIFF_WITH_CHANGES: &str = r#"diff --git a/tests/demo/some source.cpp b/tests/demo/some source.c
 similarity index 99%
 rename from /tests/demo/some source.cpp
 rename to /tests/demo/some source.c
@@ -190,7 +190,7 @@ rename to /tests/demo/some source.c
         assert!(!files.is_empty());
     }
 
-    const BINARY_DIFF: &'static str = "diff --git a/some picture.png b/some picture.png\n\
+    const BINARY_DIFF: &str = "diff --git a/some picture.png b/some picture.png\n\
                 new file mode 100644\n\
                 Binary files /dev/null and b/some picture.png differ\n";
 
@@ -204,7 +204,7 @@ rename to /tests/demo/some source.c
         assert!(files.is_empty());
     }
 
-    const TERSE_HEADERS: &'static str = r#"diff --git a/src/demo.cpp b/src/demo.cpp
+    const TERSE_HEADERS: &str = r#"diff --git a/src/demo.cpp b/src/demo.cpp
 --- a/src/demo.cpp
 +++ b/src/demo.cpp
 @@ -3 +3 @@

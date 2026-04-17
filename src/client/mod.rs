@@ -12,15 +12,18 @@ mod github;
 #[cfg(feature = "github")]
 pub use github::GithubApiClient;
 
+mod local;
+pub use local::LocalClient;
+
 #[cfg(not(any(feature = "github", feature = "custom-git-server-impl")))]
 compile_error!(
     "At least one Git server implementation (eg. 'github') should be enabled via `features`"
 );
 
 #[cfg(feature = "file-changes")]
-use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};
+use crate::{FileDiffLines, FileFilter, LinesChangedOnly};
 #[cfg(feature = "file-changes")]
-use std::{collections::HashMap, process::Command};
+use std::collections::HashMap;
 
 /// The User-Agent header value included in all HTTP requests.
 pub static USER_AGENT: &str = concat!(env!("CARGO_CRATE_NAME"), "/", env!("CARGO_PKG_VERSION"));
@@ -92,86 +95,7 @@ pub trait RestApiClient {
         lines_changed_only: &LinesChangedOnly,
         base_diff: Option<String>,
         ignore_index: bool,
-    ) -> Result<HashMap<String, FileDiffLines>, ClientError> {
-        let git_status = if ignore_index {
-            0
-        } else {
-            match Command::new("git").args(["status", "--short"]).output() {
-                Err(e) => {
-                    return Err(ClientError::io("invoke `git status`", e));
-                }
-                Ok(output) => {
-                    if output.status.success() {
-                        String::from_utf8_lossy(&output.stdout)
-                            .to_string()
-                            // trim last newline to prevent an extra empty line being counted as a changed file
-                            .trim_end_matches('\n')
-                            .lines()
-                            // we only care about staged changes
-                            .filter(|l| !l.starts_with(' '))
-                            .count()
-                    } else {
-                        let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                        return Err(ClientError::GitCommand(err_msg));
-                    }
-                }
-            }
-        };
-        let mut diff_args = vec!["diff".to_string()];
-        if git_status != 0 {
-            // There are changes in the working directory.
-            // So, compare include the staged changes.
-            diff_args.push("--staged".to_string());
-        }
-        if let Some(base) = base_diff {
-            match Command::new("git")
-                .args(["rev-parse", base.as_str()])
-                .output()
-            {
-                Err(e) => {
-                    return Err(ClientError::Io {
-                        task: format!("invoke `git rev-parse {base}` to validate reference"),
-                        source: e,
-                    });
-                }
-                Ok(output) => {
-                    if output.status.success() {
-                        diff_args.push(base);
-                    } else if base.chars().all(|c| c.is_ascii_digit()) {
-                        // if all chars form a decimal number, then
-                        // try using it as a number of parents from HEAD
-                        diff_args.push(format!("HEAD~{base}"));
-                        // note, if still not a valid git reference, then
-                        // the error will be raised by the `git diff` command later
-                    } else {
-                        let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                        // Given diff base did not resolve to a valid git reference
-                        return Err(ClientError::GitCommand(err_msg));
-                    }
-                }
-            }
-        } else if git_status == 0 {
-            // No base diff provided and there are no staged changes,
-            // just get the diff of the last commit.
-            diff_args.push("HEAD~1".to_string());
-        }
-        match Command::new("git").args(&diff_args).output() {
-            Err(e) => Err(ClientError::Io {
-                task: format!("invoke `git {}`", diff_args.join(" ")),
-                source: e,
-            }),
-            Ok(output) => {
-                if output.status.success() {
-                    let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
-                    let files = parse_diff(&diff_str, file_filter, lines_changed_only);
-                    Ok(files)
-                } else {
-                    let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                    Err(ClientError::GitCommand(err_msg))
-                }
-            }
-        }
-    }
+    ) -> Result<HashMap<String, FileDiffLines>, ClientError>;
 
     /// A way to post feedback to the Git server's GUI.
     ///
@@ -224,13 +148,15 @@ pub trait RestApiClient {
     ///
     /// Not all Git servers support this on their free tiers, namely GitLab.
     fn write_file_annotations(&self, annotations: &[FileAnnotation]) -> Result<(), ClientError> {
-        println!("{annotations:#?}");
+        for annotation in annotations {
+            log::info!("{annotation:#?}");
+        }
         Ok(())
     }
 
     /// Construct a HTTP request to be sent.
     ///
-    /// The idea here is that this method is called before [`send_api_request()`].
+    /// The idea here is that this method is called before [`Self::send_api_request()`].
     /// ```ignore
     /// let request = Self::make_api_request(
     ///     &self.client,
@@ -359,5 +285,18 @@ pub trait RestApiClient {
                 log::error!("{text}");
             }
         }
+    }
+}
+
+/// Instantiate an implementation of [`RestApiClient`] based on the environment.
+///
+/// This will fallback to an instance of [`LocalClient`] if
+///
+/// - the `GITHUB_ACTIONS` environment variable is not set
+pub fn init_client() -> Result<Box<dyn RestApiClient + Send + Sync>, ClientError> {
+    if env::var("GITHUB_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true") {
+        Ok(Box::new(GithubApiClient::new()?))
+    } else {
+        Ok(Box::new(LocalClient))
     }
 }

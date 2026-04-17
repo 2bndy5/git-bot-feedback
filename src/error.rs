@@ -22,6 +22,9 @@ pub enum OutputVariableError {
     /// The output variable's value contains non-printable characters.
     #[error("The output variable's value contains non-printable characters: '{0}'")]
     ValueContainsNonPrintableCharacters(String),
+    /// Unsupported CI platform.
+    #[error("Unsupported CI platform")]
+    UnsupportedPlatform,
 }
 
 /// The possible error emitted by the REST client API

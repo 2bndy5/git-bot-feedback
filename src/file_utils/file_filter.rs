@@ -314,7 +314,7 @@ mod tests {
         let mut file_filter = setup_ignore("!pybind11", &[]);
         file_filter.parse_submodules();
         assert!(file_filter.ignored.is_empty());
-        assert!(file_filter.is_file_not_ignored(&Path::new("pybind11")));
+        assert!(file_filter.is_file_not_ignored(Path::new("pybind11")));
         set_current_dir("tests/assets/ignored_paths/error").unwrap();
         file_filter.parse_submodules();
         assert!(file_filter.ignored.is_empty());
@@ -330,7 +330,7 @@ mod tests {
                     .is_file_ignored(&PathBuf::from(ignored_submodule).join("some_src.cpp"))
             );
         }
-        assert!(file_filter.not_ignored.contains(&"pybind11".to_string()));
+        assert!(file_filter.not_ignored.contains("pybind11"));
         assert!(!file_filter.is_file_not_ignored(&PathBuf::from("pybind11/some_src.cpp")));
     }
 
@@ -353,11 +353,11 @@ mod tests {
             assert!(!file.contains("\\"));
             assert!(!file.starts_with("./"));
         }
-        assert!(!file_filter.is_file_not_ignored(&Path::new(
+        assert!(!file_filter.is_file_not_ignored(Path::new(
             "tests/assets/ignored_paths/.hidden/ignore_me.txt"
         )));
-        assert!(!file_filter.is_qualified(&Path::new("tests/assets/ignored_paths/.hidden")));
-        assert!(file_filter.is_qualified(&Path::new("tests/assets/ignored_paths")));
+        assert!(!file_filter.is_qualified(Path::new("tests/assets/ignored_paths/.hidden")));
+        assert!(file_filter.is_qualified(Path::new("tests/assets/ignored_paths")));
     }
 
     #[test]

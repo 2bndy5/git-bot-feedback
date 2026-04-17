@@ -1,4 +1,4 @@
-use git_bot_feedback::{RestApiClient, RestClientError, client::GithubApiClient};
+use git_bot_feedback::{RestClientError, client::init_client};
 use mockito::Server;
 use std::{env, io::Read, path::Path};
 use tempfile::{NamedTempFile, tempdir};
@@ -37,6 +37,7 @@ async fn append_summary(test_params: TestParams) -> String {
     }
 
     unsafe {
+        env::set_var("GITHUB_ACTIONS", "true");
         env::set_var("GITHUB_REPOSITORY", REPO);
         env::set_var("GITHUB_SHA", SHA);
         env::set_var("CI", "true");
@@ -50,7 +51,7 @@ async fn append_summary(test_params: TestParams) -> String {
     env::set_current_dir(tmp_dir.path()).unwrap();
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let client = GithubApiClient::new().unwrap();
+    let client = init_client().unwrap();
 
     let mut step_summary_content = String::new();
     match client.append_step_summary(COMMENT) {

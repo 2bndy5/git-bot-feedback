@@ -1,7 +1,6 @@
 use chrono::Utc;
 use git_bot_feedback::{
-    CommentKind, CommentPolicy, RestApiClient, RestClientError, ThreadCommentOptions,
-    client::GithubApiClient,
+    CommentKind, CommentPolicy, RestClientError, ThreadCommentOptions, client::init_client,
 };
 use mockito::{Matcher, Server};
 use std::{env, fmt::Display, io::Write, path::Path};
@@ -75,6 +74,7 @@ impl Default for TestParams {
 
 async fn setup(lib_root: &Path, test_params: &TestParams) {
     unsafe {
+        env::set_var("GITHUB_ACTIONS", "true");
         env::set_var(
             "GITHUB_EVENT_NAME",
             test_params.event_t.to_string().as_str(),
@@ -136,7 +136,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
 
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let client = match GithubApiClient::new() {
+    let client = match init_client() {
         Ok(c) => c,
         Err(e) => {
             if test_params.no_pr_info_env_var

@@ -1,8 +1,8 @@
-use async_trait::async_trait;
 use chrono::Utc;
 use git_bot_feedback::{
     FileAnnotation, OutputVariable, RestApiClient, RestApiRateLimitHeaders, RestClientError,
     ReviewOptions, ThreadCommentOptions,
+    client::{LocalClient, init_client},
 };
 use mockito::{Matcher, Server};
 use reqwest::{
@@ -13,42 +13,6 @@ use url::Url;
 
 mod common;
 use common::logger_init;
-
-/// A dummy struct to impl RestApiClient
-#[derive(Default)]
-struct TestClient;
-
-#[async_trait]
-impl RestApiClient for TestClient {
-    async fn post_thread_comment(
-        &self,
-        _options: ThreadCommentOptions,
-    ) -> Result<(), RestClientError> {
-        Err(RestClientError::CannotCloneRequest)
-    }
-
-    fn is_pr_event(&self) -> bool {
-        false
-    }
-
-    fn write_output_variables(&self, _vars: &[OutputVariable]) -> Result<(), RestClientError> {
-        Err(RestClientError::Io {
-            task: "write output variables".into(),
-            source: std::io::Error::from(std::io::ErrorKind::InvalidFilename),
-        })
-    }
-
-    async fn cull_pr_reviews(
-        &mut self,
-        _options: &mut ReviewOptions,
-    ) -> Result<(), RestClientError> {
-        Err(RestClientError::RateLimitNoReset)
-    }
-
-    async fn post_pr_review(&mut self, _options: &ReviewOptions) -> Result<(), RestClientError> {
-        Err(RestClientError::RateLimitNoReset)
-    }
-}
 
 #[derive(Default)]
 struct RateLimitTestParams {
@@ -114,7 +78,11 @@ async fn simulate_rate_limit(test_params: &RateLimitTestParams) {
     } else {
         mock.create();
     }
-    let test_client = TestClient::default();
+    unsafe {
+        // prevent using GithubApiClient in these tests
+        std::env::set_var("GITHUB_ACTIONS", "false");
+    }
+    let test_client = init_client().unwrap();
     assert!(!test_client.is_debug_enabled());
     assert!(test_client.event_name().is_none());
     let request = test_client
@@ -215,23 +183,27 @@ async fn rate_limit_bad_count() {
 
 #[tokio::test]
 async fn dummy_coverage() {
-    let test_client = TestClient::default();
+    let mut test_client = LocalClient;
     let log_group_name = "Dummy test";
     test_client.start_log_group(log_group_name);
-    assert!(
-        test_client
-            .post_thread_comment(ThreadCommentOptions {
-                comment: "some comment text".to_string(),
-                ..Default::default()
-            })
-            .await
-            .is_err()
-    );
+    test_client
+        .post_thread_comment(ThreadCommentOptions {
+            comment: "some comment text".to_string(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     test_client.append_step_summary("").unwrap();
     test_client
-        .write_output_variables(&[])
-        .expect_err("Not implemented for generic clients");
+        .write_output_variables(&[OutputVariable {
+            name: "key".to_string(),
+            value: "value".to_string(),
+        }])
+        .unwrap();
     assert!(!test_client.is_pr_event());
+    let mut options = ReviewOptions::default();
+    test_client.cull_pr_reviews(&mut options).await.unwrap();
+    test_client.post_pr_review(&options).await.unwrap();
     let annotation = FileAnnotation::default();
     test_client.write_file_annotations(&[annotation]).unwrap();
     test_client.end_log_group(log_group_name);
@@ -249,7 +221,7 @@ fn bad_link_header() {
     );
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let test_client = TestClient::default();
+    let test_client = LocalClient;
     let result = test_client.try_next_page(&headers);
     assert!(result.is_none());
 }
@@ -267,7 +239,7 @@ fn bad_link_domain() {
     );
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let test_client = TestClient::default();
+    let test_client = LocalClient;
     let result = test_client.try_next_page(&headers);
     assert!(result.is_none());
 }
@@ -283,7 +255,7 @@ fn mk_request() {
         HeaderName::from_static("key"),
         header_value.clone(),
     )]));
-    let test_client = TestClient::default();
+    let test_client = LocalClient;
     let request = test_client
         .make_api_request(
             &client,
@@ -328,7 +300,7 @@ async fn list_file_changes() {
     // setup test client, logging, and file filter
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let client = TestClient::default();
+    let client = LocalClient;
     let file_filter = FileFilter::new(&[], &["toml", "md"], None);
 
     // Now get diff of HEAD and parent commit
