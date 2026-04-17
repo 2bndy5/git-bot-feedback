@@ -157,6 +157,13 @@ mod test {
     use super::{FileDiffLines, LinesChangedOnly};
 
     #[test]
+    fn display_lines_changed_only() {
+        assert_eq!(LinesChangedOnly::Off.to_string(), "false");
+        assert_eq!(LinesChangedOnly::Diff.to_string(), "diff");
+        assert_eq!(LinesChangedOnly::On.to_string(), "true");
+    }
+
+    #[test]
     fn get_ranges_none() {
         let file_obj = FileDiffLines::default();
         let ranges = file_obj.get_ranges(&LinesChangedOnly::Off);
