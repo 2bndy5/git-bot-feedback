@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.5.0] - 2026-04-17
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Use stricter linting rules by @2bndy5 in [#63](https://github.com/2bndy5/git-bot-feedback/pull/63)
+
+[0.5.0]: https://github.com/2bndy5/git-bot-feedback/compare/v0.4.0...v0.5.0
+
+Full commit diff: [`v0.4.0...v0.5.0`][0.5.0]
+
 ## [0.4.0] - 2026-04-17
 
 ### <!-- 1 --> 🚀 Added
@@ -22,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### <!-- 4 --> 🛠️ Fixed
 
 - Remove `async` from non-async functions by @2bndy5 in [#58](https://github.com/2bndy5/git-bot-feedback/pull/58)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.4.0 by @2bndy5 in [`d4406ff`](https://github.com/2bndy5/git-bot-feedback/commit/d4406ff45f9bc3a83580747e466cd157fe393efe)
 
 ### <!-- 9 --> 🗨️ Changed
 
