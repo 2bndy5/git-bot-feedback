@@ -203,7 +203,7 @@ impl FileFilter {
     /// - Is `file_path` *not* specified in [`FileFilter::ignored`]?
     /// - Is `file_path` not a hidden path (any parts of the path start with ".")?
     ///   Mutually exclusive with last condition; does not apply to "./" or "../".
-    pub fn is_not_ignored(&self, file_path: &Path) -> bool {
+    pub fn is_qualified(&self, file_path: &Path) -> bool {
         if !self.extensions.is_empty() && !file_path.is_dir() {
             let extension = file_path
                 .extension()
@@ -251,7 +251,7 @@ impl FileFilter {
             if path.is_dir() {
                 files.extend(Box::pin(self.walk_dir(&path.to_string_lossy())).await?);
             } else {
-                let is_valid_src = self.is_not_ignored(&path);
+                let is_valid_src = self.is_qualified(&path);
                 if is_valid_src {
                     let file_name = path
                         .clone()
@@ -364,8 +364,8 @@ mod tests {
         assert!(!file_filter.is_file_not_ignored(&Path::new(
             "tests/assets/ignored_paths/.hidden/ignore_me.txt"
         )));
-        assert!(!file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths/.hidden")));
-        assert!(file_filter.is_not_ignored(&Path::new("tests/assets/ignored_paths")));
+        assert!(!file_filter.is_qualified(&Path::new("tests/assets/ignored_paths/.hidden")));
+        assert!(file_filter.is_qualified(&Path::new("tests/assets/ignored_paths")));
     }
 
     #[tokio::test]
