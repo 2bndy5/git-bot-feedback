@@ -172,6 +172,7 @@ mod test {
 
     #[test]
     fn get_ranges_diff() {
+        #[allow(clippy::single_range_in_vec_init)]
         let diff_chunks = vec![1..11];
         let added_lines = vec![4, 5, 9];
         let file_obj = FileDiffLines::with_info(added_lines, diff_chunks.clone());
@@ -181,6 +182,7 @@ mod test {
 
     #[test]
     fn get_ranges_added() {
+        #[allow(clippy::single_range_in_vec_init)]
         let diff_chunks = vec![1..11];
         let added_lines = vec![4, 5, 9];
         let file_obj = FileDiffLines::with_info(added_lines, diff_chunks);

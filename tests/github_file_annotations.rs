@@ -1,4 +1,4 @@
-use git_bot_feedback::{FileAnnotation, RestApiClient, client::GithubApiClient};
+use git_bot_feedback::{FileAnnotation, client::init_client};
 use mockito::Server;
 use std::env;
 mod common;
@@ -14,6 +14,7 @@ const SHA: &str = "DEADBEEF";
 
 async fn write_annotations(test_params: TestParams) {
     unsafe {
+        env::set_var("GITHUB_ACTIONS", "true");
         env::set_var("GITHUB_REPOSITORY", REPO);
         env::set_var("GITHUB_SHA", SHA);
         env::set_var("CI", "true");
@@ -26,7 +27,7 @@ async fn write_annotations(test_params: TestParams) {
 
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let client = GithubApiClient::new().unwrap();
+    let client = init_client().unwrap();
 
     let annotations = if test_params.empty_array {
         vec![]
@@ -46,9 +47,5 @@ async fn some_annotations() {
 
 #[tokio::test]
 async fn empty_annotations() {
-    write_annotations(TestParams {
-        empty_array: true,
-        ..Default::default()
-    })
-    .await;
+    write_annotations(TestParams { empty_array: true }).await;
 }

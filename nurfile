@@ -82,7 +82,7 @@ export def "nur docs" [
 export def "nur lint" [
     --check (-c) # Check only, do not apply fixes
 ] {
-    let clippy_args = [cargo, clippy, --features, file-changes]
+    let clippy_args = [cargo, clippy, --features, file-changes --all-targets]
     if $check {
         run-cmd ...$clippy_args -- -D warnings
         run-cmd cargo fmt -- --check

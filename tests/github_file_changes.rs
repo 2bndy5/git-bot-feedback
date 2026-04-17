@@ -6,8 +6,7 @@ use mockito::{Matcher, Server};
 use tempfile::{NamedTempFile, TempDir};
 
 use git_bot_feedback::{
-    DiffHunkHeader, FileFilter, LinesChangedOnly, RestApiClient, RestClientError,
-    client::GithubApiClient,
+    DiffHunkHeader, FileFilter, LinesChangedOnly, RestClientError, client::init_client,
 };
 use std::{env, io::Write, path::Path};
 
@@ -50,6 +49,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     }
 
     unsafe {
+        env::set_var("GITHUB_ACTIONS", "true");
         env::set_var("GITHUB_REPOSITORY", REPO);
         env::set_var("GITHUB_SHA", SHA);
         env::set_var("GITHUB_TOKEN", TOKEN);
@@ -85,7 +85,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     env::set_current_dir(tmp.path()).unwrap();
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
-    let client = match GithubApiClient::new() {
+    let client = match init_client() {
         Ok(c) => c,
         Err(e) => {
             if test_params.fail_serde_event_payload {
@@ -145,7 +145,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
         None
     };
     let file_filter = FileFilter::new(&["", "!src/*"], &["cpp", "hpp"], log_scope);
-    assert!(file_filter.is_file_ignored(&Path::new("./Cargo.toml")));
+    assert!(file_filter.is_file_ignored(Path::new("./Cargo.toml")));
     let files = client
         .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Off, None, false)
         .await;
