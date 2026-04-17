@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.4.0] - 2026-04-17
+
+### <!-- 1 --> 🚀 Added
+
+- Expose `debug_enabled` and `event_name` by @2bndy5 in [#60](https://github.com/2bndy5/git-bot-feedback/pull/60)
+- Implement Display for LinesChangedOnly by @2bndy5 in [#59](https://github.com/2bndy5/git-bot-feedback/pull/59)
+- Add `init_client()` and `LocalClient` by @2bndy5 in [#61](https://github.com/2bndy5/git-bot-feedback/pull/61)
+- Allow custom user-agent header value by @2bndy5 in [#62](https://github.com/2bndy5/git-bot-feedback/pull/62)
+
+### <!-- 10 --> 💥 Breaking Changes
+
+- Rename `FileFilter::is_not_ignored()` to `is_qualified()` by @2bndy5 in [#57](https://github.com/2bndy5/git-bot-feedback/pull/57)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Remove `async` from non-async functions by @2bndy5 in [#58](https://github.com/2bndy5/git-bot-feedback/pull/58)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Exclude CHANGELOG.md in spell-check by @2bndy5 in [`7498dbd`](https://github.com/2bndy5/git-bot-feedback/commit/7498dbd8af06c7fcac34f4a34de246862efa4ae0)
+- Checkout repo before uploading coverage report by @2bndy5 in [`b13220a`](https://github.com/2bndy5/git-bot-feedback/commit/b13220ac202648ed8e8925c01af0ad876b2aa7ed)
+- Use GH token for creating unreleased changelog by @2bndy5 in [`27bb437`](https://github.com/2bndy5/git-bot-feedback/commit/27bb437fc244381cf6e58fafa0a46b77ceb38d53)
+- Update locked transitive dependencies by @2bndy5 in [`497d958`](https://github.com/2bndy5/git-bot-feedback/commit/497d95873a98960794958d9dfc59d99c26762c31)
+
+[0.4.0]: https://github.com/2bndy5/git-bot-feedback/compare/v0.3.0...v0.4.0
+
+Full commit diff: [`v0.3.0...v0.4.0`][0.4.0]
+
 ## [0.3.0] - 2026-04-15
 
 ### <!-- 1 --> 🚀 Added
@@ -36,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump rustls-webpki from 0.103.9 to 0.103.12 by @dependabot[bot] in [#50](https://github.com/2bndy5/git-bot-feedback/pull/50)
 - Bump tokio from 1.50.0 to 1.51.0 in the cargo group by @dependabot[bot] in [#47](https://github.com/2bndy5/git-bot-feedback/pull/47)
 - Bump tokio to v1.52.0 by @2bndy5 in [`b0ef1d5`](https://github.com/2bndy5/git-bot-feedback/commit/b0ef1d5668218c4c445048583e24a78fccf7664a)
+- Bump version to v0.3.0 by @2bndy5 in [`c8e8341`](https://github.com/2bndy5/git-bot-feedback/commit/c8e834160052393dfe626027e5ef997033047f16)
 
 ### <!-- 9 --> 🗨️ Changed
 
