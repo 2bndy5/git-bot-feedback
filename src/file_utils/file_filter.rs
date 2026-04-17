@@ -263,6 +263,8 @@ impl FileFilter {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
     use crate::error::DirWalkError;
 
     use super::FileFilter;

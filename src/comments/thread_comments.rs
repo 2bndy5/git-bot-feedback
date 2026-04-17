@@ -108,6 +108,8 @@ impl ThreadCommentOptions {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+
     use super::{DEFAULT_MARKER, ThreadCommentOptions};
     use chrono::NaiveDateTime;
 

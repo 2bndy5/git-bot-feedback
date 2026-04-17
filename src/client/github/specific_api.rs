@@ -145,7 +145,7 @@ impl GithubApiClient {
             self.repo,
             if self.is_pr_event() { "/issues" } else { "" },
         );
-        let base_comment_url = self.api_url.join(&repo).unwrap();
+        let base_comment_url = self.api_url.join(&repo)?;
         while let Some(ref endpoint) = comments_url {
             let request =
                 self.make_api_request(&self.client, endpoint.to_owned(), Method::GET, None, None)?;

@@ -208,11 +208,13 @@ impl GithubApiClient {
         // We should never reach the `default_value` in `.unwrap_or(default_value)` because
         // the repo name should always have a `/` to delimit the repo's owner and name.
         let (repo_owner, repo_name) = self.repo.split_once('/').unwrap_or(("", ""));
-        let pr_number = self
-            .pull_request
-            .as_ref()
-            .map(|i| i.number)
-            .expect("PR reviews should only be fetched for PR events.");
+        let pr_number =
+            self.pull_request
+                .as_ref()
+                .map(|i| i.number)
+                .ok_or(ClientError::MalformedEventInfo(
+                    "Unknown PR review number for PR event".to_string(),
+                ))?;
         let mut after_thread = None;
         let mut after_comment = None;
         let mut has_next_page = true;

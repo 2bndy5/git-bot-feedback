@@ -284,6 +284,9 @@ pub trait RestApiClient {
         None
     }
 
+    /// A helper function to log the response of an API request with context.
+    ///
+    /// This also dumps the response body as text if possible.
     async fn log_response(&self, response: Response, context: &str) {
         if let Err(e) = response.error_for_status_ref() {
             log::error!("{}: {e:?}", context.to_owned());

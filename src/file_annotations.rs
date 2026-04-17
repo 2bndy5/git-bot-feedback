@@ -51,11 +51,16 @@ pub struct FileAnnotation {
     pub message: String,
 }
 
+/// The severity of a [`FileAnnotation`].
 #[derive(Debug, Default)]
 pub enum AnnotationLevel {
+    /// The annotation is for debugging purposes.
     Debug,
+    /// The annotation is for informational purposes.
     #[default]
     Notice,
+    /// The annotation is for warning purposes.
     Warning,
+    /// The annotation is for error purposes.
     Error,
 }

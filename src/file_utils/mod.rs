@@ -110,6 +110,10 @@ impl FileDiffLines {
         }
     }
 
+    /// Get the ranges of changed lines based on the `lines_changed_only` parameter.
+    ///
+    /// Use this to map [`Self::added_lines`] and [`Self::diff_hunks`] to a selection of
+    /// [`LinesChangedOnly`] options.
     pub fn get_ranges(&self, lines_changed_only: &LinesChangedOnly) -> Option<Vec<Range<u32>>> {
         match lines_changed_only {
             LinesChangedOnly::Diff => Some(self.diff_hunks.to_vec()),
@@ -154,6 +158,8 @@ impl FileDiffLines {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+
     use super::{FileDiffLines, LinesChangedOnly};
 
     #[test]
