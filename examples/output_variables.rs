@@ -1,16 +1,16 @@
 use git_bot_feedback::{
     OutputVariable, RestClientError,
-    client::{GithubApiClient, RestApiClient},
+    client::{RestApiClient, init_client},
 };
 
 struct ClientWrapper {
-    client: Box<dyn RestApiClient>,
+    client: Box<dyn RestApiClient + Send + Sync>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), RestClientError> {
     let client_wrapper = ClientWrapper {
-        client: Box::new(GithubApiClient::new()?),
+        client: init_client()?,
     };
     let output_var = OutputVariable {
         name: "STEP_OUTPUT_VAR".to_string(),
