@@ -79,6 +79,12 @@ pub trait RestApiClient {
         None
     }
 
+    /// Set the user agent for the underlying HTTP request client.
+    ///
+    /// By default the user agent is set to this lib's name and version.
+    /// See [`USER_AGENT`] for the default value.
+    fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError>;
+
     /// A way to get the list of changed files in the context of the CI event.
     ///
     /// This method will parse diff blobs and return a list of changed files.

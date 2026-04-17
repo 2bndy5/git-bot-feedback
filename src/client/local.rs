@@ -14,6 +14,7 @@ use std::{collections::HashMap, process::Command};
 /// - [`Self::post_thread_comment`]
 /// - [`Self::cull_pr_reviews`]
 /// - [`Self::post_pr_review`]
+/// - [`Self::set_user_agent`]
 ///
 /// However, [`Self::get_list_of_changed_files`] does use the git CLI
 /// to get a list of changed files.
@@ -119,6 +120,10 @@ impl RestApiClient for LocalClient {
 
     fn is_pr_event(&self) -> bool {
         false
+    }
+
+    fn set_user_agent(&mut self, _user_agent: &str) -> Result<(), ClientError> {
+        Ok(())
     }
 
     async fn post_thread_comment(&self, _options: ThreadCommentOptions) -> Result<(), ClientError> {

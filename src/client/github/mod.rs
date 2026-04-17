@@ -103,6 +103,14 @@ impl RestApiClient for GithubApiClient {
         self.debug_enabled
     }
 
+    fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {
+        self.client = Client::builder()
+            .default_headers(Self::make_headers()?)
+            .user_agent(user_agent)
+            .build()?;
+        Ok(())
+    }
+
     async fn post_thread_comment(&self, options: ThreadCommentOptions) -> Result<(), ClientError> {
         env::var("GITHUB_TOKEN").map_err(|e| ClientError::env_var("GITHUB_TOKEN", e))?;
         let comments_url = match &self.pull_request {
