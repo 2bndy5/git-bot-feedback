@@ -6,11 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.5.1] - 2026-04-17
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Write only 1 LF for GH output vars by @2bndy5 in [`7add27b`](https://github.com/2bndy5/git-bot-feedback/commit/7add27b0637d65e2741e05eb55e3e3e712f46236)
+
+[0.5.1]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.0...v0.5.1
+
+Full commit diff: [`v0.5.0...v0.5.1`][0.5.1]
+
 ## [0.5.0] - 2026-04-17
 
 ### <!-- 4 --> 🛠️ Fixed
 
 - Use stricter linting rules by @2bndy5 in [#63](https://github.com/2bndy5/git-bot-feedback/pull/63)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.5.0 by @2bndy5 in [`83121f2`](https://github.com/2bndy5/git-bot-feedback/commit/83121f2984388b4013dc3c30b849659d5e2533d9)
 
 [0.5.0]: https://github.com/2bndy5/git-bot-feedback/compare/v0.4.0...v0.5.0
 
