@@ -7,6 +7,16 @@ use thiserror::Error;
 
 use crate::client::MAX_RETRIES;
 
+/// The possible errors emitted when parsing git diffs.
+#[derive(Debug, thiserror::Error)]
+#[cfg(feature = "file-changes")]
+#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+pub enum DiffError {
+    /// An error emitted when failing to compile a Regular expression pattern.
+    #[error("Failed to compile regex pattern: {0}")]
+    RegExCompileFailed(#[from] regex::Error),
+}
+
 /// The possible errors emitted when validating an [`OutputVariable`](struct@crate::OutputVariable).
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum OutputVariableError {
@@ -30,6 +40,16 @@ pub enum OutputVariableError {
 /// The possible error emitted by the REST client API
 #[derive(Debug, Error)]
 pub enum RestClientError {
+    /// Errors related to parsing git diffs.
+    #[error(transparent)]
+    #[cfg(feature = "file-changes")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+    DiffError(#[from] DiffError),
+
+    /// Error emitted when encountering malformed event information.
+    #[error("Encountered malformed event info: {0}")]
+    MalformedEventInfo(String),
+
     /// Error related to making HTTP requests
     #[error(transparent)]
     Request(#[from] reqwest::Error),
@@ -37,7 +57,9 @@ pub enum RestClientError {
     /// Error related to making HTTP requests, with additional context about the request that caused the error.
     #[error("Failed to {task}: {source}")]
     RequestContext {
+        /// The task being attempted.
         task: String,
+        /// The original error being propagated.
         #[source]
         source: reqwest::Error,
     },
@@ -45,7 +67,9 @@ pub enum RestClientError {
     /// Errors related to standard I/O.
     #[error("Failed to {task}: {source}")]
     Io {
+        /// The task being attempted.
         task: String,
+        /// The original error being propagated.
         #[source]
         source: std::io::Error,
     },
@@ -92,7 +116,9 @@ pub enum RestClientError {
     /// Error emitted when failing to deserialize/serialize request/response JSON data.
     #[error("Failed to {task}: {source}")]
     Json {
+        /// The task being attempted.
         task: String,
+        /// The original error being propagated.
         #[source]
         source: serde_json::Error,
     },
@@ -100,7 +126,9 @@ pub enum RestClientError {
     /// Error emitted when failing to read an environment variable.
     #[error("Failed to get env var '{name}': {source}")]
     EnvVar {
+        /// The name of the environment variable that was attempted to be read.
         name: String,
+        /// The original error being propagated.
         #[source]
         source: std::env::VarError,
     },
@@ -158,13 +186,17 @@ impl RestClientError {
 #[derive(Debug, Error)]
 #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
 pub enum DirWalkError {
+    /// Error emitted when failing to read a directory entry.
     #[error("Failed to read {path}: {source}")]
     ReadDir {
+        /// The path that was attempted to be read.
         path: PathBuf,
+        /// The original error being propagated.
         #[source]
         source: std::io::Error,
     },
 
+    /// Error emitted when failing to interact with files.
     #[error(transparent)]
     OsError(#[from] std::io::Error),
 }

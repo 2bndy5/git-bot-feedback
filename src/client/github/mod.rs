@@ -239,7 +239,7 @@ impl RestApiClient for GithubApiClient {
                         old = file.previous_filename.unwrap_or(file.filename.clone()),
                         new = file.filename,
                     );
-                    for (name, info) in parse_diff(&diff, file_filter, lines_changed_only) {
+                    for (name, info) in parse_diff(&diff, file_filter, lines_changed_only)? {
                         files.entry(name).or_insert(info);
                     }
                 } else if file.changes == 0 {

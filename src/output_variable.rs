@@ -59,6 +59,8 @@ impl Display for OutputVariable {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
     use super::{OutputVariable, OutputVariableError};
 
     #[test]

@@ -1,7 +1,7 @@
 use regex::Regex;
 use std::{collections::HashMap, ops::Range, path::PathBuf};
 
-use crate::{FileDiffLines, FileFilter, LinesChangedOnly};
+use crate::{FileDiffLines, FileFilter, LinesChangedOnly, error::DiffError};
 
 /// A struct to represent the header information of a diff hunk.
 pub struct DiffHunkHeader {
@@ -15,22 +15,25 @@ pub struct DiffHunkHeader {
     pub new_lines: u32,
 }
 
-fn get_filename_from_front_matter(front_matter: &str) -> Option<&str> {
-    let diff_file_name = Regex::new(r"(?m)^\+\+\+\sb?/(.*)$").unwrap();
-    let diff_renamed_file = Regex::new(r"(?m)^rename to (.*)$").unwrap();
-    let diff_binary_file = Regex::new(r"(?m)^Binary\sfiles\s").unwrap();
-    if let Some(captures) = diff_file_name.captures(front_matter) {
-        return Some(captures.get(1).unwrap().as_str());
+fn get_filename_from_front_matter(front_matter: &str) -> Result<Option<&str>, DiffError> {
+    let diff_file_name = Regex::new(r"(?m)^\+\+\+\sb?/(.*)$")?;
+    let diff_renamed_file = Regex::new(r"(?m)^rename to (.*)$")?;
+    let diff_binary_file = Regex::new(r"(?m)^Binary\sfiles\s")?;
+    if let Some(captures) = diff_file_name.captures(front_matter)
+        && let Some(name) = captures.get(1)
+    {
+        return Ok(Some(name.as_str()));
     }
     if front_matter.starts_with("similarity")
         && let Some(captures) = diff_renamed_file.captures(front_matter)
+        && let Some(name) = captures.get(1)
     {
-        return Some(captures.get(1).unwrap().as_str());
+        return Ok(Some(name.as_str()));
     }
     if !diff_binary_file.is_match(front_matter) {
         log::warn!("Unrecognized diff starting with:\n{}", front_matter);
     }
-    None
+    Ok(None)
 }
 
 /// A regex pattern used in multiple functions
@@ -42,11 +45,11 @@ static HUNK_INFO_PATTERN: &str = r"(?m)@@\s\-\d+,?\d*\s\+(\d+),?(\d*)\s@@";
 ///
 /// - the line numbers that contain additions
 /// - the ranges of lines that span each hunk
-fn parse_patch(patch: &str) -> (Vec<u32>, Vec<Range<u32>>) {
+fn parse_patch(patch: &str) -> Result<(Vec<u32>, Vec<Range<u32>>), DiffError> {
     let mut diff_hunks = Vec::new();
     let mut additions = Vec::new();
 
-    let hunk_info = Regex::new(HUNK_INFO_PATTERN).unwrap();
+    let hunk_info = Regex::new(HUNK_INFO_PATTERN)?;
     let hunk_headers = hunk_info.captures_iter(patch).collect::<Vec<_>>();
     if !hunk_headers.is_empty() {
         // skip the first split because it is anything that precedes first hunk header
@@ -66,7 +69,7 @@ fn parse_patch(patch: &str) -> (Vec<u32>, Vec<Range<u32>>) {
             }
         }
     }
-    (additions, diff_hunks)
+    Ok((additions, diff_hunks))
 }
 
 /// Parses a git `diff` string into a map of file names to their corresponding
@@ -79,10 +82,10 @@ pub fn parse_diff(
     diff: &str,
     file_filter: &FileFilter,
     lines_changed_only: &LinesChangedOnly,
-) -> HashMap<String, FileDiffLines> {
+) -> Result<HashMap<String, FileDiffLines>, DiffError> {
     let mut results = HashMap::new();
-    let diff_file_delimiter = Regex::new(r"(?m)^diff --git a/.*$").unwrap();
-    let hunk_info = Regex::new(HUNK_INFO_PATTERN).unwrap();
+    let diff_file_delimiter = Regex::new(r"(?m)^diff \-\-git a/.*$")?;
+    let hunk_info = Regex::new(HUNK_INFO_PATTERN)?;
 
     let file_diffs = diff_file_delimiter.split(diff);
     for file_diff in file_diffs {
@@ -95,11 +98,11 @@ pub fn parse_diff(
             file_diff.len()
         };
         let front_matter = &file_diff[..hunk_start];
-        if let Some(file_name) = get_filename_from_front_matter(front_matter.trim_start()) {
+        if let Some(file_name) = get_filename_from_front_matter(front_matter.trim_start())? {
             let file_name = file_name.strip_prefix('/').unwrap_or(file_name);
             let file_path = PathBuf::from(file_name);
             if file_filter.is_qualified(&file_path) {
-                let (added_lines, diff_hunks) = parse_patch(&file_diff[hunk_start..]);
+                let (added_lines, diff_hunks) = parse_patch(&file_diff[hunk_start..])?;
                 if lines_changed_only
                     .is_change_valid(!added_lines.is_empty(), !diff_hunks.is_empty())
                 {
@@ -110,12 +113,14 @@ pub fn parse_diff(
             }
         }
     }
-    results
+    Ok(results)
 }
 
 // ******************* UNIT TESTS ***********************
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+
     use super::parse_diff;
     use crate::{FileFilter, LinesChangedOnly};
 
@@ -134,7 +139,8 @@ Binary files /dev/null and b/some picture.png differ
             RENAMED_DIFF,
             &FileFilter::new(&[], &["c"], None),
             &LinesChangedOnly::Off,
-        );
+        )
+        .unwrap();
         let git_file = files.get("tests/demo/some source.c").unwrap();
         assert!(git_file.added_lines.is_empty());
         assert!(git_file.diff_hunks.is_empty());
@@ -146,7 +152,8 @@ Binary files /dev/null and b/some picture.png differ
             RENAMED_DIFF,
             &FileFilter::new(&[], &["c"], None),
             &LinesChangedOnly::Diff,
-        );
+        )
+        .unwrap();
         assert!(files.is_empty());
     }
 
@@ -166,7 +173,8 @@ rename to /tests/demo/some source.c
             // triggers code coverage of a `}` (region end)
             &FileFilter::new(&["src/*"], &["c", "cpp"], None),
             &LinesChangedOnly::On,
-        );
+        )
+        .unwrap();
         eprintln!("files: {files:#?}");
         let git_file = files.get("tests/demo/some source.c").unwrap();
         assert!(!git_file.is_line_in_diff(&1));
@@ -186,7 +194,8 @@ rename to /tests/demo/some source.c
             TYPICAL_DIFF,
             &FileFilter::new(&[], &["cpp"], None),
             &LinesChangedOnly::On,
-        );
+        )
+        .unwrap();
         assert!(!files.is_empty());
     }
 
@@ -200,7 +209,8 @@ rename to /tests/demo/some source.c
             BINARY_DIFF,
             &FileFilter::new(&[], &["png"], None),
             &LinesChangedOnly::Diff,
-        );
+        )
+        .unwrap();
         assert!(files.is_empty());
     }
 
@@ -221,7 +231,7 @@ rename to /tests/demo/some source.c
     #[test]
     fn terse_hunk_header() {
         let file_filter = FileFilter::new(&[], &["cpp"], None);
-        let files = parse_diff(TERSE_HEADERS, &file_filter, &LinesChangedOnly::Diff);
+        let files = parse_diff(TERSE_HEADERS, &file_filter, &LinesChangedOnly::Diff).unwrap();
         let file_diff = files.get("src/demo.cpp").unwrap();
         assert_eq!(file_diff.diff_hunks, vec![3..4, 5..7, 17..19]);
     }

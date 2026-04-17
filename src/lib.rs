@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, missing_docs)]
 
 pub mod client;
 pub use client::{RestApiClient, RestApiRateLimitHeaders};

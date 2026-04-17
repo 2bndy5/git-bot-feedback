@@ -108,7 +108,7 @@ impl RestApiClient for LocalClient {
             Ok(output) => {
                 if output.status.success() {
                     let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
-                    let files = parse_diff(&diff_str, file_filter, lines_changed_only);
+                    let files = parse_diff(&diff_str, file_filter, lines_changed_only)?;
                     Ok(files)
                 } else {
                     let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
