@@ -1,11 +1,10 @@
 use fast_glob::glob_match;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fs,
     path::{Path, PathBuf},
 };
 
-use super::FileDiffLines;
 use crate::error::DirWalkError;
 
 /// A structure to encapsulate file path filtering behavior.
@@ -101,7 +100,7 @@ impl FileFilter {
     /// This function will read a .gitmodules file located in the working directory.
     /// The named submodules' paths will be automatically added to the [`FileFilter::ignored`] set,
     /// unless the submodule's path is already specified in the [`FileFilter::not_ignored`] set.
-    pub async fn parse_submodules(&mut self) {
+    pub fn parse_submodules(&mut self) {
         if let Ok(read_buf) = fs::read_to_string(".gitmodules") {
             for line in read_buf.split('\n') {
                 let line_trimmed = line.trim();
@@ -229,19 +228,14 @@ impl FileFilter {
 
     /// Walks a given `root_path` recursively and returns a map of discovered source files.
     ///
-    /// Each entry in the returned map is comprises the discovered file's path (as key) and
-    /// an empty [`FileDiffLines`] object (as value). Only files that satisfy the following
-    /// conditions are included in the returned map:
+    /// Only files that satisfy the following conditions are included in the returned map:
     ///
     /// - uses at least 1 of the given [`FileFilter::extensions`].
     /// - is specified in the internal list [`FileFilter::not_ignored`] paths/patterns
     /// - is not specified in the set of [`FileFilter::ignored`] paths/patterns and
     ///   is not a hidden path (starts with ".").
-    pub async fn walk_dir(
-        &self,
-        root_path: &str,
-    ) -> Result<HashMap<String, FileDiffLines>, DirWalkError> {
-        let mut files: HashMap<String, FileDiffLines> = HashMap::new();
+    pub fn walk_dir(&self, root_path: &str) -> Result<HashSet<String>, DirWalkError> {
+        let mut files: HashSet<String> = HashSet::new();
         let entries = fs::read_dir(root_path).map_err(|e| DirWalkError::ReadDir {
             path: PathBuf::from(root_path),
             source: e,
@@ -249,7 +243,7 @@ impl FileFilter {
         for entry in entries {
             let path = entry?.path();
             if path.is_dir() {
-                files.extend(Box::pin(self.walk_dir(&path.to_string_lossy())).await?);
+                files.extend(self.walk_dir(&path.to_string_lossy())?);
             } else {
                 let is_valid_src = self.is_qualified(&path);
                 if is_valid_src {
@@ -259,7 +253,7 @@ impl FileFilter {
                         .replace("\\", "/")
                         .trim_start_matches("./")
                         .to_string();
-                    files.entry(file_name).or_default();
+                    files.insert(file_name);
                 }
             }
         }
@@ -315,17 +309,17 @@ mod tests {
         assert!(file_filter.is_file_not_ignored(&PathBuf::from("./src/file_utils/file_filter.rs")));
     }
 
-    #[tokio::test]
-    async fn ignore_submodules() {
+    #[test]
+    fn ignore_submodules() {
         let mut file_filter = setup_ignore("!pybind11", &[]);
-        file_filter.parse_submodules().await;
+        file_filter.parse_submodules();
         assert!(file_filter.ignored.is_empty());
         assert!(file_filter.is_file_not_ignored(&Path::new("pybind11")));
         set_current_dir("tests/assets/ignored_paths/error").unwrap();
-        file_filter.parse_submodules().await;
+        file_filter.parse_submodules();
         assert!(file_filter.ignored.is_empty());
         set_current_dir("../").unwrap();
-        file_filter.parse_submodules().await;
+        file_filter.parse_submodules();
         println!("submodules ignored = {:?}", file_filter.ignored);
 
         // using Vec::contains() because these files don't actually exist in project files
@@ -342,14 +336,14 @@ mod tests {
 
     // *********************** tests for recursive path search
 
-    #[tokio::test]
-    async fn walk_dir_recursively() {
+    #[test]
+    fn walk_dir_recursively() {
         let extensions = vec!["txt", "json"];
         let file_filter = setup_ignore("target", &extensions);
-        let files = file_filter.walk_dir(".").await.unwrap();
-        println!("discovered files: {:?}", files.keys());
+        let files = file_filter.walk_dir(".").unwrap();
+        println!("discovered files: {:?}", files);
         assert!(!files.is_empty());
-        for (file, diff_lines) in files {
+        for file in files {
             let ext = PathBuf::from(&file)
                 .extension()
                 .unwrap_or_default()
@@ -358,8 +352,6 @@ mod tests {
             assert!(extensions.contains(&ext.as_str()));
             assert!(!file.contains("\\"));
             assert!(!file.starts_with("./"));
-            assert!(diff_lines.added_lines.is_empty());
-            assert!(diff_lines.diff_hunks.is_empty());
         }
         assert!(!file_filter.is_file_not_ignored(&Path::new(
             "tests/assets/ignored_paths/.hidden/ignore_me.txt"
@@ -368,10 +360,10 @@ mod tests {
         assert!(file_filter.is_qualified(&Path::new("tests/assets/ignored_paths")));
     }
 
-    #[tokio::test]
-    async fn walk_dir_err() {
+    #[test]
+    fn walk_dir_err() {
         let file_filter = setup_ignore("", &[]);
-        let err = file_filter.walk_dir("not/a/real/path").await.err().unwrap();
+        let err = file_filter.walk_dir("not/a/real/path").err().unwrap();
         assert!(matches!(err, DirWalkError::ReadDir { .. }));
     }
 }
