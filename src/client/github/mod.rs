@@ -175,7 +175,7 @@ impl RestApiClient for GithubApiClient {
         let stdout = io::stdout();
         let mut handle = stdout.lock();
         for annotation in annotations {
-            writeln!(&mut handle, "{annotation}\n")
+            writeln!(&mut handle, "{}", annotation.fmt_github())
                 .map_err(|e| ClientError::io("write to file annotation to stdout", e))?;
         }
         handle
