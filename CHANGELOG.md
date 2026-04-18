@@ -6,7 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.5.3] - 2026-04-18
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Relax dependencies' constraints by @2bndy5 in [#65](https://github.com/2bndy5/git-bot-feedback/pull/65)
+
+[0.5.3]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.2...v0.5.3
+
+Full commit diff: [`v0.5.2...v0.5.3`][0.5.3]
+
 ## [0.5.2] - 2026-04-18
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.5.2 by @2bndy5 in [`737fc35`](https://github.com/2bndy5/git-bot-feedback/commit/737fc35df6b40b8e141efb6b89ad662efaaccb35)
 
 ### <!-- 9 --> 🗨️ Changed
 
