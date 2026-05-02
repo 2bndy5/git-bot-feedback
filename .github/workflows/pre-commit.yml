@@ -77,7 +77,7 @@ jobs:
         env:
           PR_TITLE: "${{ steps.get-title.outputs.title }}"
         run: echo "${PR_TITLE}" | committed --config .config/committed.toml --commit-file -
-      - uses: actions/setup-node@v6.3.0
+      - uses: actions/setup-node@v6.4.0
         with:
           node-version: latest
       - name: spell check
