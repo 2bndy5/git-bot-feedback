@@ -29,6 +29,7 @@ use std::{collections::HashMap, process::Command};
 pub struct LocalClient;
 
 /// Helper function to resolve a git reference to a commit hash using `git rev-parse`.
+#[cfg(feature = "file-changes")]
 fn git_rev_parse(base: &str) -> Result<String, ClientError> {
     match Command::new("git").args(["rev-parse", base]).output() {
         Err(e) => Err(ClientError::Io {
