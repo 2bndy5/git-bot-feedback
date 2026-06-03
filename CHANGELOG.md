@@ -6,11 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.5.4] - 2026-06-03
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Honor `ignore_index` when asserted by @2bndy5 in [#75](https://github.com/2bndy5/git-bot-feedback/pull/75)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump rustls-webpki from 0.103.12 to 0.103.13 by @dependabot[bot] in [#67](https://github.com/2bndy5/git-bot-feedback/pull/67)
+- Bump the actions group across 1 directory with 3 updates by @dependabot[bot] in [#68](https://github.com/2bndy5/git-bot-feedback/pull/68)
+- Bump the actions group across 1 directory with 3 updates by @dependabot[bot] in [#74](https://github.com/2bndy5/git-bot-feedback/pull/74)
+- Bump the cargo group across 1 directory with 4 updates by @dependabot[bot] in [#76](https://github.com/2bndy5/git-bot-feedback/pull/76)
+
+[0.5.4]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.3...v0.5.4
+
+Full commit diff: [`v0.5.3...v0.5.4`][0.5.4]
+
 ## [0.5.3] - 2026-04-18
 
 ### <!-- 6 --> 📦 Dependency updates
 
 - Relax dependencies' constraints by @2bndy5 in [#65](https://github.com/2bndy5/git-bot-feedback/pull/65)
+- Bump version to v0.5.3 by @2bndy5 in [`45325de`](https://github.com/2bndy5/git-bot-feedback/commit/45325de25efa0a650243d0b4f01315522f30c7a2)
 
 [0.5.3]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.2...v0.5.3
 
