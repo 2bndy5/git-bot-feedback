@@ -32,10 +32,14 @@ export def "nur test" [
 #
 # Pass "--open" to load the built report in your browser
 # Requires cargo-llvm-cov installed.
-export def --wrapped "nur test llvm-cov" [
-    ...args: string # Additional arguments for `llvm-cov report --html`.
+export def "nur test html" [
+    --open (-o) # Open the built report in your browser
 ] {
-    run-cmd cargo llvm-cov report --html ...$args
+    mut args = [--html]
+    if $open {
+        $args = $args | append ['--open']
+    }
+    run-cmd cargo llvm-cov report ...$args
 }
 
 
@@ -108,3 +112,5 @@ export def "nur pre-commit" [
     }
     run-cmd ...[uvx, ...$args]
 }
+
+alias "nur pre" = nur pre-commit

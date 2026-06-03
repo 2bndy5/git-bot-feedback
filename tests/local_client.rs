@@ -362,7 +362,7 @@ async fn list_file_changes() {
         .get_list_of_changed_files(
             &file_filter,
             &LinesChangedOnly::On,
-            Some(1.to_string()),
+            Some(0.to_string()),
             true,
         )
         .await
@@ -373,7 +373,7 @@ async fn list_file_changes() {
     // test custom diff base provided as a valid git ref
     let valid_ref = {
         let git_out = Command::new("git")
-            .args(["rev-parse", "HEAD~1"])
+            .args(["rev-parse", "HEAD~0"])
             .output()
             .unwrap()
             .stdout;

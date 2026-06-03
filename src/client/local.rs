@@ -28,6 +28,32 @@ use std::{collections::HashMap, process::Command};
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LocalClient;
 
+/// Helper function to resolve a git reference to a commit hash using `git rev-parse`.
+#[cfg(feature = "file-changes")]
+fn git_rev_parse(base: &str) -> Result<String, ClientError> {
+    match Command::new("git").args(["rev-parse", base]).output() {
+        Err(e) => Err(ClientError::Io {
+            task: format!("invoke `git rev-parse {base}` to validate reference"),
+            source: e,
+        }),
+        Ok(output) => {
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(output.stdout.trim_ascii()).to_string())
+            } else if base.chars().all(|c| c.is_ascii_digit()) {
+                // if all chars from a decimal number, then
+                // try using it as a number of parents from HEAD.
+                // This is not infinitely recursive because
+                // the adapted `base` is not all digits.
+                git_rev_parse(format!("HEAD~{base}").as_str())
+            } else {
+                let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
+                // Given diff base did not resolve to a valid git reference
+                Err(ClientError::GitCommand(err_msg))
+            }
+        }
+    }
+}
+
 #[async_trait::async_trait]
 impl RestApiClient for LocalClient {
     #[cfg(feature = "file-changes")]
@@ -62,52 +88,51 @@ impl RestApiClient for LocalClient {
                 }
             }
         };
-        let mut diff_args = vec!["diff".to_string()];
+        let mut diff_args = vec![];
+        let mut git_sub_cmd = vec!["--no-pager"];
         if git_status != 0 {
             // There are changes in the working directory.
             // So, compare include the staged changes.
             diff_args.push("--staged".to_string());
         }
         if let Some(base) = base_diff {
-            match Command::new("git")
-                .args(["rev-parse", base.as_str()])
-                .output()
-            {
-                Err(e) => {
-                    return Err(ClientError::Io {
-                        task: format!("invoke `git rev-parse {base}` to validate reference"),
-                        source: e,
-                    });
-                }
-                Ok(output) => {
-                    if output.status.success() {
-                        diff_args.push(base);
-                    } else if base.chars().all(|c| c.is_ascii_digit()) {
-                        // if all chars form a decimal number, then
-                        // try using it as a number of parents from HEAD
-                        diff_args.push(format!("HEAD~{base}"));
-                        // note, if still not a valid git reference, then
-                        // the error will be raised by the `git diff` command later
-                    } else {
-                        let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-                        // Given diff base did not resolve to a valid git reference
-                        return Err(ClientError::GitCommand(err_msg));
-                    }
-                }
-            }
+            let resolved_base = git_rev_parse(&base)?;
+            diff_args.push(resolved_base);
         } else if git_status == 0 {
             // No base diff provided and there are no staged changes,
             // just get the diff of the last commit.
-            diff_args.push("HEAD~1".to_string());
+            let resolved_head = git_rev_parse("HEAD~1")?;
+            diff_args.push(resolved_head);
         }
-        match Command::new("git").args(&diff_args).output() {
+        if ignore_index {
+            // When ignoring the index, we want to compare
+            // the working directory changes, not the staged changes.
+            diff_args.push("--format=%b".to_string());
+            git_sub_cmd.push("show");
+        } else {
+            git_sub_cmd.push("diff");
+        };
+        log::debug!(
+            "Getting diff with `git {} {}`",
+            git_sub_cmd.join(" "),
+            diff_args.join(" ")
+        );
+        match Command::new("git")
+            .args(&git_sub_cmd)
+            .args(&diff_args)
+            .output()
+        {
             Err(e) => Err(ClientError::Io {
-                task: format!("invoke `git {}`", diff_args.join(" ")),
+                task: format!(
+                    "invoke `git {} {}`",
+                    git_sub_cmd.join(" "),
+                    diff_args.join(" ")
+                ),
                 source: e,
             }),
             Ok(output) => {
                 if output.status.success() {
-                    let diff_str = String::from_utf8_lossy(&output.stdout).to_string();
+                    let diff_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
                     let files = parse_diff(&diff_str, file_filter, lines_changed_only)?;
                     Ok(files)
                 } else {
