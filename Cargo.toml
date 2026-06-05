@@ -4,7 +4,7 @@ description = "A library designed for CI tools that posts comments on a Pull Req
 version = "0.5.4"
 edition = "2024"
 repository = "https://github.com/2bndy5/git-bot-feedback"
-license-file = "LICENSE"
+license = "GPL-3.0"
 
 [dependencies]
 log = "0.4"
@@ -35,11 +35,8 @@ reqwest = { version = "0.13", features = ["default-tls"] }
 chrono = {version = "0.4", features = ["now"]}
 
 [features]
-regex = ["dep:regex"]
-fast-glob = ["dep:fast-glob"]
-
 # feature that enables getting file changes
-file-changes = ["fast-glob", "regex"]
+file-changes = ["dep:fast-glob", "dep:regex"]
 
 # GitHub implementation/support
 github = []
