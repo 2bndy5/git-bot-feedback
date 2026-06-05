@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.5.5] - 2026-06-05
+
+### <!-- 9 --> 🗨️ Changed
+
+- Use SPDX identifier for license in crate metadata by @2bndy5 in [`ea8d88a`](https://github.com/2bndy5/git-bot-feedback/commit/ea8d88a5cfe8e655f0456be7b75884fa6347a6e0)
+
+[0.5.5]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.4...v0.5.5
+
+Full commit diff: [`v0.5.4...v0.5.5`][0.5.5]
+
 ## [0.5.4] - 2026-06-03
 
 ### <!-- 4 --> 🛠️ Fixed
@@ -18,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump the actions group across 1 directory with 3 updates by @dependabot[bot] in [#68](https://github.com/2bndy5/git-bot-feedback/pull/68)
 - Bump the actions group across 1 directory with 3 updates by @dependabot[bot] in [#74](https://github.com/2bndy5/git-bot-feedback/pull/74)
 - Bump the cargo group across 1 directory with 4 updates by @dependabot[bot] in [#76](https://github.com/2bndy5/git-bot-feedback/pull/76)
+- Bump version to v0.5.4 by @2bndy5 in [`fb588c3`](https://github.com/2bndy5/git-bot-feedback/commit/fb588c35243dc0aeffe4c17df3649a761dc50ef0)
 
 [0.5.4]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.3...v0.5.4
 
