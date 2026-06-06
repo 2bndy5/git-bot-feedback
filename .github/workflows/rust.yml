@@ -27,7 +27,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           persist-credentials: false
       - name: Setup Rust
@@ -66,7 +66,7 @@ jobs:
       name: test-coverage
       url: https://app.codecov.io/gh/2bndy5/git-bot-feedback
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           persist-credentials: false
       - name: Download coverage reports
@@ -92,7 +92,7 @@ jobs:
       # Required for OIDC token exchange
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6.0.2
         with:
           persist-credentials: false
       - name: Setup Rust
