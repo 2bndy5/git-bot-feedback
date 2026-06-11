@@ -6,7 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.5.6] - 2026-06-11
+
+### <!-- 1 --> 🚀 Added
+
+- Revise `FileFilter::walk_dir()` by @2bndy5 in [#78](https://github.com/2bndy5/git-bot-feedback/pull/78)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump astral-sh/setup-uv to v8.2.0 in the actions group by @dependabot[bot] in [#79](https://github.com/2bndy5/git-bot-feedback/pull/79)
+
+[0.5.6]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.5...v0.5.6
+
+Full commit diff: [`v0.5.5...v0.5.6`][0.5.6]
+
 ## [0.5.5] - 2026-06-05
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.5.5 by @2bndy5 in [`a63f8fa`](https://github.com/2bndy5/git-bot-feedback/commit/a63f8fabfbcee2828992e039803671c81074ee2c)
 
 ### <!-- 9 --> 🗨️ Changed
 
