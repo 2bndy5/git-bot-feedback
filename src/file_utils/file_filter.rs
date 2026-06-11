@@ -210,6 +210,10 @@ impl FileFilter {
                 .to_string_lossy()
                 .to_string();
             if !self.extensions.contains(&extension) {
+                log::debug!(
+                    "File {} has an undesired file extensions.",
+                    file_path.to_string_lossy()
+                );
                 return false;
             }
         }
@@ -219,31 +223,36 @@ impl FileFilter {
             let is_ignored = self.is_file_ignored(file_path);
             let is_hidden = file_path.components().any(|c| {
                 let comp = c.as_os_str().to_string_lossy();
-                comp.starts_with('.') && !["..", "."].contains(&comp.as_ref())
+                if comp.starts_with('.') && !["..", "."].contains(&comp.as_ref()) {
+                    log::debug!("file {} is a hidden path.", file_path.to_string_lossy());
+                    true
+                } else {
+                    false
+                }
             });
             // is implicitly not ignored and not a hidden file/folder
             !is_ignored && !is_hidden
         }
     }
 
-    /// Walks a given `root_path` recursively and returns a map of discovered source files.
+    /// Walks a given `root_path` recursively and returns a set of discovered source files.
     ///
-    /// Only files that satisfy the following conditions are included in the returned map:
+    /// Only files that satisfy the following conditions are included in the returned set:
     ///
     /// - uses at least 1 of the given [`FileFilter::extensions`].
     /// - is specified in the internal list [`FileFilter::not_ignored`] paths/patterns
     /// - is not specified in the set of [`FileFilter::ignored`] paths/patterns and
     ///   is not a hidden path (starts with ".").
-    pub fn walk_dir(&self, root_path: &str) -> Result<HashSet<String>, DirWalkError> {
+    pub fn walk_dir<P: AsRef<Path>>(&self, root_path: P) -> Result<HashSet<String>, DirWalkError> {
         let mut files: HashSet<String> = HashSet::new();
-        let entries = fs::read_dir(root_path).map_err(|e| DirWalkError::ReadDir {
-            path: PathBuf::from(root_path),
+        let entries = fs::read_dir(&root_path).map_err(|e| DirWalkError::ReadDir {
+            path: root_path.as_ref().to_path_buf(),
             source: e,
         })?;
         for entry in entries {
             let path = entry?.path();
             if path.is_dir() {
-                files.extend(self.walk_dir(&path.to_string_lossy())?);
+                files.extend(self.walk_dir(&path)?);
             } else {
                 let is_valid_src = self.is_qualified(&path);
                 if is_valid_src {
