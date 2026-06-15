@@ -262,16 +262,11 @@ impl FileFilter {
     /// - is not specified in the set of [`FileFilter::ignored`] paths/patterns and
     ///   is not a hidden path (starts with ".").
     ///
-    /// If given an absolute path, the file paths returned (as posix style strings) will be
-    /// relative to the absolute path's parent (if any).
+    /// The file paths returned (as strings with posix style path separators) will be
+    /// relative to the given path.
     pub fn walk_dir<P: AsRef<Path>>(&self, root_path: P) -> Result<HashSet<String>, DirWalkError> {
-        if root_path.as_ref().is_absolute() {
-            let root_path_clone = root_path.as_ref().to_path_buf();
-            let strip_prefix = root_path_clone.parent();
-            self.walk_dir_inner(root_path, strip_prefix)
-        } else {
-            self.walk_dir_inner(root_path, None)
-        }
+        let strip_prefix = root_path.as_ref().to_path_buf();
+        self.walk_dir_inner(root_path, Some(strip_prefix.as_path()))
     }
 
     fn walk_dir_inner<P: AsRef<Path>>(
@@ -298,11 +293,7 @@ impl FileFilter {
                 };
                 let is_valid_src = self.is_qualified(path);
                 if is_valid_src {
-                    let file_name = path
-                        .to_string_lossy()
-                        .replace("\\", "/")
-                        .trim_start_matches("./")
-                        .to_string();
+                    let file_name = path.to_string_lossy().replace("\\", "/");
                     files.insert(file_name);
                 }
             }
