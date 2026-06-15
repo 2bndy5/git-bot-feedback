@@ -6,11 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.6.1] - 2026-06-15
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Strip relative path from `FileFilter::walk_dir()` results by @2bndy5 in [#84](https://github.com/2bndy5/git-bot-feedback/pull/84)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump hustcer/setup-nu from 3.23 to 3.25 in the actions group by @dependabot[bot] in [#81](https://github.com/2bndy5/git-bot-feedback/pull/81)
+- Bump the cargo group across 1 directory with 2 updates by @dependabot[bot] in [#80](https://github.com/2bndy5/git-bot-feedback/pull/80)
+
+[0.6.1]: https://github.com/2bndy5/git-bot-feedback/compare/v0.6.0...v0.6.1
+
+Full commit diff: [`v0.6.0...v0.6.1`][0.6.1]
+
 ## [0.6.0] - 2026-06-15
 
 ### <!-- 1 --> 🚀 Added
 
 - Strip parent path from `walk_dir()` results by @2bndy5 in [#83](https://github.com/2bndy5/git-bot-feedback/pull/83)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.6.0 by @2bndy5 in [`13ea76e`](https://github.com/2bndy5/git-bot-feedback/commit/13ea76e7fe0ebbeafea7d49d9adf0cb27db13a21)
 
 [0.6.0]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.6...v0.6.0
 
