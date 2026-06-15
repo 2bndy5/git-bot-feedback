@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [0.6.0] - 2026-06-15
+
+### <!-- 1 --> 🚀 Added
+
+- Strip parent path from `walk_dir()` results by @2bndy5 in [#83](https://github.com/2bndy5/git-bot-feedback/pull/83)
+
+[0.6.0]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.6...v0.6.0
+
+Full commit diff: [`v0.5.6...v0.6.0`][0.6.0]
+
 ## [0.5.6] - 2026-06-11
 
 ### <!-- 1 --> 🚀 Added
@@ -15,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### <!-- 6 --> 📦 Dependency updates
 
 - Bump astral-sh/setup-uv to v8.2.0 in the actions group by @dependabot[bot] in [#79](https://github.com/2bndy5/git-bot-feedback/pull/79)
+- Bump version to v0.5.6 by @2bndy5 in [`de6bf8d`](https://github.com/2bndy5/git-bot-feedback/commit/de6bf8dbe144dbceca90dc00e9ce79b0a774a712)
 
 [0.5.6]: https://github.com/2bndy5/git-bot-feedback/compare/v0.5.5...v0.5.6
 
