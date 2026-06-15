@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::{collections::HashMap, ops::Range, path::PathBuf};
+use std::{collections::HashMap, ops::Range, path::Path};
 
 use crate::{FileDiffLines, FileFilter, LinesChangedOnly, error::DiffError};
 
@@ -100,8 +100,7 @@ pub fn parse_diff(
         let front_matter = &file_diff[..hunk_start];
         if let Some(file_name) = get_filename_from_front_matter(front_matter.trim_start())? {
             let file_name = file_name.strip_prefix('/').unwrap_or(file_name);
-            let file_path = PathBuf::from(file_name);
-            if file_filter.is_qualified(&file_path) {
+            if file_filter.is_qualified(Path::new(file_name)) {
                 let (added_lines, diff_hunks) = parse_patch(&file_diff[hunk_start..])?;
                 if lines_changed_only
                     .is_change_valid(!added_lines.is_empty(), !diff_hunks.is_empty())

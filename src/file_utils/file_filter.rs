@@ -37,10 +37,11 @@ pub struct FileFilter {
 }
 
 impl FileFilter {
-    /// Convenience constructor to instantiate a [`FileFilter`] object.
+    /// Construct a [`FileFilter`] instance.
     ///
     /// The `ignore` parameter is a list of paths (or glob patterns).
-    /// A path or pattern is explicitly not ignored if it is prefixed with `!`.
+    /// These paths/patterns get split into 2 sets: [`Self::ignored`] and [`Self::not_ignored`].
+    /// A path/pattern is explicitly **not** ignored if it is prefixed with `!`.
     /// Otherwise it is ignored.
     ///
     /// Leading and trailing spaces are stripped from each item in the `ignore` list.
@@ -49,14 +50,19 @@ impl FileFilter {
     /// ```
     /// #[cfg(feature = "file-changes")]
     /// use git_bot_feedback::FileFilter;
+    /// let ignore_list = [" src ", " ! src/lib.rs "];
+    /// let extensions = ["rs", "toml"];
     /// let filter = FileFilter::new(
-    ///     &[" src ", " ! src/lib.rs "],
-    ///     &["rs", "toml"],
-    ///     None,
+    ///     &ignore_list,
+    ///     &extensions,
+    ///     None, // optional log scope for debug messages
     /// );
     /// assert!(filter.ignored.contains("src"));
     /// assert!(filter.not_ignored.contains("src/lib.rs"));
     /// ```
+    ///
+    /// Note, the `log_scope` parameter is used to differentiate debug log messages
+    /// from different `FileFilter` instances.
     pub fn new(ignore: &[&str], extensions: &[&str], log_scope: Option<&str>) -> Self {
         let (ignored, not_ignored) = Self::parse_ignore(ignore);
         let extensions = HashSet::from_iter(extensions.iter().map(|v| v.to_string()));
@@ -98,10 +104,19 @@ impl FileFilter {
     }
 
     /// This function will read a .gitmodules file located in the working directory.
+    ///
     /// The named submodules' paths will be automatically added to the [`FileFilter::ignored`] set,
     /// unless the submodule's path is already specified in the [`FileFilter::not_ignored`] set.
-    pub fn parse_submodules(&mut self) {
-        if let Ok(read_buf) = fs::read_to_string(".gitmodules") {
+    ///
+    /// The optional `manifest_path` parameter can be used to specify a custom path to the .gitmodules file.
+    /// If [`None`], a .gitmodules file in the working directory is sought.
+    ///
+    /// It is important that the [`Self::ignored`] and [`Self::not_ignored`] should be
+    /// relative to the manifest_path's parent directory, because the
+    /// paths in the .gitmodules file are relative to it's own directory.
+    pub fn parse_submodules(&mut self, manifest_path: Option<&Path>) {
+        let manifest_path = manifest_path.unwrap_or(Path::new(".gitmodules"));
+        if let Ok(read_buf) = fs::read_to_string(manifest_path) {
             for line in read_buf.split('\n') {
                 let line_trimmed = line.trim();
                 if line_trimmed.starts_with("path") {
@@ -202,6 +217,9 @@ impl FileFilter {
     /// - Is `file_path` *not* specified in [`FileFilter::ignored`]?
     /// - Is `file_path` not a hidden path (any parts of the path start with ".")?
     ///   Mutually exclusive with last condition; does not apply to "./" or "../".
+    ///
+    /// Note, the given `file_path` should be relative to the same directory that
+    /// the paths in [`FileFilter::ignored`] and [`FileFilter::not_ignored`] are relative to.
     pub fn is_qualified(&self, file_path: &Path) -> bool {
         if !self.extensions.is_empty() && !file_path.is_dir() {
             let extension = file_path
@@ -243,7 +261,24 @@ impl FileFilter {
     /// - is specified in the internal list [`FileFilter::not_ignored`] paths/patterns
     /// - is not specified in the set of [`FileFilter::ignored`] paths/patterns and
     ///   is not a hidden path (starts with ".").
+    ///
+    /// If given an absolute path, the file paths returned (as posix style strings) will be
+    /// relative to the absolute path's parent (if any).
     pub fn walk_dir<P: AsRef<Path>>(&self, root_path: P) -> Result<HashSet<String>, DirWalkError> {
+        if root_path.as_ref().is_absolute() {
+            let root_path_clone = root_path.as_ref().to_path_buf();
+            let strip_prefix = root_path_clone.parent();
+            self.walk_dir_inner(root_path, strip_prefix)
+        } else {
+            self.walk_dir_inner(root_path, None)
+        }
+    }
+
+    fn walk_dir_inner<P: AsRef<Path>>(
+        &self,
+        root_path: P,
+        strip_prefix: Option<&Path>,
+    ) -> Result<HashSet<String>, DirWalkError> {
         let mut files: HashSet<String> = HashSet::new();
         let entries = fs::read_dir(&root_path).map_err(|e| DirWalkError::ReadDir {
             path: root_path.as_ref().to_path_buf(),
@@ -252,12 +287,18 @@ impl FileFilter {
         for entry in entries {
             let path = entry?.path();
             if path.is_dir() {
-                files.extend(self.walk_dir(&path)?);
+                files.extend(self.walk_dir_inner(&path, strip_prefix)?);
             } else {
-                let is_valid_src = self.is_qualified(&path);
+                let path = if let Some(prefix_path) = strip_prefix
+                    && let Ok(stripped) = path.strip_prefix(prefix_path)
+                {
+                    stripped
+                } else {
+                    &path
+                };
+                let is_valid_src = self.is_qualified(path);
                 if is_valid_src {
                     let file_name = path
-                        .clone()
                         .to_string_lossy()
                         .replace("\\", "/")
                         .trim_start_matches("./")
@@ -278,7 +319,7 @@ mod tests {
 
     use super::FileFilter;
     use std::{
-        env::set_current_dir,
+        env::{current_dir, set_current_dir},
         path::{Path, PathBuf},
     };
 
@@ -323,14 +364,15 @@ mod tests {
     #[test]
     fn ignore_submodules() {
         let mut file_filter = setup_ignore("!pybind11", &[]);
-        file_filter.parse_submodules();
+        let current_dir = current_dir().unwrap();
+        file_filter.parse_submodules(Some(current_dir.as_path()));
         assert!(file_filter.ignored.is_empty());
         assert!(file_filter.is_file_not_ignored(Path::new("pybind11")));
         set_current_dir("tests/assets/ignored_paths/error").unwrap();
-        file_filter.parse_submodules();
+        file_filter.parse_submodules(None);
         assert!(file_filter.ignored.is_empty());
         set_current_dir("../").unwrap();
-        file_filter.parse_submodules();
+        file_filter.parse_submodules(None);
         println!("submodules ignored = {:?}", file_filter.ignored);
 
         // using Vec::contains() because these files don't actually exist in project files

@@ -1,7 +1,7 @@
 use chrono::Utc;
 use git_bot_feedback::{
-    FileAnnotation, OutputVariable, RestApiClient, RestApiRateLimitHeaders, RestClientError,
-    ReviewOptions, ThreadCommentOptions,
+    FileAnnotation, FileFilter, OutputVariable, RestApiClient, RestApiRateLimitHeaders,
+    RestClientError, ReviewOptions, ThreadCommentOptions,
     client::{LocalClient, init_client},
 };
 use mockito::{Matcher, Server};
@@ -385,4 +385,17 @@ async fn list_file_changes() {
         .unwrap();
     assert!(changes.contains_key(&expected_changed_file));
     assert_eq!(changes.len(), 2);
+}
+
+#[test]
+fn walk_dir_strip_prefix() {
+    let extensions = vec!["json"];
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    let file_filter = FileFilter::new(&["", "!tests"], &extensions, Some("abs-path"));
+    let abs_path = std::env::current_dir().unwrap().join("tests");
+    println!("current dir: {}", abs_path.to_string_lossy());
+    let files = file_filter.walk_dir(&abs_path).unwrap();
+    println!("discovered files: {:?}", files);
+    assert!(files.contains("tests/assets/file_changes/github/pr_files_pg1.json"));
 }
