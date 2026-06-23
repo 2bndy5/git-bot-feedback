@@ -1,0 +1,18 @@
+version = 1
+revision = 3
+requires-python = ">=3.10"
+
+[manifest]
+members = [
+    "git-bot-feedback",
+    "git-bot-feedback-ws",
+]
+
+[[package]]
+name = "git-bot-feedback"
+source = { editable = "bindings/python" }
+
+[[package]]
+name = "git-bot-feedback-ws"
+version = "0.0.0+private.virtual"
+source = { virtual = "." }

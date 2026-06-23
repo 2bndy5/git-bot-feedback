@@ -5,11 +5,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(feature = "pyo3")]
+use pyo3::{prelude::*, pybacked::PyBackedStr};
+
 use crate::error::DirWalkError;
 
 /// A structure to encapsulate file path filtering behavior.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+#[cfg_attr(feature = "pyo3", pyclass(module = "git_bot_feedback", from_py_object))]
 pub struct FileFilter {
     /// A set of paths or glob patterns to be ignored.
     ///
@@ -299,6 +303,106 @@ impl FileFilter {
             }
         }
         Ok(files)
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl FileFilter {
+    /// Create a new file filter instance.
+    #[new]
+    #[pyo3(
+        signature = (ignore, extensions, log_scope=None),
+        text_signature = "(ignore: list[str], extensions: list[str], log_scope: str | None = None)"
+    )]
+    pub fn new_py(
+        ignore: Vec<PyBackedStr>,
+        extensions: Vec<PyBackedStr>,
+        log_scope: Option<&str>,
+    ) -> Self {
+        let ignore = ignore.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+        let extensions = extensions.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+        Self::new(&ignore, &extensions, log_scope)
+    }
+
+    /// Parse submodules from a .gitmodules file.
+    #[pyo3(
+        name = "parse_submodules",
+        signature = (manifest_path=None),
+        text_signature = "(manifest_path: str | None = None)"
+    )]
+    pub fn parse_submodules_py(&mut self, manifest_path: Option<&str>) {
+        let manifest_path = manifest_path.map(Path::new);
+        self.parse_submodules(manifest_path);
+    }
+
+    /// Check if a given file is in the ``ignored`` or ``not_ignored`` list.
+    #[pyo3(
+        name = "is_file_in_list",
+        signature = (file_name, ignored),
+        text_signature = "(file_name: str | Path, ignored: bool) -> bool"
+    )]
+    pub fn is_file_in_list_py(&self, file_name: PathBuf, ignored: bool) -> bool {
+        self.is_file_in_list(&file_name, ignored)
+    }
+
+    /// Check if a given file is ignored.
+    #[pyo3(
+        name = "is_file_ignored",
+        signature = (file_name),
+        text_signature = "(file_name: str | Path) -> bool"
+    )]
+    pub fn is_file_ignored_py(&self, file_name: PathBuf) -> bool {
+        self.is_file_ignored(&file_name)
+    }
+
+    /// Check if a given file is not ignored.
+    #[pyo3(
+        name = "is_file_not_ignored",
+        signature = (file_name),
+        text_signature = "(file_name: str | Path) -> bool"
+    )]
+    pub fn is_file_not_ignored_py(&self, file_name: PathBuf) -> bool {
+        self.is_file_not_ignored(&file_name)
+    }
+
+    /// Check if a given file is qualified.
+    #[pyo3(
+        name = "is_qualified",
+        signature = (file_path),
+        text_signature = "(file_path: str | Path) -> bool"
+    )]
+    pub fn is_qualified_py(&self, file_path: PathBuf) -> bool {
+        self.is_qualified(&file_path)
+    }
+
+    /// Walk a given directory recursively and return a set of discovered source files.
+    #[pyo3(
+        name = "walk_dir",
+        signature = (root_path),
+        text_signature = "(root_path: str | Path) -> set[str]"
+    )]
+    pub fn walk_dir_py(&self, root_path: PathBuf) -> PyResult<HashSet<String>> {
+        let result = self.walk_dir(&root_path)?;
+        Ok(result)
+    }
+
+    /// The set of explicitly ignored paths/patterns.
+    #[getter]
+    pub fn ignored(&self) -> HashSet<String> {
+        self.ignored.clone()
+    }
+
+    /// The set of explicitly not ignored paths/patterns.
+    #[getter]
+    pub fn not_ignored(&self) -> HashSet<String> {
+        self.not_ignored.clone()
+    }
+
+    /// The set of valid file extensions.
+    #[getter]
+    pub fn extensions(&self) -> HashSet<String> {
+        self.extensions.clone()
     }
 }
 

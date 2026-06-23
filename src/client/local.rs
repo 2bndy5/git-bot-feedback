@@ -56,6 +56,10 @@ fn git_rev_parse(base: &str) -> Result<String, ClientError> {
 
 #[async_trait::async_trait]
 impl RestApiClient for LocalClient {
+    fn client_kind(&self) -> String {
+        "local".to_string()
+    }
+
     #[cfg(feature = "file-changes")]
     async fn get_list_of_changed_files(
         &self,

@@ -1,0 +1,11 @@
+[project]
+name = "git-bot-feedback-ws"
+version = "0.0.0+private-virtual"
+dependencies = []
+classifiers = ["Private :: Do Not Upload"]
+
+[tool.uv.sources]
+git-bot-feedback = { workspace = true }
+
+[tool.uv.workspace]
+members = ["bindings/python"]

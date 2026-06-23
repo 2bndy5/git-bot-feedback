@@ -1,5 +1,12 @@
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+
 /// A structure to describe the output of a file annotation.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
+#[cfg_attr(
+    feature = "pyo3",
+    pyclass(module = "git_bot_feedback", from_py_object, get_all, set_all)
+)]
 pub struct FileAnnotation {
     /// The severity level of the annotation.
     pub severity: AnnotationLevel,
@@ -54,8 +61,45 @@ pub struct FileAnnotation {
     pub message: String,
 }
 
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl FileAnnotation {
+    /// Create a new file annotation instance.
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(
+        signature = (severity, path, message, start_line=None, end_line=None, start_column=None, end_column=None, title=None),
+        text_signature = "(severity: AnnotationLevel, path: str, message: str, start_line: int | None = None, end_line: int | None = None, start_column: int | None = None, end_column: int | None = None, title: str | None = None)"
+    )]
+    pub fn new_py(
+        severity: AnnotationLevel,
+        path: String,
+        message: String,
+        start_line: Option<usize>,
+        end_line: Option<usize>,
+        start_column: Option<usize>,
+        end_column: Option<usize>,
+        title: Option<String>,
+    ) -> Self {
+        Self {
+            severity,
+            path,
+            start_line,
+            end_line,
+            start_column,
+            end_column,
+            title,
+            message,
+        }
+    }
+}
+
 /// The severity of a [`FileAnnotation`].
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "pyo3",
+    pyclass(module = "git_bot_feedback", from_py_object, eq)
+)]
 pub enum AnnotationLevel {
     /// The annotation is for debugging purposes.
     Debug,

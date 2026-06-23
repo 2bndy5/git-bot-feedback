@@ -1,9 +1,13 @@
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+
 use super::DEFAULT_MARKER;
 
 /// An enumeration of possible type of comments being posted.
 ///
 /// The default is [`CommentKind::Concerns`].
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "pyo3", pyclass(module = "git_bot_feedback", from_py_object))]
 pub enum CommentKind {
     /// A comment that admonishes concerns for end-users' attention.
     #[default]
@@ -17,6 +21,7 @@ pub enum CommentKind {
 ///
 /// See [`ThreadCommentOptions::policy`](crate::ThreadCommentOptions::policy).
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "pyo3", pyclass(module = "git_bot_feedback", from_py_object))]
 pub enum CommentPolicy {
     /// Each thread comment is posted as a new comment.
     ///
@@ -34,7 +39,11 @@ pub enum CommentPolicy {
 /// Options that control posting comments on a thread.
 ///
 /// Used as a parameter value to [`RestApiClient::post_thread_comment()`](fn@crate::client::RestApiClient::post_thread_comment).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[cfg_attr(
+    feature = "pyo3",
+    pyclass(module = "git_bot_feedback", from_py_object, get_all, set_all)
+)]
 pub struct ThreadCommentOptions {
     /// Controls posting comments on a thread that concerns a Pull Request or Push event.
     ///
@@ -103,6 +112,38 @@ impl ThreadCommentOptions {
             return format!("{}{}", self.marker, self.comment);
         }
         self.comment.clone()
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl ThreadCommentOptions {
+    /// Create a new instance of ``ThreadCommentOptions``.
+    #[new]
+    #[pyo3(
+        signature = (
+            policy = None,
+            comment = None,
+            kind = None,
+            marker = None,
+            no_lgtm = None,
+        ),
+        text_signature = "(policy: CommentPolicy | None = None, comment: str | None = None, kind: CommentKind | None = None, marker: str | None = None, no_lgtm: bool = False)",
+    )]
+    pub fn new(
+        policy: Option<CommentPolicy>,
+        comment: Option<String>,
+        kind: Option<CommentKind>,
+        marker: Option<String>,
+        no_lgtm: Option<bool>,
+    ) -> Self {
+        Self {
+            policy: policy.unwrap_or_default(),
+            comment: comment.unwrap_or_default(),
+            kind: kind.unwrap_or_default(),
+            marker: marker.unwrap_or_else(|| DEFAULT_MARKER.to_string()),
+            no_lgtm: no_lgtm.unwrap_or_default(),
+        }
     }
 }
 

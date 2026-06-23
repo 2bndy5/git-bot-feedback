@@ -1,3 +1,6 @@
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+
 use std::ops::Range;
 
 pub mod file_filter;
@@ -6,6 +9,7 @@ use crate::DiffHunkHeader;
 /// An enum to help determine what constitutes a changed file based on the diff contents.
 #[derive(PartialEq, Clone, Copy, Debug, Default)]
 #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+#[cfg_attr(feature = "pyo3", pyclass(module = "git_bot_feedback", from_py_object))]
 pub enum LinesChangedOnly {
     /// File is included regardless of changed lines in the diff.
     ///
@@ -52,6 +56,7 @@ impl std::fmt::Display for LinesChangedOnly {
 /// A structure to represent a file's changes per line numbers.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+#[cfg_attr(feature = "pyo3", pyclass(module = "git_bot_feedback", from_py_object))]
 pub struct FileDiffLines {
     /// The list of lines numbers with additions.
     pub added_lines: Vec<u32>,
@@ -70,12 +75,12 @@ pub struct FileDiffLines {
 
 impl FileDiffLines {
     /// Instantiate an object with changed lines information.
-    pub fn with_info(added_lines: Vec<u32>, diff_chunks: Vec<Range<u32>>) -> Self {
+    pub fn with_info(added_lines: Vec<u32>, diff_hunks: Vec<Range<u32>>) -> Self {
         let added_ranges = Self::consolidate_numbers_to_ranges(&added_lines);
         Self {
             added_lines,
             added_ranges,
-            diff_hunks: diff_chunks,
+            diff_hunks,
         }
     }
 
@@ -153,6 +158,97 @@ impl FileDiffLines {
             }
         }
         false
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl FileDiffLines {
+    /// Create a new file diff lines instance.
+    ///
+    /// The ``added_ranges`` and ``diff_hunks`` are provided as tuples of ``(start, end)`` to represent ranges.
+    #[new]
+    #[pyo3(
+        signature = (added_lines, added_ranges, diff_hunks),
+        text_signature = "(added_lines: list[int], added_ranges: list[tuple[int, int]], diff_hunks: list[tuple[int, int])"
+    )]
+    pub fn new_py(
+        added_lines: Vec<u32>,
+        added_ranges: Vec<(u32, u32)>,
+        diff_hunks: Vec<(u32, u32)>,
+    ) -> Self {
+        Self {
+            added_lines,
+            added_ranges: added_ranges
+                .into_iter()
+                .map(|(start, end)| start..end)
+                .collect(),
+            diff_hunks: diff_hunks
+                .into_iter()
+                .map(|(start, end)| start..end)
+                .collect(),
+        }
+    }
+
+    /// Create a new file diff lines instance from given ``added_lines`` and ``diff_hunks``.
+    ///
+    /// This constructor is preferred because the ``added_ranges`` is automatically
+    /// calculated from the ``added_lines``.
+    #[staticmethod]
+    #[pyo3(
+        signature = (added_lines, diff_hunks),
+        text_signature = "(added_lines: list[int], diff_hunks: list[tuple[int, int]) -> FileDiffLines"
+    )]
+    pub fn from_info(added_lines: Vec<u32>, diff_hunks: Vec<(u32, u32)>) -> Self {
+        Self::with_info(
+            added_lines,
+            diff_hunks
+                .into_iter()
+                .map(|(start, end)| start..end)
+                .collect(),
+        )
+    }
+
+    /// The range of line numbers whose lines were added.
+    ///
+    /// This takes the form of a list of tuples of ``(inclusive_start, exclusive_end)`` to represent ranges.
+    #[getter]
+    pub fn get_added_ranges(&self) -> Vec<(u32, u32)> {
+        self.added_ranges
+            .iter()
+            .map(|range| (range.start, range.end))
+            .collect()
+    }
+
+    /// The range of line numbers that span the diff hunks.
+    ///
+    /// This takes the form of a list of tuples of ``(inclusive_start, exclusive_end)`` to represent ranges.
+    #[getter]
+    pub fn get_diff_hunks(&self) -> Vec<(u32, u32)> {
+        self.diff_hunks
+            .iter()
+            .map(|range| (range.start, range.end))
+            .collect()
+    }
+
+    /// Check if the given hunk header describes a hunk contained in the ``diff_hunks``.
+    #[pyo3(
+        name = "is_hunk_in_diff",
+        signature = (hunk),
+        text_signature = "(hunk: DiffHunkHeader) -> tuple[int, int] | None"
+    )]
+    pub fn is_hunk_in_diff_py(&self, hunk: &DiffHunkHeader) -> Option<(u32, u32)> {
+        self.is_hunk_in_diff(hunk)
+    }
+
+    /// Check if the given line number is contained in the ``diff_hunks``.
+    #[pyo3(
+        name = "is_line_in_diff",
+        signature = (line),
+        text_signature = "(line: int) -> bool"
+    )]
+    pub fn is_line_in_diff_py(&self, line: u32) -> bool {
+        self.is_line_in_diff(&line)
     }
 }
 

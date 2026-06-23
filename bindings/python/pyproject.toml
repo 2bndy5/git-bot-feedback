@@ -1,0 +1,45 @@
+[build-system]
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "git-bot-feedback"
+dynamic = ["version"]
+description = "A comprehensive password generator."
+readme = "README.md"
+keywords = ["password", "generator", "random", "comprehensive", "rust"]
+license = {text = "MIT License"}
+requires-python = ">=3.10"
+authors = [
+    { name = "Brendan Doherty", email = "2bndy5@gmail.com" },
+]
+classifiers = [
+    # https://pypi.org/pypi?%3Aaction=list_classifiers
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "Natural Language :: English",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+[project.urls]
+source = "https://github.com/2bndy5/git-bot-feedback"
+tracker = "https://github.com/2bndy5/git-bot-feedback/issues"
+
+[tool.maturin]
+include = [
+    {path = "git_bot_feedback.pyi", format = "sdist"},
+]
+# exclude = [
+#     {path = "**/tests/**", format="sdist"},
+#     {path = "**/examples/**", format="sdist"},
+#     {path = "**/docs/**", format="sdist"},
+# ]
