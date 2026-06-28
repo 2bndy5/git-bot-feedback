@@ -24,7 +24,7 @@
       "site_admin": false
     },
     "body": "<!-- git-bot-feedback -->\noutdated review",
-    "state": "COMMENT",
+    "state": "COMMENTED",
     "html_url": "https://github.com/cpp-linter/test-cpp-linter-action/pull/46#pullrequestreview-2518109626",
     "pull_request_url": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/pulls/46",
     "author_association": "NONE",
@@ -64,7 +64,7 @@
       "site_admin": false
     },
     "body": "<!-- git-bot-feedback -->\nreused review",
-    "state": "COMMENT",
+    "state": "COMMENTED",
     "html_url": "https://github.com/cpp-linter/test-cpp-linter-action/pull/46#pullrequestreview-2519970027",
     "pull_request_url": "https://api.github.com/repos/cpp-linter/test-cpp-linter-action/pulls/46",
     "author_association": "NONE",
