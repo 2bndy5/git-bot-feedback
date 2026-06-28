@@ -6,7 +6,7 @@ use std::{
 };
 
 #[cfg(feature = "pyo3")]
-use pyo3::{prelude::*, pybacked::PyBackedStr};
+use pyo3::{prelude::*, pybacked::PyBackedStr}; // spell-checker: disable-line
 
 use crate::error::DirWalkError;
 

@@ -166,11 +166,12 @@ impl FileDiffLines {
 impl FileDiffLines {
     /// Create a new file diff lines instance.
     ///
-    /// The ``added_ranges`` and ``diff_hunks`` are provided as tuples of ``(start, end)`` to represent ranges.
+    /// The ``added_ranges`` and ``diff_hunks`` are provided as
+    /// tuples of ``(start, end)`` to represent ranges.
     #[new]
     #[pyo3(
         signature = (added_lines, added_ranges, diff_hunks),
-        text_signature = "(added_lines: list[int], added_ranges: list[tuple[int, int]], diff_hunks: list[tuple[int, int])"
+        text_signature = "(added_lines: list[int], added_ranges: list[tuple[int, int]], diff_hunks: list[tuple[int, int]])"
     )]
     pub fn new_py(
         added_lines: Vec<u32>,
@@ -197,7 +198,7 @@ impl FileDiffLines {
     #[staticmethod]
     #[pyo3(
         signature = (added_lines, diff_hunks),
-        text_signature = "(added_lines: list[int], diff_hunks: list[tuple[int, int]) -> FileDiffLines"
+        text_signature = "(added_lines: list[int], diff_hunks: list[tuple[int, int]]) -> FileDiffLines"
     )]
     pub fn from_info(added_lines: Vec<u32>, diff_hunks: Vec<(u32, u32)>) -> Self {
         Self::with_info(
@@ -211,7 +212,8 @@ impl FileDiffLines {
 
     /// The range of line numbers whose lines were added.
     ///
-    /// This takes the form of a list of tuples of ``(inclusive_start, exclusive_end)`` to represent ranges.
+    /// This takes the form of a list of tuples of
+    /// ``(inclusive_start, exclusive_end)`` to represent ranges.
     #[getter]
     pub fn get_added_ranges(&self) -> Vec<(u32, u32)> {
         self.added_ranges
@@ -222,7 +224,8 @@ impl FileDiffLines {
 
     /// The range of line numbers that span the diff hunks.
     ///
-    /// This takes the form of a list of tuples of ``(inclusive_start, exclusive_end)`` to represent ranges.
+    /// This takes the form of a list of tuples of
+    /// ``(inclusive_start, exclusive_end)`` to represent ranges.
     #[getter]
     pub fn get_diff_hunks(&self) -> Vec<(u32, u32)> {
         self.diff_hunks

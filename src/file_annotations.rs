@@ -32,6 +32,7 @@ pub struct FileAnnotation {
     /// If not provided, the annotation will be placed at the specified [`Self::start_line`] instead.
     ///
     /// This is ignored if
+    ///
     /// - [`Self::path`] is blank.
     /// - [`Self::start_line`] is not provided.
     /// - [`Self::end_line`] is not greater than [`Self::start_line`].
@@ -39,16 +40,19 @@ pub struct FileAnnotation {
 
     /// The column number where the annotation starts (1-based).
     ///
-    /// This is ignored if the [`Self::start_line`] is not provided, or if [`Self::path`] is blank.
+    /// This is ignored if the [`Self::start_line`] is not provided,
+    /// or if [`Self::path`] is blank.
     pub start_column: Option<usize>,
 
     /// The column number where the annotation ends (1-based).
     ///
     /// This is ignored if
+    ///
     /// - the [`Self::path`] is blank
     /// - the [`Self::start_line`] is not provided
-    /// - the [`Self::end_line`] is not greater than to [`Self::start_line`]
-    ///   and [`Self::start_column`] is provided but is not less than this [`Self::end_column`]
+    /// - the [`Self::end_line`] is not greater than [`Self::start_line`]
+    ///   and [`Self::start_column`] is provided
+    ///   but is not less than this [`Self::end_column`]
     pub end_column: Option<usize>,
 
     /// The title of the annotation, which will be shown in the Git Server's UI.

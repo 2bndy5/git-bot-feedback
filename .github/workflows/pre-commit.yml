@@ -19,6 +19,9 @@ jobs:
         id: python-setup
         with:
           python-version: '3.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: latest
       - name: Cache pre-commit environments
         uses: actions/cache@v5
         with:
@@ -101,4 +104,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >-
           pipx run
-          zizmor --format github --color always .github/workflows
+          zizmor --format github --color always ./

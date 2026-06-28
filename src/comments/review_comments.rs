@@ -34,17 +34,13 @@ pub struct ReviewOptions {
     /// it is recommended to set this to an HTML comment that is unique to
     /// your CI application:
     ///
-    /// ```markdown
-    /// <!-- my-cool-CI-app-name -->
-    /// ```
+    /// ``<!-- my-cool-CI-app-name -->``
     ///
     /// The default value for this is an HTML comment generated from
     /// this crate's name and version along with the compile-tome's datetime.
     /// For example:
     ///
-    /// ```markdown
-    /// <!-- git-bot-feedback/0.1.0/Jul-14-2025_17-00 -->
-    /// ```
+    /// ``<!-- git-bot-feedback/0.1.0/Jul-14-2025_17-00 -->``
     pub marker: String,
 
     /// Allow posting reviews on draft Pull Requests?

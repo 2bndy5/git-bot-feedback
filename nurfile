@@ -81,6 +81,26 @@ export def "nur docs" [
     run-cmd ...$cmd
 }
 
+# Rust API docs
+export def "nur docs py" [
+    --open (-o), # Open the built docs in your browser
+    --clean (-c), # Clear the build directory before building the docs and rebuild the python binding
+] {
+    mut sync_args = [uv sync --group docs]
+    if $clean {
+        $sync_args = $sync_args | append [--reinstall-package git-bot-feedback]
+        if ("docs/_build/html" | path exists) {
+            rm -r docs/_build/html
+        }
+    }
+    run-cmd ...$sync_args
+
+    run-cmd uv run sphinx-build docs docs/_build/html
+    if $open and ("docs/_build/html/index.html" | path exists) {
+        start docs/_build/html/index.html
+    }
+}
+
 
 # Run clippy and rustfmt (on packages only)
 export def "nur lint" [

@@ -33,6 +33,9 @@ mod git_bot_feedback {
     #[pymodule_export]
     use ::git_bot_feedback::LinesChangedOnly;
 
+    /// A function to parse a diff string.
+    ///
+    /// Returns a mapping of file paths to their corresponding :py:class:`~git_bot_feedback.FileDiffLines`.
     #[pyfunction]
     pub fn parse_diff(
         diff: &str,

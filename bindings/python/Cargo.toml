@@ -5,7 +5,7 @@ edition = "2024"
 
 [lib]
 name = "git_bot_feedback"
-crate-type = ["cdylib"]
+crate-type = ["cdylib"] # spell-checker: disable-line
 path = "src/lib.rs"
 
 [dependencies]

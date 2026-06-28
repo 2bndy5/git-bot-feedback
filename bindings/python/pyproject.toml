@@ -11,6 +11,7 @@ keywords = ["password", "generator", "random", "comprehensive", "rust"]
 license = {text = "MIT License"}
 requires-python = ">=3.10"
 authors = [
+    # spell-checker: disable-next-line
     { name = "Brendan Doherty", email = "2bndy5@gmail.com" },
 ]
 classifiers = [
