@@ -64,7 +64,7 @@ pub enum ReviewState {
     Pending,
     Dismissed,
     Approved,
-    Comment,
+    Commented,
 }
 
 /// A structure for deserializing a comment from a response's json.
