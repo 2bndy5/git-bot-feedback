@@ -302,6 +302,7 @@ async fn list_file_changes() {
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
     let client = LocalClient;
+    assert_eq!(client.client_kind().as_str(), "local");
     let file_filter = FileFilter::new(&[], &["toml", "md"], None);
 
     // Now get diff of HEAD and parent commit
