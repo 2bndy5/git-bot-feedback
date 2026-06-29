@@ -21,7 +21,7 @@ features = ["http2", "charset", "system-proxy"]
 [package]
 name = "git-bot-feedback"
 description = "A library designed for CI tools that posts comments on a Pull Request."
-version = "0.7.0"
+version = "0.7.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
