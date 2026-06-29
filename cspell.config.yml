@@ -1,6 +1,8 @@
 version: "0.2"
 words:
   - armv
+  - asyncio
+  - autoclass
   - automodule
   - autoupdate
   - binstall
@@ -19,6 +21,7 @@ words:
   - manylinux
   - maturin
   - musllinux
+  - mypy
   - nextest
   - nurfile
   - nushell
@@ -45,6 +48,7 @@ words:
   - staticmethod
   - thiserror
   - timeit
+  - toctree
   - topo
   - zizmor
 ignorePaths:

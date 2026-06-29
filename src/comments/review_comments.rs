@@ -113,7 +113,7 @@ impl ReviewOptions {
     }
 }
 
-/// A enumeration of possible recommended actions for a Pull Request review.
+/// An enumeration of possible recommended actions for a Pull Request review.
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 #[cfg_attr(feature = "pyo3", pyclass(module = "git_bot_feedback", from_py_object))]
 pub enum ReviewAction {

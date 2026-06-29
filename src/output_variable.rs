@@ -10,12 +10,12 @@ use crate::error::OutputVariableError;
 /// This is akin to the key/value pairs used in most
 /// config file formats but with some limitations:
 ///
-/// - Both [OutputVariable::name] and [OutputVariable::value] must be UTF-8 encoded.
-/// - The [OutputVariable::value] cannot span multiple lines.
+/// - Both [`Self::name`] and [`Self::value`] must be UTF-8 encoded.
+/// - The [`Self::value`] cannot span multiple lines.
 #[derive(Debug, Clone)]
 #[cfg_attr(
     feature = "pyo3",
-    pyclass(module = "git_bot_feedback", from_py_object, str)
+    pyclass(module = "git_bot_feedback", from_py_object, str, get_all, set_all)
 )]
 pub struct OutputVariable {
     /// The output variable's name.
@@ -30,12 +30,21 @@ pub struct OutputVariable {
 impl OutputVariable {
     /// Create a new output variable instance.
     #[new]
+    #[pyo3(
+        signature = (name, value),
+        text_signature = "(name: str, value: str)"
+    )]
     pub fn new_py(name: String, value: String) -> Self {
         Self { name, value }
     }
 
     /// Validate that the output variable is well-formed.
-    #[pyo3(name = "validate")]
+    ///
+    /// Instead of returning a false boolean value when the
+    /// output variable is somehow invalid, this method raises an
+    /// exception to describe a specific problem. Prefer using a
+    /// try/except block with this function instead of checking
+    /// the return value (which is ``None``).
     pub fn validate_py(&self) -> PyResult<()> {
         self.validate()?;
         Ok(())

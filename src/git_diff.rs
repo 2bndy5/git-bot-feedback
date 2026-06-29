@@ -9,7 +9,7 @@ use crate::{FileDiffLines, FileFilter, LinesChangedOnly, error::DiffError};
 /// A struct to represent the header information of a diff hunk.
 #[cfg_attr(
     feature = "pyo3",
-    pyclass(module = "git_bot_feedback", from_py_object, get_all, set_all)
+    pyclass(module = "git_bot_feedback", from_py_object, get_all, frozen)
 )]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DiffHunkHeader {
@@ -28,12 +28,15 @@ pub struct DiffHunkHeader {
 impl DiffHunkHeader {
     /// Create a new diff hunk header instance.
     #[new]
-    pub fn new_py(old_start: u32, old_lines: u32, new_start: u32, new_lines: u32) -> Self {
+    #[pyo3(
+        text_signature = "(old_start: int, old_lines: int, new_start: int, new_lines: int)"
+    )]
+    pub fn new_py(old_start: i64, old_lines: i64, new_start: i64, new_lines: i64) -> Self {
         Self {
-            old_start,
-            old_lines,
-            new_start,
-            new_lines,
+            old_start: old_start.clamp(0, u32::MAX as i64) as u32,
+            old_lines: old_lines.clamp(0, u32::MAX as i64) as u32,
+            new_start: new_start.clamp(0, u32::MAX as i64) as u32,
+            new_lines: new_lines.clamp(0, u32::MAX as i64) as u32,
         }
     }
 }

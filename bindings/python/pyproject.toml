@@ -6,8 +6,8 @@ build-backend = "maturin"
 name = "git-bot-feedback"
 dynamic = ["version"]
 description = "A comprehensive password generator."
-readme = "README.md"
-keywords = ["password", "generator", "random", "comprehensive", "rust"]
+readme = "README.rst"
+keywords = ["git", "client", "github", "bot", "rust"]
 license = {text = "MIT License"}
 requires-python = ">=3.10"
 authors = [

@@ -1,4 +1,5 @@
 <!-- markdownlint-disable MD033 -->
+
 # Contribution guidelines
 
 First, thank you for considering a contribution to this project!
@@ -15,7 +16,8 @@ This project uses the following tools for development:
 
 ### Optional tools
 
-- [committed] for verifying commit messages conform to [conventional commits] standards.
+- [committed] for verifying commit messages conform to [conventional commits]
+  standards.
 - [git-cliff] for generating a [Changelog](CHANGELOG.md) and release notes.
 - [pre-commit] for sanitizing project files.
 
@@ -29,13 +31,15 @@ This project uses the following tools for development:
 
 ## Submitting patches
 
-Please, please, please open an issue to discuss possible solutions before submitting a Pull Request.
-If it is a small patch (ie 1 or 2 lines), then a preemptive issue may not be warranted.
-Although, it still helps to first discuss the reason of the small patch in some manor.
+Please, please, please open an issue to discuss possible solutions before
+submitting a Pull Request. If it is a small patch (ie 1 or 2 lines), then a
+preemptive issue may not be warranted. Although, it still helps to first discuss
+the reason of the small patch in some manor.
 
-Pull Request titles should conform to [conventional commits] standard.
-Upon merging the Pull Request, all commits on the feature branch are squashed into a single commit pushed to the default (main) branch.
-This is done so [git-cliff] can adequately generate a list of changes when processing a release.
+Pull Request titles should conform to [conventional commits] standard. Upon
+merging the Pull Request, all commits on the feature branch are squashed into a
+single commit pushed to the default (main) branch. This is done so [git-cliff]
+can adequately generate a list of changes when processing a release.
 
 ## Code style
 
@@ -51,9 +55,9 @@ This project's CI leverages [pre-commit] to ensure
 - [x] no large files (greater than 500 kB) are added
 - [x] no unknown or misspelled words are present
 
-Normally, [pre-commit] is typically run from a Python virtual environment.
-This project has no other practical need for a Python virtual environment.
-Instead, [pre-commit] can be run as with a one-line command using [uv], [pipx], or [nur]
+Normally, [pre-commit] is typically run from a Python virtual environment. This
+project has no other practical need for a Python virtual environment. Instead,
+[pre-commit] can be run as with a one-line command using [uv], [pipx], or [nur]
 
 ```shell
 pipx run pre-commit run --all-files
@@ -72,8 +76,8 @@ Optional arguments are documented and shown in `nur pre-commit -h`.
 
 ### Static analysis
 
-Code format and linting is done by using `cargo clippy` and `cargo fmt`.
-Both commands are performed using a [nur] task as well:
+Code format and linting is done by using `cargo clippy` and `cargo fmt`. Both
+commands are performed using a [nur] task as well:
 
 ```shell
 nur lint
@@ -82,21 +86,23 @@ nur lint
 ## Testing
 
 > [!WARNING]
-> Do not use `cargo test` to run this project's tests.
-> This project's tests heavy rely on manipulating environment variables.
-> Instead, this project leverages [cargo-nextest] to isolate each test with
-> it's own environment context.
-> See [cargo-nextest documentation about altering environment variables][cargo-nextest-env-docs].
+> Do not use `cargo test` to run this project's tests. This project's tests
+> heavy rely on manipulating environment variables. Instead, this project
+> leverages [cargo-nextest] to isolate each test with it's own environment
+> context. See
+> [cargo-nextest documentation about altering environment variables][cargo-nextest-env-docs].
 
 [cargo-nextest-env-docs]: https://nexte.st/docs/configuration/env-vars/#altering-the-environment-within-tests
 
-To collect code coverage, this project uses [cargo-llvm-cov] which natively supports [cargo-nextest].
-However, the commands to run [cargo-llvm-cov] and [cargo-nextest] tools in tandem can be lengthy.
-We use [nur] to parametrize the various test options (applicable to this project) into tasks.
+To collect code coverage, this project uses [cargo-llvm-cov] which natively
+supports [cargo-nextest]. However, the commands to run [cargo-llvm-cov] and
+[cargo-nextest] tools in tandem can be lengthy. We use [nur] to parametrize the
+various test options (applicable to this project) into tasks.
 
 ### Running tests
 
-Unit tests are performed using [cargo-nextest] while coverage is measured by [cargo-llvm-cov].
+Unit tests are performed using [cargo-nextest] while coverage is measured by
+[cargo-llvm-cov].
 
 #### Run the tests
 
@@ -108,11 +114,10 @@ Optional arguments are documented and shown in `nur test -h`.
 
 <details><summary>Mimicking CI test runs</summary>
 
-The `default` test profile skips tests that are known to run longer than
-10 seconds and only shows verbose output for tests that fail.
-The `ci` test profile includes slow tests and enables more verbose output.
-To enable the `ci` test profile, simply pass `--profile ci` (or `-p ci`)
-to the `nur test` command:
+The `default` test profile skips tests that are known to run longer than 10
+seconds and only shows verbose output for tests that fail. The `ci` test profile
+includes slow tests and enables more verbose output. To enable the `ci` test
+profile, simply pass `--profile ci` (or `-p ci`) to the `nur test` command:
 
 ```shell
 nur test -p ci
@@ -127,16 +132,17 @@ nut test llvm-cov
 ```
 
 > [!TIP]
-> Additional arguments (except `-h` and `--help`) passed to `nur test llvm-cov` are
-> passed onto [cargo-llvm-cov].
+> Additional arguments (except `-h` and `--help`) passed to `nur test llvm-cov`
+> are passed onto [cargo-llvm-cov].
 >
-> Pass `--open` to automatically open the built coverage report in your default browser.
+> Pass `--open` to automatically open the built coverage report in your default
+> browser.
 
 <details><summary>Generating lcov.info</summary>
 
-A "lcov.info" file is uploaded to codecov.
-Some developer tooling might also make use of the lcov format (eg. the VS Code ext named "Coverage Gutters").
-This lcov.info file can be created with our [nur] task:
+A "lcov.info" file is uploaded to codecov. Some developer tooling might also
+make use of the lcov format (eg. the VS Code ext named "Coverage Gutters"). This
+lcov.info file can be created with our [nur] task:
 
 ```shell
 nur test lcov
@@ -146,8 +152,8 @@ nur test lcov
 
 ## API documentation
 
-Documentation is hosted at docs.rs automatically upon release.
-To verify any documentation changes locally, we can use [nur] for that too:
+Documentation is hosted at docs.rs automatically upon release. To verify any
+documentation changes locally, we can use [nur] for that too:
 
 ```shell
 nur docs
@@ -156,4 +162,5 @@ nur docs
 > [!TIP]
 > Optional arguments are documented and shown in `nur docs -h`.
 >
-> Pass `--open` (or `-o`) to automatically open the built documentation in your default browser.
+> Pass `--open` (or `-o`) to automatically open the built documentation in your
+> default browser.

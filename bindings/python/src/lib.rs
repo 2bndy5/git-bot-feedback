@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 mod wrapper;
 
+#[doc = include_str!("../README.rst")]
 #[pymodule]
 mod git_bot_feedback {
     use std::collections::HashMap;
@@ -37,12 +38,24 @@ mod git_bot_feedback {
     ///
     /// Returns a mapping of file paths to their corresponding :py:class:`~git_bot_feedback.FileDiffLines`.
     #[pyfunction]
+    #[pyo3(
+        signature = (
+            diff,
+            file_filter,
+            lines_changed_only = LinesChangedOnly::default()
+        ),
+        text_signature = "(diff: str, file_filter: FileFilter, lines_changed_only: LinesChangedOnly | None = None) -> dict[str, FileDiffLines]"
+    )]
     pub fn parse_diff(
         diff: &str,
         file_filter: &FileFilter,
-        lines_changed_only: LinesChangedOnly,
+        lines_changed_only: Option<LinesChangedOnly>,
     ) -> PyResult<HashMap<String, FileDiffLines>> {
-        let result = ::git_bot_feedback::parse_diff(diff, file_filter, &lines_changed_only)?;
+        let result = ::git_bot_feedback::parse_diff(
+            diff,
+            file_filter,
+            &lines_changed_only.unwrap_or_default(),
+        )?;
         Ok(result)
     }
 

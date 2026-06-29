@@ -74,7 +74,7 @@ export def "nur examples" [
 export def "nur docs" [
     --open (-o) # Open the built docs in your browser
 ] {
-    mut cmd = [cargo doc --no-deps --lib --all-features]
+    mut cmd = [cargo doc --no-deps --lib --features file-changes]
     if $open {
         $cmd = $cmd | append '--open'
     }

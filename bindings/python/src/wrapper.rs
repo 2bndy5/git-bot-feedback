@@ -141,6 +141,8 @@ impl GitClient {
     /// review are resolved.
     ///
     /// This function does nothing for non-PR events.
+    ///
+    /// Returns a copy of the given ``ReviewOptions`` with duplicate comments removed.
     #[pyo3(
         signature = (options),
         text_signature = "(options: ReviewOptions) -> ReviewOptions"

@@ -222,6 +222,12 @@ impl FileDiffLines {
             .collect()
     }
 
+    /// The list of line numbers whose lines have additions.
+    #[getter]
+    pub fn get_added_lines(&self) -> Vec<u32> {
+        self.added_lines.clone()
+    }
+
     /// The range of line numbers that span the diff hunks.
     ///
     /// This takes the form of a list of tuples of

@@ -59,7 +59,7 @@ const PkgPaths = {
         exclude: [...$COMMON_EXCLUDES]
         path: '.'
     },
-    'img-gen-py': {
+    'git-bot-feedback-py': {
         include: ['bindings/python/**/*', 'src/**/*.rs', 'Cargo.toml']
         exclude: [...$COMMON_EXCLUDES]
         path: 'bindings/python'

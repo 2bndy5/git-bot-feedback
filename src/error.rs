@@ -242,12 +242,12 @@ impl From<DirWalkError> for PyErr {
 impl From<RestClientError> for PyErr {
     fn from(err: RestClientError) -> Self {
         match err {
+            #[cfg(feature = "file-changes")]
             RestClientError::DiffError(e) => e.into(),
             RestClientError::MalformedEventInfo(_) => PyRuntimeError::new_err(format!("{err:?}")),
             RestClientError::Request(e) => PyOSError::new_err(format!("{e:?}")),
             RestClientError::RequestContext { task: _, source: _ }
             | RestClientError::Io { task: _, source: _ }
-            | RestClientError::GitCommand(_)
             | RestClientError::RateLimitNoReset
             | RestClientError::RateLimitPrimary(_)
             | RestClientError::RateLimitSecondary => PyOSError::new_err(format!("{err:?}")),
@@ -260,6 +260,8 @@ impl From<RestClientError> for PyErr {
             | RestClientError::EnvVar { name: _, source: _ } => {
                 PyValueError::new_err(format!("{err:?}"))
             }
+            #[cfg(feature = "file-changes")]
+            RestClientError::GitCommand(_) => PyValueError::new_err(format!("{err:?}")),
             RestClientError::OutputVar(e) => e.into(),
         }
     }
