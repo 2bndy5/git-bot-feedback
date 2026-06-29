@@ -1,6 +1,6 @@
 [package]
 name = "git-bot-feedback-py"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "A Python library (written in Rust) designed for CI tools to easily submit feedback on a git server."
