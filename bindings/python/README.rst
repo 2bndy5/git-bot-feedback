@@ -65,4 +65,4 @@ because the following conditions must be met:
     :target: https://github.com/2bndy5/git-bot-feedback/actions/workflows/python.yml
 .. |pypi-badge| image:: https://img.shields.io/pypi/v/git-bot-feedback
    :alt: PyPI Version
-   target: https://pypi.org/project/git-bot-feedback
+   :target: https://pypi.org/project/git-bot-feedback
