@@ -46,7 +46,7 @@ jobs:
         uses: actions/cache@v5 # zizmor: ignore[cache-poisoning]
         with:
           path: ~/.cargo
-          key: cargo-lib-${{ hashFiles('src/**', 'Cargo.toml') }}
+          key: cargo-nextest-${{ hashFiles('src/**', 'Cargo.toml') }}
       - run: rustup component add llvm-tools-preview
         # this enables a tool (for default toolchain) needed to measure code coverage.
       - name: run docs examples

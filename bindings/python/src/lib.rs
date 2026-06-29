@@ -42,7 +42,7 @@ mod git_bot_feedback {
         signature = (
             diff,
             file_filter,
-            lines_changed_only = LinesChangedOnly::default()
+            lines_changed_only = None,
         ),
         text_signature = "(diff: str, file_filter: FileFilter, lines_changed_only: LinesChangedOnly | None = None) -> dict[str, FileDiffLines]"
     )]

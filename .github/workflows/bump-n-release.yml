@@ -34,7 +34,7 @@ jobs:
   bump-release:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    environment: staging-deployment
+    environment: stage-deployment
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6

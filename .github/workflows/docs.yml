@@ -8,6 +8,7 @@ on:
       - nurfile
       - uv.lock
       - src/**/*.rs
+      - bindings/python/**/*
       - .github/workflows/docs.yml
   pull_request:
     branches: [main]
@@ -16,6 +17,7 @@ on:
       - nurfile
       - uv.lock
       - src/**/*.rs
+      - bindings/python/**/*
       - .github/workflows/docs.yml
 
 permissions: {}
@@ -43,6 +45,14 @@ jobs:
         run: cargo binstall -y nur
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Cache rust deps
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-pyo3-docs-${{ hashFiles('src/**', 'bindings/python/src/**', 'Cargo.lock') }}
       - name: Build docs
         run: nur docs py
       - name: Upload docs
@@ -79,6 +89,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: cargo binstall -y nur
+      - name: Cache rust deps
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: cargo-rs-docs-${{ hashFiles('src/**', 'Cargo.lock') }}
       - name: Build docs
         run: nur docs
       - name: Upload docs
