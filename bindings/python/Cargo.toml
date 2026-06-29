@@ -1,11 +1,11 @@
 [package]
 name = "git-bot-feedback-py"
 version = "0.0.1"
-edition = "2024"
-license = "GPL-3.0-or-later"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "A Python library (written in Rust) designed for CI tools to easily submit feedback on a git server."
 documentation = "https://2bndy5.github.io/git-bot-feedback"
-repository = "https://github.com/2bndy5/git-bot-feedback"
 publish = false
 
 [lib]
