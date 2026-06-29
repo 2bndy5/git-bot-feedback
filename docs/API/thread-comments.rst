@@ -9,13 +9,13 @@ Thread Comments
     .. py:attribute:: CommentKind.Lgtm
 
         A comment that indicates that the code is good to go.
-    
+
     .. py:attribute:: CommentKind.Concerns
 
         A comment that indicates that there are concerns with the code.
 
 .. autoclass:: git_bot_feedback.CommentPolicy
-    
+
     .. py:attribute:: CommentPolicy.Anew
 
         Always post a new comment.

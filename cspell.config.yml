@@ -3,6 +3,7 @@ words:
   - armv
   - asyncio
   - autoclass
+  - autofunction
   - automodule
   - autoupdate
   - binstall

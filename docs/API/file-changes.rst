@@ -15,7 +15,7 @@ File Changes
     .. py:class:: git_bot_feedback.LinesChangedOnly.On
 
         Only the lines in the diff that have additions.
-    
+
     .. py:class:: git_bot_feedback.LinesChangedOnly.Off
 
         All lines in the file, regardless of the diff contents.

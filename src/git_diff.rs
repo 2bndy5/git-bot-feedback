@@ -28,9 +28,7 @@ pub struct DiffHunkHeader {
 impl DiffHunkHeader {
     /// Create a new diff hunk header instance.
     #[new]
-    #[pyo3(
-        text_signature = "(old_start: int, old_lines: int, new_start: int, new_lines: int)"
-    )]
+    #[pyo3(text_signature = "(old_start: int, old_lines: int, new_start: int, new_lines: int)")]
     pub fn new_py(old_start: i64, old_lines: i64, new_start: i64, new_lines: i64) -> Self {
         Self {
             old_start: old_start.clamp(0, u32::MAX as i64) as u32,
