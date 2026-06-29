@@ -1,9 +1,17 @@
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+
 use regex::Regex;
 use std::{collections::HashMap, ops::Range, path::Path};
 
 use crate::{FileDiffLines, FileFilter, LinesChangedOnly, error::DiffError};
 
 /// A struct to represent the header information of a diff hunk.
+#[cfg_attr(
+    feature = "pyo3",
+    pyclass(module = "git_bot_feedback", from_py_object, get_all, frozen)
+)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DiffHunkHeader {
     /// The starting line number of the old hunk.
     pub old_start: u32,
@@ -13,6 +21,22 @@ pub struct DiffHunkHeader {
     pub new_start: u32,
     /// The total number of lines in the new hunk.
     pub new_lines: u32,
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl DiffHunkHeader {
+    /// Create a new diff hunk header instance.
+    #[new]
+    #[pyo3(text_signature = "(old_start: int, old_lines: int, new_start: int, new_lines: int)")]
+    pub fn new_py(old_start: i64, old_lines: i64, new_start: i64, new_lines: i64) -> Self {
+        Self {
+            old_start: old_start.clamp(0, u32::MAX as i64) as u32,
+            old_lines: old_lines.clamp(0, u32::MAX as i64) as u32,
+            new_start: new_start.clamp(0, u32::MAX as i64) as u32,
+            new_lines: new_lines.clamp(0, u32::MAX as i64) as u32,
+        }
+    }
 }
 
 fn get_filename_from_front_matter(front_matter: &str) -> Result<Option<&str>, DiffError> {

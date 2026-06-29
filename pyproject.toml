@@ -1,0 +1,18 @@
+[project]
+name = "git-bot-feedback-ws"
+version = "0.0.0+private-virtual"
+dependencies = []
+classifiers = ["Private :: Do Not Upload"]
+
+[tool.uv.sources]
+git-bot-feedback = { workspace = true }
+
+[tool.uv.workspace]
+members = ["bindings/python"]
+
+[dependency-groups]
+docs = [
+    "furo>=2025.12.19",
+    "sphinx>=8.1.3",
+    "git-bot-feedback",
+]

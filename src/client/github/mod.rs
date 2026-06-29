@@ -56,6 +56,10 @@ pub struct GithubApiClient {
 // implement the RestApiClient trait for the GithubApiClient
 #[async_trait]
 impl RestApiClient for GithubApiClient {
+    fn client_kind(&self) -> String {
+        "github".to_string()
+    }
+
     /// This prints a line to indicate the beginning of a related group of [`log`] statements.
     ///
     /// For apps' [`log`] implementations, this function's [`log::info`] output needs to have

@@ -54,6 +54,7 @@ async fn append_output_vars(test_params: TestParams) -> String {
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
     let client = init_client().unwrap();
+    assert_eq!(client.client_kind().as_str(), "github");
 
     let out_vars = if test_params.bad_var {
         [OutputVariable {

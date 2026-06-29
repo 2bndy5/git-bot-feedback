@@ -1,11 +1,13 @@
 # This script automates the release process for all of the packages in this repository.
 # In order, this script does the following:
 #
-# 1. Bump version number in Cargo.toml manifest.
+# 1. Bump version number in appropriate Cargo.toml manifest.
 #
-#    This step requires `cargo-edit` installed.
+#    This step requires `cargo-edit` installed unless
+#    releasing a binding package. In case of binding package, the version is
+#    determined by the version of the img-gen crate, so no actual bumping is done.
 #
-# 2. Updates the CHANGELOG.md
+# 2. Updates the appropriate CHANGELOG.md
 #
 #    Requires `git-cliff` (see https://git-cliff.org) to be installed
 #    to regenerate the change logs from git history.
@@ -27,35 +29,118 @@
 #
 #    NOTE: In a CI run, the GITHUB_TOKEN env var to authenticate access.
 #    Locally, you can use `gh login` to interactively authenticate the user account.
+#
+# The GITHUB_TOKEN permissions shall include:
+# - read access to Pull Requests (for better CHANGELOG generation).
+# - write (and inherently read) access to the repository "Contents"
+#   for publishing a GitHub release and pushing metadata changes.
+
 use ../common.nu run-cmd
 
+const COMMON_EXCLUDES = [
+    '.github/**/*'
+    'docs/**/*'
+    '.config/*'
+    'README.md'
+    '.gitattributes'
+    '.gitignore'
+    '.pre-commit-config.yaml'
+    'bindings/python/README.md'
+    'package.json'
+    'codecov.yml'
+    'Cargo.toml'
+    'cspell.config.yml'
+    '**/CHANGELOG.md'
+]
+
+const PkgPaths = {
+    'git-bot-feedback': {
+        include: ['src/**/*']
+        exclude: [...$COMMON_EXCLUDES]
+        path: '.'
+    },
+    'git-bot-feedback-py': {
+        include: ['bindings/python/**/*', 'src/**/*.rs', 'Cargo.toml']
+        exclude: [...$COMMON_EXCLUDES]
+        path: 'bindings/python'
+    },
+}
+
+export def get-changed-pkgs [] {
+    let head_ref = $env | get --optional HEAD_REF | default 'HEAD'
+    let base_ref = $env | get --optional BASE_REF | default 'HEAD~1'
+    let changed_files = (
+        (^git diff --name-only $base_ref $head_ref)
+        | lines
+        | str trim
+        | where {not ($in | str starts-with ".")}
+    )
+    print "Changed files:"
+    print $changed_files
+    mut pkgs = []
+    for row in ($PkgPaths | transpose) {
+        let pkg = $row.column0
+        let paths = $row.column1
+        print $"Checking changes for ($pkg)..."
+        let has_changed = if ($paths.include | is-empty) { true } else {
+            $changed_files | any {|file| $paths.include | any {|p| ($file | path expand) in (glob $p)}}
+        }
+        print $"  Has changes: ($has_changed)"
+        let has_excluded_change = if ($paths.exclude | is-empty) { false } else {
+            $changed_files | any {|file| $paths.exclude | any {|p| ($file | path expand) in (glob $p)}}
+        }
+        print $"  Has excluded changes: ($has_excluded_change)"
+        if $has_changed {
+            print $" Package ($pkg) has relevant changes"
+            $pkgs = $pkgs | append $pkg
+        }
+    }
+    if ($pkgs | length) == 0 {
+        print "No packages changed in the last commit."
+    } else {
+        print "Changed packages:"
+        print $pkgs
+    }
+    $pkgs | to json --raw
+}
+
+# Is this executed in a CI run?
+#
+# Uses env var CI to determine the resulting boolean
 export def is-in-ci [] {
-    $env | get --optional CI | default "false" | ($in == "true") or ($in == true)
+    $env | get --optional CI | default 'false' | (($in == 'true') or ($in == true))
 }
 
 # Bump the version per the given component name (major, minor, patch)
+#
+# This function also updates known occurrences of the old version spec to
+# the new version spec in various places (like README.md and action.yml).
 export def bump-version [
-    component: string # the version component to bump
-    --dry-run, # do not actually write changes to disk
+    pkg: string, # The crate name to bump in respective Cargo.toml manifests
+    component: string, # The version component to bump
 ] {
-    mut args = [--bump $component]
-    if ($dry_run) {
-        $args = $args | append "--dry-run"
+    mut args = ['-p', $pkg, '--bump', $component]
+    if (not (is-in-ci)) {
+        $args = $args | append ['--dry-run']
     }
-    let result = (
-        (^cargo set-version ...$args)
-        | complete
-        | get stderr
+    let result = cargo 'set-version' ...$args | complete
+    if ($result.exit_code != 0) {
+        error make {msg: $"cargo set-version failed: ($result.stderr)"}
+    }
+    let parsed = (
+        $result.stderr
         | lines
+        | where {|line| $line | str trim | str starts-with 'Upgrading'}
         | first
         | str trim
-        | parse "Upgrading {pkg} from {old} to {new}"
-        | first
+        | parse 'Upgrading {pkg} from {old} to {new}'
     )
-    if not $dry_run {
-        run-cmd cargo update --workspace
+    if ($parsed | is-empty) {
+        error make {msg: $"Failed to parse version from: ($result.stderr)"}
     }
-    print $"bumped ($result | get old) to ($result | get new)"
+    let result = $parsed | first
+
+    print $"bumped ($result | get 'old') to ($result | get 'new')"
     $result | get new
 }
 
@@ -64,24 +149,47 @@ export def bump-version [
 # If `--unreleased` is asserted, then the `git-cliff` output will be saved to .config/ReleaseNotes.md.
 # Otherwise, the generated changes will span the entire git history and be saved to CHANGELOG.md.
 export def gen-changes [
-    tag: string, # the new version tag to use for unreleased changes.
-    --unreleased, # only generate changes from unreleased version.
+    pkg: string, # The crate name being bumped.
+    --tag (-t): string = '', # The new version tag to use for unreleased changes.
+    --unreleased (-u), # only generate changes from unreleased version.
 ] {
-    mut args = [--tag, $tag, --config, .config/cliff.toml]
-    let prompt = if $unreleased {
-        let out_path = ".config/ReleaseNotes.md"
-        $args = $args | append [--strip, header, --unreleased, --output, $out_path]
-        {out_path: $out_path, log_prefix: "Generated"}
-    } else {
-        let out_path = "CHANGELOG.md"
-        $args = $args | append [--output, $out_path]
-        {out_path: $out_path, log_prefix: "Updated"}
+    let paths = $PkgPaths | get $pkg
+    let path = $paths | get path | path expand
+    let config_path = '.config' | path expand
+
+    mut args = [
+        '--config' $"($config_path | path join 'cliff.toml')"
+    ]
+    if (($tag | str length) > 0) {
+        $args = $args | append ['--tag', $tag, '--tag-pattern', $"($pkg)/v*"]
     }
-    run-cmd git-cliff ...$args
-    print ($prompt | format pattern "{log_prefix} {out_path}")
+    let prompt = if $unreleased {
+        let out_path = $config_path | path join 'ReleaseNotes.md'
+        $args = $args | append [
+            '--strip', 'header', '--unreleased', '--output', $out_path
+        ]
+        {out_path: ($out_path | path relative-to (pwd)), log_prefix: 'Generated'}
+    } else {
+        let out_path = $path | path expand | path join 'CHANGELOG.md'
+        $args = $args | append [--output $out_path]
+        {out_path: ($out_path | path relative-to (pwd)), log_prefix: 'Updated'}
+    }
+    if (($paths | get 'include' | length) > 0) {
+        $args = $args | append ['--include-path', ...($paths | get 'include')]
+    }
+    if (($paths | get 'exclude' | length) > 0) {
+        $args = $args | append ['--exclude-path', ...($paths | get 'exclude')]
+    }
+    let args = $args # make args immutable (to use in `with-env` block below)
+    with-env {GIT_CLIFF_TAG: $tag} {
+        run-cmd 'git-cliff' ...$args
+    }
+    print ($prompt | format pattern '{log_prefix} {out_path}')
 }
 
 # Is the the default branch currently checked out?
+#
+# Only accurate if the default branch is named "main".
 export def is-on-main [] {
     let branch = (
         ^git branch
@@ -90,32 +198,44 @@ export def is-on-main [] {
         | first
         | str trim --left --char '*'
         | str trim
-    ) == "main"
+    ) == 'main'
     $branch
 }
 
-export def main [component: string] {
-    let is_ci = is-in-ci
-    let ver = if $is_ci {
-        bump-version $component
-    } else {
-        bump-version --dry-run $component
-    }
-    let tag = $"v($ver)"
-    gen-changes $tag
-    gen-changes $tag --unreleased
+# The main function of this script.
+#
+# The `pkg` and `component` parameters are required CLI options:
+#     nu .github/workflows/bump-n-release.nu img-gen patch
+#
+# The acceptable `pkg` value are defined in the Cargo.toml manifests' `[package.name]` field.
+#
+# The acceptable `component` values are what `cargo set-version` accepts:
+#
+# - major
+# - minor
+# - patch
+# - rc
+def main [
+    pkg: string, # The crate name to bump in respective Cargo.toml manifests
+    component: string, # The version component to bump
+] {
+    let ver = bump-version $pkg $component
+    let tag = $"($pkg)/v($ver)"
+    gen-changes $pkg --tag $tag
+    gen-changes $pkg --tag $tag --unreleased
     let is_main = is-on-main
     if not $is_main {
-        print $"(ansi yellow)Not checked out on default branch!(ansi reset)"
+        print $"(ansi yellow)\nNot checked out on default branch!(ansi reset)"
     }
-    if $is_ci and $is_main {
+    if (is-in-ci) and $is_main {
+        print 'Pushing metadata changes'
         run-cmd git config --global user.name $"($env.GITHUB_ACTOR)"
         run-cmd git config --global user.email $"($env.GITHUB_ACTOR_ID)+($env.GITHUB_ACTOR)@users.noreply.github.com"
         run-cmd git add --all
         run-cmd git commit -m $"build: bump version to ($tag)"
         run-cmd git push
         print $"Deploying ($tag)"
-        run-cmd gh release create $tag --notes-file ".config/ReleaseNotes.md"
+        run-cmd gh release create $tag --notes-file .config/ReleaseNotes.md --title $"($pkg) v($ver)"
     } else if $is_main {
         print $"(ansi yellow)Not deploying from local clone.(ansi reset)"
     }

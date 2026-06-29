@@ -1,5 +1,12 @@
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+
 /// A structure to describe the output of a file annotation.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
+#[cfg_attr(
+    feature = "pyo3",
+    pyclass(module = "git_bot_feedback", from_py_object, get_all, set_all)
+)]
 pub struct FileAnnotation {
     /// The severity level of the annotation.
     pub severity: AnnotationLevel,
@@ -25,6 +32,7 @@ pub struct FileAnnotation {
     /// If not provided, the annotation will be placed at the specified [`Self::start_line`] instead.
     ///
     /// This is ignored if
+    ///
     /// - [`Self::path`] is blank.
     /// - [`Self::start_line`] is not provided.
     /// - [`Self::end_line`] is not greater than [`Self::start_line`].
@@ -32,16 +40,19 @@ pub struct FileAnnotation {
 
     /// The column number where the annotation starts (1-based).
     ///
-    /// This is ignored if the [`Self::start_line`] is not provided, or if [`Self::path`] is blank.
+    /// This is ignored if the [`Self::start_line`] is not provided,
+    /// or if [`Self::path`] is blank.
     pub start_column: Option<usize>,
 
     /// The column number where the annotation ends (1-based).
     ///
     /// This is ignored if
+    ///
     /// - the [`Self::path`] is blank
     /// - the [`Self::start_line`] is not provided
-    /// - the [`Self::end_line`] is not greater than to [`Self::start_line`]
-    ///   and [`Self::start_column`] is provided but is not less than this [`Self::end_column`]
+    /// - the [`Self::end_line`] is not greater than [`Self::start_line`]
+    ///   and [`Self::start_column`] is provided
+    ///   but is not less than this [`Self::end_column`]
     pub end_column: Option<usize>,
 
     /// The title of the annotation, which will be shown in the Git Server's UI.
@@ -54,8 +65,45 @@ pub struct FileAnnotation {
     pub message: String,
 }
 
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl FileAnnotation {
+    /// Create a new file annotation instance.
+    #[new]
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(
+        signature = (severity, path, message, start_line=None, end_line=None, start_column=None, end_column=None, title=None),
+        text_signature = "(severity: AnnotationLevel, path: str, message: str, start_line: int | None = None, end_line: int | None = None, start_column: int | None = None, end_column: int | None = None, title: str | None = None)"
+    )]
+    pub fn new_py(
+        severity: AnnotationLevel,
+        path: String,
+        message: String,
+        start_line: Option<usize>,
+        end_line: Option<usize>,
+        start_column: Option<usize>,
+        end_column: Option<usize>,
+        title: Option<String>,
+    ) -> Self {
+        Self {
+            severity,
+            path,
+            start_line,
+            end_line,
+            start_column,
+            end_column,
+            title,
+            message,
+        }
+    }
+}
+
 /// The severity of a [`FileAnnotation`].
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "pyo3",
+    pyclass(module = "git_bot_feedback", from_py_object, eq)
+)]
 pub enum AnnotationLevel {
     /// The annotation is for debugging purposes.
     Debug,

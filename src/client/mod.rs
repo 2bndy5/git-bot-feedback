@@ -295,6 +295,9 @@ pub trait RestApiClient {
             }
         }
     }
+
+    /// The name of git server implementation is being used.
+    fn client_kind(&self) -> String;
 }
 
 /// Instantiate an implementation of [`RestApiClient`] based on the environment.

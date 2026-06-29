@@ -1,0 +1,49 @@
+[build-system]
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "git-bot-feedback"
+dynamic = ["version"]
+description = "A Python library (written in Rust) designed for CI tools to easily submit feedback on a git server."
+readme = "README.rst"
+keywords = ["git", "client", "github", "bot", "rust"]
+license = {text = "GPL-3.0-or-later"}
+requires-python = ">=3.10"
+authors = [
+    # spell-checker: disable-next-line
+    { name = "Brendan Doherty", email = "2bndy5@gmail.com" },
+]
+classifiers = [
+    # https://pypi.org/pypi?%3Aaction=list_classifiers
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "Natural Language :: English",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+
+[project.urls]
+source = "https://github.com/2bndy5/git-bot-feedback"
+tracker = "https://github.com/2bndy5/git-bot-feedback/issues"
+
+[tool.maturin]
+include = [
+    {path = "git_bot_feedback.pyi", format = "sdist"},
+]
+exclude = [
+    {path = "**/tests/**", format="sdist"},
+    {path = "**/examples/**", format="sdist"},
+    # {path = "**/docs/**", format="sdist"},
+    {path = "**/.github/**", format="sdist"},
+    {path = "**/.config/**", format="sdist"},
+    {path = "**/.vscode/**", format="sdist"},
+]

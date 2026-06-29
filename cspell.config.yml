@@ -1,5 +1,10 @@
 version: "0.2"
 words:
+  - armv
+  - asyncio
+  - autoclass
+  - autofunction
+  - automodule
   - autoupdate
   - binstall
   - bndy
@@ -10,26 +15,45 @@ words:
   - endfor
   - endgroup
   - endmacro
+  - furo
   - Gitea
   - gitmodules
   - hustcer
+  - manylinux
+  - maturin
+  - musllinux
+  - mypy
   - nextest
   - nurfile
   - nushell
   - orhun
   - pipx
+  - pkgs
   - pybind
+  - pyclass
+  - pyfunction
+  - pymethods
+  - pymodule
+  - pypa
+  - pypi
+  - pyproject
   - reqwest
   - rustc
   - rustdoc
   - rustup
+  - sccache
+  - sdist
   - serde
   - splitn
   - startswith
+  - staticmethod
   - thiserror
   - timeit
+  - toctree
   - topo
   - zizmor
 ignorePaths:
   - .gitignore
   - tests/assets/**/*.json
+  - '*.lock'
+  - '**/CHANGELOG.md'

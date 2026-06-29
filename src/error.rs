@@ -1,4 +1,10 @@
 //! Error types used across the git-bot-feedback crate.
+#[cfg(feature = "pyo3")]
+use pyo3::{
+    exceptions::{PyOSError, PyRuntimeError, PyValueError},
+    prelude::*,
+};
+
 #[cfg(feature = "file-changes")]
 use std::path::PathBuf;
 
@@ -199,6 +205,66 @@ pub enum DirWalkError {
     /// Error emitted when failing to interact with files.
     #[error(transparent)]
     OsError(#[from] std::io::Error),
+}
+
+#[cfg(feature = "pyo3")]
+impl From<OutputVariableError> for PyErr {
+    fn from(e: OutputVariableError) -> Self {
+        match e {
+            OutputVariableError::NameIsEmpty
+            | OutputVariableError::NameStartsWithNumber(_)
+            | OutputVariableError::NameContainsNonPrintableCharacters(_)
+            | OutputVariableError::ValueContainsNonPrintableCharacters(_) => {
+                PyValueError::new_err(format!("{e:?}"))
+            }
+            OutputVariableError::UnsupportedPlatform => PyRuntimeError::new_err(format!("{e:?}")),
+        }
+    }
+}
+
+#[cfg(feature = "pyo3")]
+impl From<DiffError> for PyErr {
+    fn from(e: DiffError) -> Self {
+        match e {
+            DiffError::RegExCompileFailed(_) => PyValueError::new_err(format!("{e:?}")),
+        }
+    }
+}
+
+#[cfg(feature = "pyo3")]
+impl From<DirWalkError> for PyErr {
+    fn from(e: DirWalkError) -> Self {
+        PyOSError::new_err(format!("{e:?}"))
+    }
+}
+
+#[cfg(feature = "pyo3")]
+impl From<RestClientError> for PyErr {
+    fn from(err: RestClientError) -> Self {
+        match err {
+            #[cfg(feature = "file-changes")]
+            RestClientError::DiffError(e) => e.into(),
+            RestClientError::MalformedEventInfo(_) => PyRuntimeError::new_err(format!("{err:?}")),
+            RestClientError::Request(e) => PyOSError::new_err(format!("{e:?}")),
+            RestClientError::RequestContext { task: _, source: _ }
+            | RestClientError::Io { task: _, source: _ }
+            | RestClientError::RateLimitNoReset
+            | RestClientError::RateLimitPrimary(_)
+            | RestClientError::RateLimitSecondary => PyOSError::new_err(format!("{err:?}")),
+            RestClientError::CannotCloneRequest
+            | RestClientError::InvalidHeaderValue(_)
+            | RestClientError::UnexpectedHeaderValue(_)
+            | RestClientError::HeaderParseInt(_)
+            | RestClientError::UrlParse(_)
+            | RestClientError::Json { task: _, source: _ }
+            | RestClientError::EnvVar { name: _, source: _ } => {
+                PyValueError::new_err(format!("{err:?}"))
+            }
+            #[cfg(feature = "file-changes")]
+            RestClientError::GitCommand(_) => PyValueError::new_err(format!("{err:?}")),
+            RestClientError::OutputVar(e) => e.into(),
+        }
+    }
 }
 
 #[cfg(test)]

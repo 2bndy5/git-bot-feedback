@@ -74,11 +74,31 @@ export def "nur examples" [
 export def "nur docs" [
     --open (-o) # Open the built docs in your browser
 ] {
-    mut cmd = [cargo doc --no-deps --lib --all-features]
+    mut cmd = [cargo doc --no-deps --lib --features file-changes]
     if $open {
         $cmd = $cmd | append '--open'
     }
     run-cmd ...$cmd
+}
+
+# Rust API docs
+export def "nur docs py" [
+    --open (-o), # Open the built docs in your browser
+    --clean (-c), # Clear the build directory before building the docs and rebuild the python binding
+] {
+    mut sync_args = [uv sync --group docs]
+    if $clean {
+        $sync_args = $sync_args | append [--reinstall-package git-bot-feedback]
+        if ("docs/_build/html" | path exists) {
+            rm -r docs/_build/html
+        }
+    }
+    run-cmd ...$sync_args
+
+    run-cmd uv run sphinx-build docs docs/_build/html
+    if $open and ("docs/_build/html/index.html" | path exists) {
+        start docs/_build/html/index.html
+    }
 }
 
 
@@ -86,7 +106,7 @@ export def "nur docs" [
 export def "nur lint" [
     --check (-c) # Check only, do not apply fixes
 ] {
-    let clippy_args = [cargo, clippy, --features, file-changes --all-targets]
+    let clippy_args = [cargo, clippy, --workspace, --features, file-changes --all-targets]
     if $check {
         run-cmd ...$clippy_args -- -D warnings
         run-cmd cargo fmt -- --check
