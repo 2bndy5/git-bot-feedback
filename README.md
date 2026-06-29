@@ -41,7 +41,7 @@ The following is just a list of git servers that are planned (in order or priori
 - [ ] Gitea
 - [ ] BitBucket
 
-## GPL license
+## LGPL license
 
 This project is licensed under [LGPL-3.0-or-later].
 

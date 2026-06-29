@@ -35,8 +35,8 @@ The following is just a list of git servers that are planned (in order or priori
 - Gitea
 - BitBucket
 
-GPL license
------------
+LGPL license
+------------
 
 .. _LGPL-3.0-or-later: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE
 
