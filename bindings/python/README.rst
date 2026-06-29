@@ -38,21 +38,20 @@ The following is just a list of git servers that are planned (in order or priori
 GPL license
 -----------
 
-.. _GPL-3.0-or-later: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE
+.. _LGPL-3.0-or-later: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE
 
-This project is licensed under `GPL-3.0-or-later`_.
+This project is licensed under `LGPL-3.0-or-later`_.
 
 Since this library ultimately requires write access to
 users' projects (to allow posting comments),
 it could easily be modified with malicious intent.
 
-By using the `GPL-3.0-or-later`_ license,
+By using the `LGPL-3.0-or-later`_ license,
 we can offer some assurance and help safeguard end-users' data/privacy
 because the following conditions must be met:
 
 - the source code is publicly available
 - any redistributed forms must state their modifications (if any)
-- any redistributed forms must use the same `GPL-3.0-or-later`_ license
 
 .. |docs-badge| image:: https://img.shields.io/github/deployments/2bndy5/git-bot-feedback/github-pages?logo=github&label=docs
    :alt: GitHub pages

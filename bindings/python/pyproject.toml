@@ -4,11 +4,10 @@ build-backend = "maturin"
 
 [project]
 name = "git-bot-feedback"
-dynamic = ["version"]
+dynamic = ["version", "license"]
 description = "A Python library (written in Rust) designed for CI tools to easily submit feedback on a git server."
 readme = "README.rst"
 keywords = ["git", "client", "github", "bot", "rust"]
-license = {text = "GPL-3.0-or-later"}
 requires-python = ">=3.10"
 authors = [
     # spell-checker: disable-next-line

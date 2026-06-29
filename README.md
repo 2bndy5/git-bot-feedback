@@ -43,19 +43,18 @@ The following is just a list of git servers that are planned (in order or priori
 
 ## GPL license
 
-This project is licensed under [GPL-3.0-or-later].
+This project is licensed under [LGPL-3.0-or-later].
 
 Since this library ultimately requires write access to
 users' projects (to allow posting comments),
 it could easily be modified with malicious intent.
 
-By using the [GPL-3.0-or-later] license,
+By using the [LGPL-3.0-or-later] license,
 we can offer some assurance and help safeguard end-users' data/privacy
 because the following conditions must be met:
 
 - the source code is publicly available
 - any redistributed forms must state their modifications (if any)
-- any redistributed forms must use the same [GPL-3.0-or-later] license
 
 [codecov-badge]: https://codecov.io/gh/2bndy5/git-bot-feedback/graph/badge.svg?token=T3FRIJ64W0
 [codecov-link]: https://app.codecov.io/gh/2bndy5/git-bot-feedback
@@ -67,6 +66,6 @@ because the following conditions must be met:
 [docs-rs-link]: https://docs.rs/git-bot-feedback
 [dep-features]: https://doc.rust-lang.org/cargo/reference/features.html#dependency-features
 [reqwest-docs]: https://docs.rs/reqwest/latest/reqwest/#optional-features
-[GPL-3.0-or-later]: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE
+[LGPL-3.0-or-later]: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE
 [license-badge]: https://img.shields.io/github/license/2bndy5/git-bot-feedback
 [license-link]: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE
