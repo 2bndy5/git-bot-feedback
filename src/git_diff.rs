@@ -46,13 +46,13 @@ fn get_filename_from_front_matter(front_matter: &str) -> Result<Option<&str>, Di
     if let Some(captures) = diff_file_name.captures(front_matter)
         && let Some(name) = captures.get(1)
     {
-        return Ok(Some(name.as_str()));
+        return Ok(Some(name.as_str().trim_end_matches(['\r', '\n'])));
     }
     if front_matter.starts_with("similarity")
         && let Some(captures) = diff_renamed_file.captures(front_matter)
         && let Some(name) = captures.get(1)
     {
-        return Ok(Some(name.as_str()));
+        return Ok(Some(name.as_str().trim_end_matches(['\r', '\n'])));
     }
     if !diff_binary_file.is_match(front_matter) {
         log::warn!("Unrecognized diff starting with:\n{}", front_matter);
