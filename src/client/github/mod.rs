@@ -212,9 +212,8 @@ impl RestApiClient for GithubApiClient {
         };
         let mut url = Some(Url::parse_with_params(url.as_str(), &[("page", "1")])?);
         let mut files: HashMap<String, FileDiffLines> = HashMap::new();
-        while let Some(ref endpoint) = url {
-            let request =
-                self.make_api_request(&self.client, endpoint.to_owned(), Method::GET, None, None)?;
+        while let Some(endpoint) = url.take() {
+            let request = self.make_api_request(&self.client, endpoint, Method::GET, None, None)?;
             let response = self
                 .send_api_request(&self.client, request, &self.rate_limit_headers)
                 .await

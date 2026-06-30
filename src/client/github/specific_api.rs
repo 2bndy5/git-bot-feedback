@@ -146,9 +146,8 @@ impl GithubApiClient {
             if self.is_pr_event() { "/issues" } else { "" },
         );
         let base_comment_url = self.api_url.join(&repo)?;
-        while let Some(ref endpoint) = comments_url {
-            let request =
-                self.make_api_request(&self.client, endpoint.to_owned(), Method::GET, None, None)?;
+        while let Some(endpoint) = comments_url.take() {
+            let request = self.make_api_request(&self.client, endpoint, Method::GET, None, None)?;
             let result = self
                 .send_api_request(&self.client, request, &self.rate_limit_headers)
                 .await;
