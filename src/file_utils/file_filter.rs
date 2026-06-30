@@ -233,7 +233,7 @@ impl FileFilter {
                 .to_string();
             if !self.extensions.contains(&extension) {
                 log::debug!(
-                    "File {} has an undesired file extensions.",
+                    "File {} has an undesired file extension.",
                     file_path.to_string_lossy()
                 );
                 return false;
