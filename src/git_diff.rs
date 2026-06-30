@@ -55,7 +55,7 @@ fn get_filename_from_front_matter(front_matter: &str) -> Result<Option<&str>, Di
         return Ok(Some(name.as_str()));
     }
     if !diff_binary_file.is_match(front_matter) {
-        log::warn!("Unrecognized diff starting with:\n{}", front_matter);
+        return Err(DiffError::MalformedDiffError(front_matter.to_string()));
     }
     Ok(None)
 }
@@ -145,7 +145,21 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use super::parse_diff;
-    use crate::{FileFilter, LinesChangedOnly};
+    use crate::{FileFilter, LinesChangedOnly, error::DiffError};
+
+    const BAD_DIFF: &str = r#"{"message":"Resource not accessible by integration"}"#;
+
+    #[test]
+    fn bad_diff() {
+        let files = parse_diff(
+            BAD_DIFF,
+            &FileFilter::new(&[], &["rs"], None),
+            &LinesChangedOnly::Diff,
+        );
+        let e = files.unwrap_err();
+        assert!(matches!(e, DiffError::MalformedDiffError(_)));
+        assert!(e.to_string().ends_with(BAD_DIFF));
+    }
 
     const RENAMED_DIFF: &str = r#"diff --git a/tests/demo/some source.cpp b/tests/demo/some source.c
 similarity index 100%
