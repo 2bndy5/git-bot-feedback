@@ -1,13 +1,14 @@
+#![cfg(feature = "github")]
 use chrono::Utc;
 use git_bot_feedback::{
     RestClientError, ReviewAction, ReviewComment, ReviewOptions, client::init_client,
 };
 use mockito::{Matcher, Server};
-use std::{collections::HashMap, env, fmt::Display, fs, io::Write, path::Path};
+use std::{collections::HashMap, env, fs, io::Write, path::Path};
 use tempfile::{NamedTempFile, TempDir};
 
 mod common;
-use common::logger_init;
+use common::{EventType, logger_init};
 
 const MARKER: &str = "<!-- git-bot-feedback -->\n";
 const SHA: &str = "deadbeef";
@@ -23,21 +24,6 @@ const QUERY_REVIEW_THREADS: &str = r#"(?s).*"query":"query.*reviewThreads.*"#;
 const MUTATION_DELETE: &str = r#"(?s).*"query":"mutation.*deletePullRequestReviewComment.*"#;
 const MUTATION_RESOLVE_THREAD: &str = r#"(?s).*"query":"mutation.*resolveReviewThread.*"#;
 const MUTATION_HIDE_SUMMARY: &str = r#"(?s).*"query":"mutation.*minimizeComment.*"#;
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-enum EventType {
-    Push,
-    PullRequest,
-}
-
-impl Display for EventType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Push => write!(f, "push"),
-            Self::PullRequest => write!(f, "pull_request"),
-        }
-    }
-}
 
 struct TestParams {
     event_t: EventType,

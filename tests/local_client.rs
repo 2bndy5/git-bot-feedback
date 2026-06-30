@@ -1,7 +1,7 @@
 use chrono::Utc;
 use git_bot_feedback::{
-    FileAnnotation, FileFilter, OutputVariable, RestApiClient, RestApiRateLimitHeaders,
-    RestClientError, ReviewOptions, ThreadCommentOptions,
+    FileAnnotation, OutputVariable, RestApiClient, RestApiRateLimitHeaders, RestClientError,
+    ReviewOptions, ThreadCommentOptions,
     client::{LocalClient, init_client},
 };
 use mockito::{Matcher, Server};
@@ -388,8 +388,11 @@ async fn list_file_changes() {
     assert_eq!(changes.len(), 2);
 }
 
+#[cfg(feature = "file-changes")]
 #[test]
 fn walk_dir_strip_prefix() {
+    use git_bot_feedback::FileFilter;
+
     let extensions = vec!["json"];
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);

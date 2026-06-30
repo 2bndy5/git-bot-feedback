@@ -1,7 +1,7 @@
-#![cfg(feature = "file-changes")]
+#![cfg(all(feature = "file-changes", feature = "github"))]
 use chrono::Utc;
 mod common;
-use common::logger_init;
+use common::{EventType, logger_init};
 use mockito::{Matcher, Server};
 use tempfile::{NamedTempFile, TempDir};
 
@@ -9,13 +9,6 @@ use git_bot_feedback::{
     DiffHunkHeader, FileFilter, LinesChangedOnly, RestClientError, client::init_client,
 };
 use std::{env, io::Write, path::Path};
-
-#[derive(PartialEq, Default)]
-enum EventType {
-    #[default]
-    Push,
-    PullRequest,
-}
 
 #[derive(Default)]
 struct TestParams {

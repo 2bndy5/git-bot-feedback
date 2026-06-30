@@ -1,3 +1,4 @@
+#![cfg(feature = "github")]
 use git_bot_feedback::{OutputVariable, RestClientError, client::init_client};
 use mockito::Server;
 use std::{env, io::Read, path::Path};

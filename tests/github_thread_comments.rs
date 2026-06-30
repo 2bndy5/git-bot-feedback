@@ -1,13 +1,14 @@
+#![cfg(feature = "github")]
 use chrono::Utc;
 use git_bot_feedback::{
     CommentKind, CommentPolicy, RestClientError, ThreadCommentOptions, client::init_client,
 };
 use mockito::{Matcher, Server};
-use std::{env, fmt::Display, io::Write, path::Path};
+use std::{env, io::Write, path::Path};
 use tempfile::{NamedTempFile, TempDir};
 
 mod common;
-use common::logger_init;
+use common::{EventType, logger_init};
 
 const MARKER: &str = "<!-- git-bot-feedback -->\n";
 const SHA: &str = "deadbeef";
@@ -18,21 +19,6 @@ const MOCK_ASSETS_PATH: &str = "tests/assets/thread_comment/github/";
 
 const RESET_RATE_LIMIT_HEADER: &str = "x-ratelimit-reset";
 const REMAINING_RATE_LIMIT_HEADER: &str = "x-ratelimit-remaining";
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-enum EventType {
-    Push,
-    PullRequest,
-}
-
-impl Display for EventType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Push => write!(f, "push"),
-            Self::PullRequest => write!(f, "pull_request"),
-        }
-    }
-}
 
 struct TestParams {
     event_t: EventType,
