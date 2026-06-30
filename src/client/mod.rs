@@ -49,12 +49,41 @@ pub(crate) const MAX_RETRIES: u8 = 5;
 /// A custom trait that templates necessary functionality with a Git server's REST API.
 #[async_trait]
 pub trait RestApiClient {
-    /// This prints a line to indicate the beginning of a related group of log statements.
+    /// This prints a line to indicate the beginning of a related group of [`log`] statements.
+    ///
+    /// For apps' [`log`] implementations, this function's [`log::info`] output needs to have
+    /// no prefixed data.
+    /// Such behavior can be identified by the log target `"CI_LOG_GROUPING"`.
+    ///
+    /// ```
+    /// # struct MyAppLogger;
+    /// impl log::Log for MyAppLogger {
+    /// #    fn enabled(&self, metadata: &log::Metadata) -> bool {
+    /// #        log::max_level() > metadata.level()
+    /// #    }
+    ///     fn log(&self, record: &log::Record) {
+    ///         if record.target() == "CI_LOG_GROUPING" {
+    ///             println!("{}", record.args());
+    ///         } else {
+    ///             println!(
+    ///                 "[{:>5}]{}: {}",
+    ///                 record.level().as_str(),
+    ///                 record.module_path().unwrap_or_default(),
+    ///                 record.args()
+    ///             );
+    ///         }
+    ///     }
+    /// #    fn flush(&self) {}
+    /// }
+    /// ```
     fn start_log_group(&self, name: &str) {
         log::info!(target: "CI_LOG_GROUPING", "start_log_group: {name}");
     }
 
-    /// This prints a line to indicate the ending of a related group of log statements.
+    /// This prints a line to indicate the ending of a related group of [`log`] statements.
+    ///
+    /// See also [`RestApiClient::start_log_group`] about special handling of
+    /// the log target `"CI_LOG_GROUPING"`.
     fn end_log_group(&self, name: &str) {
         log::info!(target: "CI_LOG_GROUPING", "end_log_group: {name}");
     }
