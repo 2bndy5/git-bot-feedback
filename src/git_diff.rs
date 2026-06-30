@@ -41,23 +41,24 @@ impl DiffHunkHeader {
 
 fn get_filename_from_front_matter(front_matter: &str) -> Result<Option<&str>, DiffError> {
     let diff_file_name = Regex::new(r"(?m)^\+\+\+\sb?/(.*)$")?;
-    let diff_renamed_file = Regex::new(r"(?m)^rename to (.*)$")?;
-    let diff_binary_file = Regex::new(r"(?m)^Binary\sfiles\s")?;
     if let Some(captures) = diff_file_name.captures(front_matter)
         && let Some(name) = captures.get(1)
     {
         return Ok(Some(name.as_str().trim_end_matches(['\r', '\n'])));
     }
+    let diff_renamed_file = Regex::new(r"(?m)^rename to (.*)$")?;
     if front_matter.starts_with("similarity")
         && let Some(captures) = diff_renamed_file.captures(front_matter)
         && let Some(name) = captures.get(1)
     {
         return Ok(Some(name.as_str().trim_end_matches(['\r', '\n'])));
     }
-    if !diff_binary_file.is_match(front_matter) {
-        log::warn!("Unrecognized diff starting with:\n{}", front_matter);
+    let diff_binary_file = Regex::new(r"(?m)^Binary\sfiles\s")?;
+    let diff_mode_only = Regex::new(r"(?x)\Aold\ mode\ [0-7]{6}\r?\nnew\ mode\ [0-7]{6}\r?\n?\z")?;
+    if diff_mode_only.is_match(front_matter) || diff_binary_file.is_match(front_matter) {
+        return Ok(None);
     }
-    Ok(None)
+    Err(DiffError::MalformedDiffError(front_matter.to_string()))
 }
 
 /// A regex pattern used in multiple functions
@@ -145,7 +146,21 @@ mod test {
     #![allow(clippy::unwrap_used)]
 
     use super::parse_diff;
-    use crate::{FileFilter, LinesChangedOnly};
+    use crate::{FileFilter, LinesChangedOnly, error::DiffError};
+
+    const BAD_DIFF: &str = r#"{"message":"Resource not accessible by integration"}"#;
+
+    #[test]
+    fn bad_diff() {
+        let files = parse_diff(
+            BAD_DIFF,
+            &FileFilter::new(&[], &["rs"], None),
+            &LinesChangedOnly::Diff,
+        );
+        let e = files.unwrap_err();
+        assert!(matches!(e, DiffError::MalformedDiffError(_)));
+        assert!(e.to_string().ends_with(BAD_DIFF));
+    }
 
     const RENAMED_DIFF: &str = r#"diff --git a/tests/demo/some source.cpp b/tests/demo/some source.c
 similarity index 100%
@@ -222,14 +237,17 @@ rename to /tests/demo/some source.c
         assert!(!files.is_empty());
     }
 
-    const BINARY_DIFF: &str = "diff --git a/some picture.png b/some picture.png\n\
+    const IGNORED_DIFF: &str = "diff --git a/some picture.png b/some picture.png\n\
                 new file mode 100644\n\
-                Binary files /dev/null and b/some picture.png differ\n";
+                Binary files /dev/null and b/some picture.png differ\n\
+                diff --git a/script.sh b/script.sh\n\
+                old mode 100644\n\
+                new mode 100755\n";
 
     #[test]
-    fn parse_binary_diff() {
+    fn parse_ignored_diff() {
         let files = parse_diff(
-            BINARY_DIFF,
+            IGNORED_DIFF,
             &FileFilter::new(&[], &["png"], None),
             &LinesChangedOnly::Diff,
         )

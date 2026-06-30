@@ -21,6 +21,10 @@ pub enum DiffError {
     /// An error emitted when failing to compile a Regular expression pattern.
     #[error("Failed to compile regex pattern: {0}")]
     RegExCompileFailed(#[from] regex::Error),
+
+    /// An error emitted when parsing a diff fails.
+    #[error("Unrecognized diff starting with: {0}")]
+    MalformedDiffError(String),
 }
 
 /// The possible errors emitted when validating an [`OutputVariable`](struct@crate::OutputVariable).
@@ -226,7 +230,9 @@ impl From<OutputVariableError> for PyErr {
 impl From<DiffError> for PyErr {
     fn from(e: DiffError) -> Self {
         match e {
-            DiffError::RegExCompileFailed(_) => PyValueError::new_err(format!("{e:?}")),
+            DiffError::RegExCompileFailed(_) | DiffError::MalformedDiffError(_) => {
+                PyValueError::new_err(format!("{e:?}"))
+            }
         }
     }
 }
