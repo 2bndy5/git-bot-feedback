@@ -430,9 +430,8 @@ impl GithubApiClient {
     ) -> Result<(), ClientError> {
         let mut next_page = Some(Url::parse_with_params(url.as_str(), [("page", "1")])?);
         let graphql_url = self.api_url.join("/graphql")?;
-        while let Some(url) = next_page {
-            let request =
-                self.make_api_request(&self.client, url.clone(), Method::GET, None, None)?;
+        while let Some(endpoint) = next_page.take() {
+            let request = self.make_api_request(&self.client, endpoint, Method::GET, None, None)?;
             let response = self
                 .send_api_request(&self.client, request, &self.rate_limit_headers)
                 .await;
