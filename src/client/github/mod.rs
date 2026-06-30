@@ -220,6 +220,11 @@ impl RestApiClient for GithubApiClient {
                 .await
                 .map_err(|e| e.add_request_context("get list of changed files"))?;
             url = self.try_next_page(response.headers());
+            if let Err(e) = response.error_for_status_ref() {
+                let body = response.text().await?;
+                log::error!("Failed to get list of changed files: {e:?}\n{body}");
+                return Err(ClientError::Request(e));
+            }
             let body = response.text().await?;
             let files_list = if !is_pr {
                 let json_value: serde_structs::PushEventFiles = serde_json::from_str(&body)

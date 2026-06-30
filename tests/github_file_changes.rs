@@ -23,6 +23,7 @@ struct TestParams {
     fail_serde_diff: bool,
     fail_serde_event_payload: bool,
     no_event_payload: bool,
+    fail_request: bool,
 }
 
 const REPO: &str = "2bndy5/git-bot-feedback";
@@ -111,7 +112,11 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             format!("commits/{SHA}")
         }
     );
-    let pg_count = if test_params.fail_serde_diff { 1 } else { 2 };
+    let pg_count = if test_params.fail_serde_diff || test_params.fail_request {
+        1
+    } else {
+        2
+    };
     for pg in 1..=pg_count {
         let link = if pg == 1 {
             format!("<{}{diff_end_point}?page=2>; rel=\"next\"", server.url())
@@ -129,6 +134,8 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             .with_header("link", link.as_str());
         if test_params.fail_serde_diff {
             mock = mock.with_body(MALFORMED_RESPONSE_PAYLOAD);
+        } else if test_params.fail_request {
+            mock = mock.with_status(404).with_body(MALFORMED_RESPONSE_PAYLOAD);
         } else {
             mock = mock.with_body_from_file(format!(
                 "{asset_path}/{}_files_pg{pg}.json",
@@ -154,7 +161,9 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
         .await;
     match files {
         Err(e) => {
-            if !test_params.fail_serde_diff {
+            if test_params.fail_request {
+                assert!(matches!(e, RestClientError::Request(_)));
+            } else if !test_params.fail_serde_diff {
                 panic!("Failed to get changed files: {e:?}");
             }
         }
@@ -166,13 +175,13 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
                     let diff_hunk = DiffHunkHeader {
                         old_start: 5,
                         old_lines: 10,
-                        new_start: 5,
-                        new_lines: 10,
+                        new_start: 5,  // don't care
+                        new_lines: 10, // don't care
                     };
                     assert!(diff_ctx.is_hunk_in_diff(&diff_hunk).is_some());
                     let diff_hunk = DiffHunkHeader {
-                        old_start: 5,
-                        old_lines: 0,
+                        old_start: 5, // don't care
+                        old_lines: 0, // this is why we don't care
                         new_start: 4,
                         new_lines: 12,
                     };
@@ -243,6 +252,16 @@ async fn no_event_payload() {
     test_get_changes(&TestParams {
         event_t: EventType::PullRequest,
         no_event_payload: true,
+        ..Default::default()
+    })
+    .await
+}
+
+#[tokio::test]
+async fn fail_request() {
+    test_get_changes(&TestParams {
+        event_t: EventType::PullRequest,
+        fail_request: true,
         ..Default::default()
     })
     .await
