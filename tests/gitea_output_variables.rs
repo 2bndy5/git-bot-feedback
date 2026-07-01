@@ -1,4 +1,4 @@
-#![cfg(feature = "github")]
+#![cfg(feature = "gitea")]
 use git_bot_feedback::{OutputVariable, RestClientError, client::init_client};
 use mockito::Server;
 use std::{env, io::Read, path::Path};
@@ -13,6 +13,7 @@ struct TestParams {
     bad_var: bool,
     empty_pairs: bool,
 }
+
 const REPO: &str = "2bndy5/git-bot-feedback";
 const SHA: &str = "DEADBEEF";
 
@@ -21,15 +22,17 @@ const VAR_VALUE: &str = "some data";
 
 async fn append_output_vars(test_params: TestParams) -> String {
     let tmp_dir = tempdir().unwrap();
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
     let mut out_var_path = NamedTempFile::new_in(tmp_dir.path()).unwrap();
     if test_params.absent {
         unsafe {
-            env::remove_var("GITHUB_OUTPUT");
+            env::remove_var("GITEA_OUTPUT");
         }
     } else {
         unsafe {
             env::set_var(
-                "GITHUB_OUTPUT",
+                "GITEA_OUTPUT",
                 if test_params.fail_file {
                     Path::new("not-a-file.txt")
                 } else {
@@ -38,25 +41,6 @@ async fn append_output_vars(test_params: TestParams) -> String {
             );
         }
     }
-
-    unsafe {
-        env::set_var("GITHUB_ACTIONS", "true");
-        env::remove_var("GITEA_ACTIONS");
-        env::set_var("GITHUB_REPOSITORY", REPO);
-        env::set_var("GITHUB_SHA", SHA);
-        env::set_var("CI", "true");
-        env::set_var("GITHUB_EVENT_NAME", "push");
-    };
-    let server = Server::new_async().await;
-    unsafe {
-        env::set_var("GITHUB_API_URL", server.url());
-    }
-
-    env::set_current_dir(tmp_dir.path()).unwrap();
-    logger_init();
-    log::set_max_level(log::LevelFilter::Debug);
-    let client = init_client().unwrap();
-    assert_eq!(client.client_kind().as_str(), "github");
 
     let out_vars = if test_params.bad_var {
         [OutputVariable {
@@ -70,7 +54,21 @@ async fn append_output_vars(test_params: TestParams) -> String {
         }]
     };
     let mut out_vars_content = String::new();
-    match client.write_output_variables(if test_params.empty_pairs {
+
+    let server = Server::new_async().await;
+    unsafe {
+        env::set_var("GITEA_API_URL", server.url());
+        env::set_var("GITHUB_ACTIONS", "true");
+        env::set_var("GITEA_ACTIONS", "true");
+        env::set_var("GITEA_REPOSITORY", REPO);
+        env::set_var("GITEA_SHA", SHA);
+        env::set_var("CI", "true");
+        env::set_var("GITEA_EVENT_NAME", "push");
+    }
+    let gt_client = init_client().unwrap();
+    assert_eq!(gt_client.client_kind(), "gitea");
+
+    match gt_client.write_output_variables(if test_params.empty_pairs {
         &[]
     } else {
         &out_vars
@@ -81,13 +79,17 @@ async fn append_output_vars(test_params: TestParams) -> String {
         Err(e) => {
             eprintln!("Encountered error: {e}");
             if test_params.fail_file {
-                assert!(matches!(e, RestClientError::Io { .. }));
+                assert!(
+                    matches!(e, RestClientError::Io { .. }),
+                    "Expected Io error, got: {e:?}"
+                );
             } else if test_params.bad_var {
-                assert!(matches!(e, RestClientError::OutputVar { .. }));
-            } else if test_params.absent {
-                assert!(matches!(e, RestClientError::EnvVar { .. }));
+                assert!(
+                    matches!(e, RestClientError::OutputVar(_)),
+                    "Expected OutputVar error, got: {e:?}"
+                );
             } else {
-                panic!("Unexpected failure to write to GITHUB_OUTPUT");
+                panic!("Unexpected failure to write to GITEA_OUTPUT");
             }
         }
     }

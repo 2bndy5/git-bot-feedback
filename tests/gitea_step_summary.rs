@@ -1,15 +1,15 @@
-#![cfg(feature = "github")]
-use git_bot_feedback::{RestClientError, client::init_client};
+#![cfg(feature = "gitea")]
+use git_bot_feedback::{RestApiClient, RestClientError, client::GiteaApiClient};
 use mockito::Server;
 use std::{env, io::Read, path::Path};
 use tempfile::{NamedTempFile, tempdir};
 mod common;
 use common::logger_init;
 
+const COMMENT: &str = "Some comment text";
+
 const REPO: &str = "2bndy5/git-bot-feedback";
 const SHA: &str = "DEADBEEF";
-
-const COMMENT: &str = "Some comment text";
 
 #[derive(Debug, Default)]
 struct TestParams {
@@ -19,15 +19,17 @@ struct TestParams {
 
 async fn append_summary(test_params: TestParams) -> String {
     let tmp_dir = tempdir().unwrap();
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
     let mut step_summary_path = NamedTempFile::new_in(tmp_dir.path()).unwrap();
     if test_params.absent {
         unsafe {
-            env::remove_var("GITHUB_STEP_SUMMARY");
+            env::remove_var("GITEA_STEP_SUMMARY");
         }
     } else {
         unsafe {
             env::set_var(
-                "GITHUB_STEP_SUMMARY",
+                "GITEA_STEP_SUMMARY",
                 if test_params.fail_summary {
                     Path::new("not-a-file.txt")
                 } else {
@@ -36,39 +38,28 @@ async fn append_summary(test_params: TestParams) -> String {
             );
         }
     }
+    let mut step_summary_content = String::new();
 
-    unsafe {
-        env::set_var("GITHUB_ACTIONS", "true");
-        env::remove_var("GITEA_ACTIONS");
-        env::set_var("GITHUB_REPOSITORY", REPO);
-        env::set_var("GITHUB_SHA", SHA);
-        env::set_var("CI", "true");
-        env::set_var("GITHUB_EVENT_NAME", "push");
-    };
     let server = Server::new_async().await;
     unsafe {
-        env::set_var("GITHUB_API_URL", server.url());
+        env::set_var("GITEA_API_URL", server.url());
+        env::set_var("GITEA_ACTIONS", "true");
+        env::set_var("GITEA_REPOSITORY", REPO);
+        env::set_var("GITEA_SHA", SHA);
+        env::set_var("CI", "true");
+        env::set_var("GITEA_EVENT_NAME", "push");
     }
+    let gt_client = GiteaApiClient::new().unwrap();
 
-    env::set_current_dir(tmp_dir.path()).unwrap();
-    logger_init();
-    log::set_max_level(log::LevelFilter::Debug);
-    let client = init_client().unwrap();
-
-    let mut step_summary_content = String::new();
-    match client.append_step_summary(COMMENT) {
+    match gt_client.append_step_summary(COMMENT) {
         Ok(_) => {
             step_summary_path
                 .read_to_string(&mut step_summary_content)
                 .unwrap();
         }
         Err(e) => {
-            assert!(test_params.fail_summary || test_params.absent);
-            if test_params.absent {
-                assert!(matches!(e, RestClientError::EnvVar { .. }));
-            } else {
-                assert!(matches!(e, RestClientError::Io { .. }));
-            }
+            assert!(test_params.fail_summary);
+            assert!(matches!(e, RestClientError::Io { task: _, source: _ }));
         }
     }
     step_summary_content

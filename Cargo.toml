@@ -58,8 +58,11 @@ pyo3 = ["dep:pyo3"]
 # GitHub implementation/support
 github = []
 
+# Gitea implementation/support
+gitea = []
+
 # features enabled by default
-default = ["github"]
+default = ["github", "gitea"]
 
 # optional feature to silence a compiler error if/when
 # no features enable any git server implementations

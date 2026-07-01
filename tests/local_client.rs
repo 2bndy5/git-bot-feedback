@@ -1,3 +1,5 @@
+use std::env;
+
 use chrono::Utc;
 use git_bot_feedback::{
     FileAnnotation, OutputVariable, RestApiClient, RestApiRateLimitHeaders, RestClientError,
@@ -79,8 +81,9 @@ async fn simulate_rate_limit(test_params: &RateLimitTestParams) {
         mock.create();
     }
     unsafe {
-        // prevent using GithubApiClient in these tests
-        std::env::set_var("GITHUB_ACTIONS", "false");
+        // prevent using git-server clients in these tests
+        env::remove_var("GITHUB_ACTIONS");
+        env::remove_var("GITEA_ACTIONS");
     }
     let test_client = init_client().unwrap();
     assert!(!test_client.is_debug_enabled());

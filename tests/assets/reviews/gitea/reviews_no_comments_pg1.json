@@ -1,0 +1,22 @@
+[
+  {
+    "id": 2518109626,
+    "body": "<!-- git-bot-feedback -->\noutdated review",
+    "user": {
+      "login": "gitea-actions[bot]",
+      "id": 41898282
+    },
+    "state": "COMMENT",
+    "comments_count": 0
+  },
+  {
+    "id": 2518109626,
+    "body": "LGTM",
+    "user": {
+      "login": "gitea-actions[bot]",
+      "id": 41898282
+    },
+    "state": "COMMENT",
+    "comments_count": 0
+  }
+]

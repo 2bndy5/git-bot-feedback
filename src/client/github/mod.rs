@@ -14,11 +14,14 @@ use reqwest::{Client, Method, Url};
 
 use crate::{
     FileAnnotation, OutputVariable, ReviewAction, ReviewOptions, ThreadCommentOptions,
-    client::{ClientError, RestApiClient, RestApiRateLimitHeaders},
+    client::{
+        ClientError, RestApiClient, RestApiRateLimitHeaders,
+        common::{PullRequestInfo, PullRequestState},
+    },
 };
 mod graphql;
 mod serde_structs;
-use serde_structs::{FullReview, PullRequestInfo, PullRequestState, ReviewDiffComment};
+use serde_structs::{FullReview, ReviewDiffComment};
 mod specific_api;
 
 #[cfg(feature = "file-changes")]
@@ -220,9 +223,12 @@ impl RestApiClient for GithubApiClient {
                 .map_err(|e| e.add_request_context("get list of changed files"))?;
             url = self.try_next_page(response.headers());
             if let Err(e) = response.error_for_status_ref() {
-                let body = response.text().await?;
-                log::error!("Failed to get list of changed files: {e:?}\n{body}");
-                return Err(ClientError::Request(e));
+                if let Ok(body) = response.text().await {
+                    log::error!("Failed to get list of changed files: {e:?}\n{body}");
+                }
+                return Err(
+                    ClientError::Request(e).add_request_context("get list of changed files")
+                );
             }
             let body = response.text().await?;
             let files_list = if !is_pr {

@@ -7,6 +7,11 @@ use reqwest::{Client, Method, Request, Response, Url, header::HeaderMap};
 
 use crate::{FileAnnotation, OutputVariable, RestClientError, ReviewOptions, ThreadCommentOptions};
 
+#[cfg(feature = "gitea")]
+mod gitea;
+#[cfg(feature = "gitea")]
+pub use gitea::GiteaApiClient;
+
 #[cfg(feature = "github")]
 mod github;
 #[cfg(feature = "github")]
@@ -15,7 +20,13 @@ pub use github::GithubApiClient;
 mod local;
 pub use local::LocalClient;
 
-#[cfg(not(any(feature = "github", feature = "custom-git-server-impl")))]
+mod common;
+
+#[cfg(not(any(
+    feature = "github",
+    feature = "gitea",
+    feature = "custom-git-server-impl",
+)))]
 compile_error!(
     "At least one Git server implementation (eg. 'github') should be enabled via `features`"
 );
@@ -335,7 +346,13 @@ pub trait RestApiClient {
 ///
 /// - the `GITHUB_ACTIONS` environment variable is not set
 pub fn init_client() -> Result<Box<dyn RestApiClient + Send + Sync>, ClientError> {
-    if env::var("GITHUB_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true") {
+    if cfg!(feature = "gitea")
+        && env::var("GITEA_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true")
+    {
+        Ok(Box::new(GiteaApiClient::new()?))
+    } else if cfg!(feature = "github")
+        && env::var("GITHUB_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true")
+    {
         Ok(Box::new(GithubApiClient::new()?))
     } else {
         Ok(Box::new(LocalClient))

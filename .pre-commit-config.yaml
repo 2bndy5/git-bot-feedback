@@ -5,17 +5,20 @@ repos:
   rev: v6.0.0
   hooks:
     - id: trailing-whitespace
+      exclude: ^tests/assets/.*.diff$
     - id: end-of-file-fixer
+      exclude: ^tests/assets/.*.diff$
     - id: check-yaml
     - id: check-toml
     - id: check-added-large-files
     - id: mixed-line-ending
       args: ['--fix=lf']
+      exclude: ^tests/assets/.*.diff$
 - repo: https://github.com/streetsidesoftware/cspell-cli
   rev: v10.0.1
   hooks:
     - id: cspell
-      exclude: CHANGELOG.md$
+      exclude: CHANGELOG.md$|.*\.diff$
 - repo: https://github.com/astral-sh/ruff-pre-commit
   # Ruff version.
   rev: v0.15.20
