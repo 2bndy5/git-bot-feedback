@@ -346,12 +346,14 @@ pub trait RestApiClient {
 ///
 /// - the `GITHUB_ACTIONS` environment variable is not set
 pub fn init_client() -> Result<Box<dyn RestApiClient + Send + Sync>, ClientError> {
-    if env::var("GITHUB_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true") {
-        Ok(Box::new(GithubApiClient::new()?))
-    } else if cfg!(feature = "gitea")
+    if cfg!(feature = "gitea")
         && env::var("GITEA_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true")
     {
         Ok(Box::new(GiteaApiClient::new()?))
+    } else if cfg!(feature = "github")
+        && env::var("GITHUB_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true")
+    {
+        Ok(Box::new(GithubApiClient::new()?))
     } else {
         Ok(Box::new(LocalClient))
     }

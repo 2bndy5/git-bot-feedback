@@ -1,5 +1,5 @@
 #![cfg(feature = "gitea")]
-use git_bot_feedback::{OutputVariable, RestApiClient, RestClientError, client::GiteaApiClient};
+use git_bot_feedback::{OutputVariable, RestClientError, client::init_client};
 use mockito::Server;
 use std::{env, io::Read, path::Path};
 use tempfile::{NamedTempFile, tempdir};
@@ -58,13 +58,14 @@ async fn append_output_vars(test_params: TestParams) -> String {
     let server = Server::new_async().await;
     unsafe {
         env::set_var("GITEA_API_URL", server.url());
+        env::set_var("GITHUB_ACTIONS", "true");
         env::set_var("GITEA_ACTIONS", "true");
         env::set_var("GITEA_REPOSITORY", REPO);
         env::set_var("GITEA_SHA", SHA);
         env::set_var("CI", "true");
         env::set_var("GITEA_EVENT_NAME", "push");
     }
-    let gt_client = GiteaApiClient::new().unwrap();
+    let gt_client = init_client().unwrap();
 
     match gt_client.write_output_variables(if test_params.empty_pairs {
         &[]

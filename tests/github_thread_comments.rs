@@ -61,6 +61,7 @@ impl Default for TestParams {
 async fn setup(lib_root: &Path, test_params: &TestParams) {
     unsafe {
         env::set_var("GITHUB_ACTIONS", "true");
+        env::remove_var("GITEA_ACTIONS");
         env::set_var(
             "GITHUB_EVENT_NAME",
             test_params.event_t.to_string().as_str(),

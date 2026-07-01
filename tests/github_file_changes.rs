@@ -45,6 +45,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
 
     unsafe {
         env::set_var("GITHUB_ACTIONS", "true");
+        env::remove_var("GITEA_ACTIONS");
         env::set_var("GITHUB_REPOSITORY", REPO);
         env::set_var("GITHUB_SHA", SHA);
         env::set_var("GITHUB_TOKEN", TOKEN);
