@@ -6,11 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback-py/v0.2.0] - 2026-07-01
+
+### <!-- 1 --> 🚀 Added
+
+- Add Gitea support by @2bndy5 in [#94](https://github.com/2bndy5/git-bot-feedback/pull/94)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Fail on unsuccessful return code from request for file changes by @2bndy5 in [#95](https://github.com/2bndy5/git-bot-feedback/pull/95)
+- Trim line endings from file names when parsing diff strings by @2bndy5 in [#97](https://github.com/2bndy5/git-bot-feedback/pull/97)
+- Fail on parsing erroneous diff by @2bndy5 in [#98](https://github.com/2bndy5/git-bot-feedback/pull/98)
+- Move option's value instead of cloning it by @2bndy5 in [#99](https://github.com/2bndy5/git-bot-feedback/pull/99)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.0 by @2bndy5 in [`d6070e7`](https://github.com/2bndy5/git-bot-feedback/commit/d6070e7d41cdc8a1c01c5f3a69a16aa8bdff0d25)
+
+### <!-- 8 --> 📝 Documentation
+
+- Expand on some methods' doc comments by @2bndy5 in [#96](https://github.com/2bndy5/git-bot-feedback/pull/96)
+
+[git-bot-feedback-py/v0.2.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.1.0...git-bot-feedback-py/v0.2.0
+
+Full commit diff: [`git-bot-feedback-py/v0.1.0...git-bot-feedback-py/v0.2.0`][git-bot-feedback-py/v0.2.0]
+
 ## [git-bot-feedback-py/v0.1.0] - 2026-06-29
 
 ### <!-- 6 --> 📦 Dependency updates
 
 - Bump version to git-bot-feedback/v0.7.1 by @2bndy5 in [`5011a04`](https://github.com/2bndy5/git-bot-feedback/commit/5011a04d4806b08e54a1ed2ba456badb7622e682)
+- Bump version to git-bot-feedback-py/v0.1.0 by @2bndy5 in [`c02c181`](https://github.com/2bndy5/git-bot-feedback/commit/c02c181b8ef8f5c3f825c334e02af2765c2a5cea)
 
 ### <!-- 9 --> 🗨️ Changed
 
