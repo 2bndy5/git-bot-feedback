@@ -66,6 +66,7 @@ async fn append_output_vars(test_params: TestParams) -> String {
         env::set_var("GITEA_EVENT_NAME", "push");
     }
     let gt_client = init_client().unwrap();
+    assert_eq!(gt_client.client_kind(), "gitea");
 
     match gt_client.write_output_variables(if test_params.empty_pairs {
         &[]
@@ -78,9 +79,15 @@ async fn append_output_vars(test_params: TestParams) -> String {
         Err(e) => {
             eprintln!("Encountered error: {e}");
             if test_params.fail_file {
-                assert!(matches!(e, RestClientError::Io { task: _, source: _ }));
+                assert!(
+                    matches!(e, RestClientError::Io { .. }),
+                    "Expected Io error, got: {e:?}"
+                );
             } else if test_params.bad_var {
-                assert!(matches!(e, RestClientError::OutputVar(_)));
+                assert!(
+                    matches!(e, RestClientError::OutputVar(_)),
+                    "Expected OutputVar error, got: {e:?}"
+                );
             } else {
                 panic!("Unexpected failure to write to GITEA_OUTPUT");
             }

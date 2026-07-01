@@ -53,6 +53,7 @@ impl From<&crate::ReviewComment> for ReviewDiffComment {
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone, Copy)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ReviewState {
     /// The review is an approval.
     Approved,

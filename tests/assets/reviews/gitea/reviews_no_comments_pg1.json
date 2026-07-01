@@ -6,7 +6,7 @@
       "login": "gitea-actions[bot]",
       "id": 41898282
     },
-    "state": "Comment",
+    "state": "COMMENT",
     "comments_count": 0
   },
   {
@@ -16,7 +16,7 @@
       "login": "gitea-actions[bot]",
       "id": 41898282
     },
-    "state": "Comment",
+    "state": "COMMENT",
     "comments_count": 0
   }
 ]

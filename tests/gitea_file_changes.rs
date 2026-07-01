@@ -6,7 +6,8 @@ use mockito::Server;
 use tempfile::{NamedTempFile, TempDir};
 
 use git_bot_feedback::{
-    DiffHunkHeader, FileFilter, LinesChangedOnly, RestApiClient, client::GiteaApiClient,
+    DiffHunkHeader, FileFilter, LinesChangedOnly, RestApiClient, RestClientError,
+    client::GiteaApiClient, error::DiffError,
 };
 use std::{env, io::Write, path::Path};
 
@@ -83,7 +84,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
 
     let mut mocks = vec![];
     let diff_end_point = format!(
-        "/repos/{REPO}/{}.diff",
+        "/api/v1/repos/{REPO}/{}.diff",
         if EventType::PullRequest == test_params.event_t {
             format!("pulls/{PR}")
         } else {
@@ -117,7 +118,20 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     assert!(file_filter.is_file_ignored(Path::new("./Cargo.toml")));
     match files {
         Err(e) => {
-            if !(test_params.fail_serde_diff || test_params.fail_request) {
+            if test_params.fail_request {
+                assert!(
+                    matches!(e, RestClientError::RequestContext { .. }),
+                    "Expected Request error, got: {e:?}"
+                );
+            } else if test_params.fail_serde_diff {
+                assert!(
+                    matches!(
+                        e,
+                        RestClientError::DiffError(DiffError::MalformedDiffError(_))
+                    ),
+                    "Expected DiffError::MalformedDiffError, got: {e:?}"
+                );
+            } else {
                 panic!("Failed to get changed files: {e:?}");
             }
         }

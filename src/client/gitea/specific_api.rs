@@ -37,8 +37,10 @@ impl GiteaApiClient {
             }
         };
         // GITEA_*** env vars cannot be overwritten in CI runners on GitHub.
-        let gh_api_url =
-            env::var("GITEA_API_URL").map_err(|e| ClientError::env_var("GITEA_API_URL", e))?;
+        let gh_api_url = format!(
+            "{}/api/v1/",
+            env::var("GITEA_API_URL").map_err(|e| ClientError::env_var("GITEA_API_URL", e))?
+        );
         let api_url = Url::parse(gh_api_url.as_str())?;
 
         Ok(Self {
@@ -116,7 +118,7 @@ impl GiteaApiClient {
                         .await;
                 }
                 Err(e) => {
-                    log::error!("Failed to post thread comment: {e:?}");
+                    return Err(e.add_request_context("post thread comment"));
                 }
             }
         }
@@ -140,8 +142,7 @@ impl GiteaApiClient {
                 .await;
             match result {
                 Err(e) => {
-                    log::error!("Failed to get list of existing thread comments: {e:?}");
-                    return Ok(comment_url);
+                    return Err(e.add_request_context("get list of existing thread comments"));
                 }
                 Ok(response) => {
                     if !response.status().is_success() {
@@ -157,10 +158,10 @@ impl GiteaApiClient {
                         serde_json::from_str::<Vec<ThreadComment>>(&response.text().await?);
                     match payload {
                         Err(e) => {
-                            log::error!(
-                                "Failed to deserialize list of existing thread comments: {e}"
-                            );
-                            continue;
+                            return Err(ClientError::json(
+                                "deserialize list of existing thread comments",
+                                e,
+                            ));
                         }
                         Ok(payload) => {
                             for comment in payload {
@@ -209,9 +210,9 @@ impl GiteaApiClient {
                                                 }
                                             }
                                             Err(e) => {
-                                                log::error!(
-                                                    "Failed to delete old thread comment: {e:?}"
-                                                )
+                                                return Err(e.add_request_context(
+                                                    "delete old thread comment",
+                                                ));
                                             }
                                         }
                                     }
@@ -250,16 +251,12 @@ impl GiteaApiClient {
                 .await;
             match result {
                 Err(e) => {
-                    log::error!("Failed to get comments for review {review_id}: {e:?}");
-                    continue;
+                    return Err(e.add_request_context("get comments for a review"));
                 }
                 Ok(response) => {
                     if !response.status().is_success() {
-                        self.log_response(
-                            response,
-                            &format!("Failed to get comments for review {review_id}"),
-                        )
-                        .await;
+                        self.log_response(response, "Failed to get comments for a review")
+                            .await;
                         continue;
                     }
                     comments_url = self.try_next_page(response.headers());
@@ -267,10 +264,7 @@ impl GiteaApiClient {
                         serde_json::from_str::<Vec<GiteaReviewComment>>(&response.text().await?);
                     match comments_payload {
                         Err(e) => {
-                            log::error!(
-                                "Failed to deserialize comments for review {review_id}: {e}"
-                            );
-                            continue;
+                            return Err(ClientError::json("deserialize comments for a review", e));
                         }
                         Ok(comments) => {
                             for comment in comments {
@@ -309,8 +303,7 @@ impl GiteaApiClient {
                 .await;
             match result {
                 Err(e) => {
-                    log::error!("Failed to get existing PR reviews: {e:?}");
-                    break;
+                    return Err(e.add_request_context("get existing PR reviews"));
                 }
                 Ok(response) => {
                     if !response.status().is_success() {
@@ -322,8 +315,7 @@ impl GiteaApiClient {
                     let payload = serde_json::from_str::<Vec<ReviewInfo>>(&response.text().await?);
                     match payload {
                         Err(e) => {
-                            log::error!("Failed to deserialize PR reviews: {e}");
-                            continue;
+                            return Err(ClientError::json("deserialize existing PR reviews", e));
                         }
                         Ok(payload) => {
                             for mut review in payload {
@@ -394,16 +386,11 @@ impl GiteaApiClient {
                 .await
             {
                 Ok(result) => {
-                    if !result.status().is_success() {
-                        self.log_response(result, "Failed to delete outdated review comment")
-                            .await;
-                    }
+                    self.log_response(result, "Failed to resolve outdated review comment")
+                        .await;
                 }
                 Err(e) => {
-                    log::error!(
-                        "Failed to delete outdated review comment {}: {e:?}",
-                        comment_id
-                    )
+                    return Err(e.add_request_context("resolve outdated review comment"));
                 }
             }
         }
@@ -419,7 +406,7 @@ impl GiteaApiClient {
                 let url =
                     Url::parse(format!("{base_url}/reviews/{review_id}/dismissals").as_str())?;
                 let body = serde_json::json!({
-                    "message": "Marked as outdated by git-bot-feedback",
+                    "message": "outdated review",
                     "priors": false // do not dismiss all prior reviews, only this one
                 });
                 let request = self.make_api_request(
@@ -437,12 +424,10 @@ impl GiteaApiClient {
                 .await
             {
                 Ok(result) => {
-                    if !result.status().is_success() {
-                        self.log_response(result, log_prompt).await;
-                    }
+                    self.log_response(result, log_prompt).await;
                 }
                 Err(e) => {
-                    log::error!("{log_prompt} {review_id}: {e:?}")
+                    return Err(e.add_request_context(log_prompt));
                 }
             }
         }

@@ -114,8 +114,11 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
 
     let mut mocks = vec![];
 
-    if test_params.event_t == EventType::PullRequest && !test_params.locked_pr {
-        let pr_endpoint = format!("/repos/{REPO}/issues/{PR}/comments");
+    if test_params.event_t == EventType::PullRequest
+        && !test_params.locked_pr
+        && !test_params.no_token
+    {
+        let pr_endpoint = format!("/api/v1/repos/{REPO}/issues/{PR}/comments");
         for pg in ["1", "2"] {
             let link = if pg == "1" {
                 format!("<{}{pr_endpoint}?page=2>; rel=\"next\"", server.url())
@@ -143,13 +146,16 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
                 mocks.push(mock.create());
                 break;
             }
-            mock = mock
-                .with_body_from_file(format!("{asset_path}pr_comments_pg{pg}.json"))
-                .with_status(200);
+            if test_params.bad_existing_comments {
+                mock = mock.with_body("BAD_JSON");
+                mocks.push(mock.create());
+                break;
+            }
+            mock = mock.with_body_from_file(format!("{asset_path}pr_comments_pg{pg}.json"));
             mocks.push(mock.create());
         }
     }
-    let comment_url = format!("/repos/{REPO}/issues/comments/76453652");
+    let comment_url = format!("/api/v1/repos/{REPO}/issues/comments/76453652");
 
     if !test_params.fail_get_existing_comments
         && !test_params.fail_get_existing_comments_500
@@ -187,27 +193,25 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
         CommentKind::Concerns => true,
         CommentKind::Lgtm => !test_params.no_lgtm,
     } && test_params.event_t == EventType::PullRequest
-        && !test_params.locked_pr;
+        && !test_params.locked_pr
+        && !test_params.bad_existing_comments
+        && !test_params.no_token;
     if posting_comment {
-        if test_params.bad_existing_comments
-            || test_params.fail_get_existing_comments
+        if test_params.fail_get_existing_comments
             || test_params.fail_get_existing_comments_500
             || test_params.comment_policy == CommentPolicy::Anew
-            || test_params.no_token
         {
-            let mut mock = server
+            let mock = server
                 .mock(
                     "POST",
-                    format!("/repos/{REPO}/issues/{PR}/comments").as_str(),
+                    format!("/api/v1/repos/{REPO}/issues/{PR}/comments").as_str(),
                 )
                 .match_body(new_comment_match)
                 .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
                 .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+                .match_header("Authorization", format!("token {TOKEN}").as_str())
                 .with_status(if test_params.fail_posting { 403 } else { 200 })
                 .create();
-            if !test_params.no_token {
-                mock = mock.match_header("Authorization", format!("token {TOKEN}").as_str());
-            }
             mocks.push(mock);
         } else {
             mocks.push(
@@ -233,7 +237,19 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
     client.start_log_group("posting comment");
     let result = client.post_thread_comment(opts).await;
     client.end_log_group("posting comment");
-    result.unwrap();
+    if test_params.bad_existing_comments {
+        assert!(
+            matches!(result, Err(RestClientError::Json { .. })),
+            "Expected Json error, got: {result:?}"
+        );
+    } else if test_params.no_token {
+        assert!(
+            matches!(result, Err(RestClientError::EnvVar { .. })),
+            "Expected EnvVar error, got: {result:?}"
+        );
+    } else {
+        result.unwrap();
+    }
     for mock in mocks {
         mock.assert();
     }
@@ -328,6 +344,7 @@ async fn update_pr_no_lgtm() {
 #[tokio::test]
 async fn fail_get_existing_comments() {
     test_comment(&TestParams {
+        event_t: EventType::PullRequest,
         fail_get_existing_comments: true,
         ..Default::default()
     })
@@ -337,6 +354,7 @@ async fn fail_get_existing_comments() {
 #[tokio::test]
 async fn fail_dismissal() {
     test_comment(&TestParams {
+        event_t: EventType::PullRequest,
         fail_dismissal: true,
         ..Default::default()
     })
@@ -366,6 +384,7 @@ async fn fail_dismissal_500() {
 #[tokio::test]
 async fn fail_posting() {
     test_comment(&TestParams {
+        event_t: EventType::PullRequest,
         fail_posting: true,
         ..Default::default()
     })
@@ -375,6 +394,7 @@ async fn fail_posting() {
 #[tokio::test]
 async fn bad_existing_comments() {
     test_comment(&TestParams {
+        event_t: EventType::PullRequest,
         bad_existing_comments: true,
         comment_kind: CommentKind::Lgtm,
         ..Default::default()
@@ -395,6 +415,7 @@ async fn bad_pr_info() {
 #[tokio::test]
 async fn no_token() {
     test_comment(&TestParams {
+        event_t: EventType::PullRequest,
         no_token: true,
         ..Default::default()
     })

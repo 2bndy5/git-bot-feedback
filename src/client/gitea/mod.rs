@@ -76,6 +76,7 @@ impl RestApiClient for GiteaApiClient {
                 if pr_info.locked {
                     return Ok(()); // cannot comment on locked PRs
                 }
+                env::var("GITEA_TOKEN").map_err(|e| ClientError::env_var("GITEA_TOKEN", e))?;
                 self.api_url.join(
                     format!("repos/{}/issues/{}/comments", self.repo, pr_info.number).as_str(),
                 )?
@@ -286,9 +287,10 @@ impl RestApiClient for GiteaApiClient {
             .send_api_request(&self.client, request, &self.rate_limit_headers)
             .await?;
         if let Err(e) = response.error_for_status_ref() {
-            let body = response.text().await?;
-            log::error!("Failed to get list of changed files: {e:?}\n{body}");
-            return Err(ClientError::Request(e));
+            if let Ok(body) = response.text().await {
+                log::error!("Failed to get list of changed files: {e:?}\n{body}");
+            }
+            return Err(ClientError::Request(e).add_request_context("get list of changed files"));
         }
         let body = (response.text()).await?.to_string();
         parse_diff(&body, file_filter, lines_changed_only).map_err(ClientError::DiffError)

@@ -45,10 +45,11 @@ struct TestParams {
     existing_reviews: ExistingReviews,
     is_draft: bool,
     is_locked: bool,
-    delete_review_comments: bool,
+    delete_reviews: bool,
     fail_dismissal: bool,
     fail_resolve_comment: bool,
     fail_get_review_comments: bool,
+    bad_json_review_comments: bool,
     review_with_no_comments: bool,
     paginate_review_comments: bool,
     no_token: bool,
@@ -61,10 +62,11 @@ impl Default for TestParams {
             existing_reviews: ExistingReviews::Happy,
             is_draft: false,
             is_locked: false,
-            delete_review_comments: false,
+            delete_reviews: false,
             fail_dismissal: false,
             fail_resolve_comment: false,
             fail_get_review_comments: false,
+            bad_json_review_comments: false,
             review_with_no_comments: false,
             paginate_review_comments: false,
             no_token: false,
@@ -185,7 +187,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
     client.set_user_agent(USER_AGENT).unwrap();
 
     let mut mocks = vec![];
-    let review_url_path = format!("/repos/{REPO}/pulls/{PR}/reviews");
+    let review_url_path = format!("/api/v1/repos/{REPO}/pulls/{PR}/reviews");
 
     let mut test_control_vars = TestControlVars {
         new_review_comments: vec![
@@ -239,19 +241,21 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                         .create(),
                 );
 
-                mocks.push(
-                    server
-                        .mock("GET", review_url_path.as_str())
-                        .match_header("User-Agent", USER_AGENT)
-                        .match_header("Accept", "application/json")
-                        .match_header("Authorization", format!("token {TOKEN}").as_str())
-                        .match_body(Matcher::Any)
-                        .match_query(Matcher::UrlEncoded("page".to_string(), "2".to_string()))
-                        .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
-                        .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
-                        .with_body_from_file(asset_path(lib_root, review_pg2_asset).as_str())
-                        .create(),
-                );
+                if !test_params.bad_json_review_comments {
+                    mocks.push(
+                        server
+                            .mock("GET", review_url_path.as_str())
+                            .match_header("User-Agent", USER_AGENT)
+                            .match_header("Accept", "application/json")
+                            .match_header("Authorization", format!("token {TOKEN}").as_str())
+                            .match_body(Matcher::Any)
+                            .match_query(Matcher::UrlEncoded("page".to_string(), "2".to_string()))
+                            .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+                            .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+                            .with_body_from_file(asset_path(lib_root, review_pg2_asset).as_str())
+                            .create(),
+                    );
+                }
 
                 if test_params.review_with_no_comments {
                     test_control_vars.mark_review_outdated(OUTDATED_REVIEW_ID);
@@ -271,6 +275,21 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                             .create(),
                     );
                     test_control_vars.mark_review_outdated(OUTDATED_REVIEW_ID);
+                } else if test_params.bad_json_review_comments {
+                    mocks.push(
+                        server
+                            .mock(
+                                "GET",
+                                format!("{review_url_path}/{OUTDATED_REVIEW_ID}/comments").as_str(),
+                            )
+                            .match_header("Accept", "application/json")
+                            .match_header("Authorization", format!("token {TOKEN}").as_str())
+                            .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+                            .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+                            .with_status(200)
+                            .with_body("TEST CONDITION TRIGGERED")
+                            .create(),
+                    );
                 } else {
                     let outdated_comments_asset = ASSET_REVIEW_COMMENTS_OUTDATED_PG1;
                     let outdated_review_comments =
@@ -294,7 +313,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                         .aggregate_review_comments(OUTDATED_REVIEW_ID, &outdated_review_comments);
                 }
 
-                if test_params.paginate_review_comments {
+                if !test_params.bad_json_review_comments && test_params.paginate_review_comments {
                     let reused_review_comments_pg1 =
                         load_json_array(lib_root, ASSET_REVIEW_COMMENTS_REUSED_PG1);
                     let reused_review_comments_pg2 =
@@ -347,7 +366,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                         REUSED_REVIEW_ID,
                         all_reused_review_comments.as_slice(),
                     );
-                } else {
+                } else if !test_params.bad_json_review_comments {
                     let all_reused_review_comments =
                         load_json_array(lib_root, ASSET_REVIEW_COMMENTS_REUSED_ALL);
                     mocks.push(
@@ -378,8 +397,10 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                         server
                             .mock(
                                 "POST",
-                                format!("/repos/{REPO}/pulls/{PR}/comments/{comment_id}/resolve")
-                                    .as_str(),
+                                format!(
+                                    "/api/v1/repos/{REPO}/pulls/{PR}/comments/{comment_id}/resolve"
+                                )
+                                .as_str(),
                             )
                             .match_header("Authorization", format!("token {TOKEN}").as_str())
                             .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
@@ -390,7 +411,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                 }
 
                 for review_id in &test_control_vars.outdated_review_ids {
-                    if test_params.delete_review_comments {
+                    if test_params.delete_reviews {
                         mocks.push(
                             server
                                 .mock("DELETE", format!("{review_url_path}/{review_id}").as_str())
@@ -408,7 +429,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                                     format!("{review_url_path}/{review_id}/dismissals").as_str(),
                                 )
                                 .match_body(Matcher::PartialJson(serde_json::json!({
-                                    "message": "Marked as outdated by git-bot-feedback",
+                                    "message": "outdated review",
                                     "priors": false
                                 })))
                                 .match_header("Authorization", format!("token {TOKEN}").as_str())
@@ -450,7 +471,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                         .create(),
                 );
             }
-            ExistingReviews::None => unreachable!(),
+            ExistingReviews::None => unreachable!("only used for non-op case (push event)"),
         }
 
         let expected_review_body = serde_json::json!({
@@ -489,15 +510,42 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
         action: ReviewAction::Comment,
         summary,
         comments: test_control_vars.new_review_comments.clone(),
-        delete_review_comments: test_params.delete_review_comments,
+        delete_review_comments: test_params.delete_reviews,
         ..Default::default()
     };
 
     client.start_log_group("posting review");
-    client.cull_pr_reviews(&mut opts).await.unwrap();
+    if let Err(e) = client.cull_pr_reviews(&mut opts).await {
+        match test_params.existing_reviews {
+            ExistingReviews::Happy if test_params.bad_json_review_comments => {
+                assert!(
+                    matches!(e, RestClientError::Json { .. }),
+                    "Expected Json error, got: {e:?}"
+                );
+            }
+            ExistingReviews::Happy | ExistingReviews::None => {
+                panic!("Unexpected error culling reviews: {e}");
+            }
+            ExistingReviews::BadJson => {
+                assert!(
+                    matches!(e, RestClientError::Json { .. }),
+                    "Expected Json error, got: {e:?}"
+                );
+            }
+            ExistingReviews::HttpError => {
+                assert!(
+                    matches!(e, RestClientError::RequestContext { .. }),
+                    "Expected Request error, got: {e:?}"
+                );
+            }
+        }
+    }
     if let Err(e) = client.post_pr_review(&opts).await {
         if test_params.no_token {
-            assert!(matches!(e, RestClientError::EnvVar { .. }));
+            assert!(
+                matches!(e, RestClientError::EnvVar { .. }),
+                "Expected EnvVar error, got: {e:?}"
+            );
         } else {
             panic!("Unexpected error posting review: {e}");
         }
@@ -561,7 +609,7 @@ async fn no_token_is_error() {
 }
 
 #[tokio::test]
-async fn bad_existing_reviews_are_ignored() {
+async fn bad_existing_reviews() {
     test_reviews(TestParams {
         existing_reviews: ExistingReviews::BadJson,
         ..Default::default()
@@ -570,7 +618,7 @@ async fn bad_existing_reviews_are_ignored() {
 }
 
 #[tokio::test]
-async fn http_error_get_existing_reviews_are_ignored() {
+async fn http_error_get_existing_reviews() {
     test_reviews(TestParams {
         existing_reviews: ExistingReviews::HttpError,
         ..Default::default()
@@ -579,7 +627,7 @@ async fn http_error_get_existing_reviews_are_ignored() {
 }
 
 #[tokio::test]
-async fn dismiss_outdated_review_500_is_ignored() {
+async fn dismiss_outdated_review_500() {
     test_reviews(TestParams {
         fail_dismissal: true,
         ..Default::default()
@@ -588,18 +636,18 @@ async fn dismiss_outdated_review_500_is_ignored() {
 }
 
 #[tokio::test]
-async fn delete_outdated_review_comments() {
+async fn delete_outdated_review() {
     test_reviews(TestParams {
-        delete_review_comments: true,
+        delete_reviews: true,
         ..Default::default()
     })
     .await;
 }
 
 #[tokio::test]
-async fn delete_outdated_review_comment_500_is_ignored() {
+async fn delete_outdated_review_comment_500() {
     test_reviews(TestParams {
-        delete_review_comments: true,
+        delete_reviews: true,
         fail_resolve_comment: true,
         ..Default::default()
     })
@@ -607,9 +655,18 @@ async fn delete_outdated_review_comment_500_is_ignored() {
 }
 
 #[tokio::test]
-async fn review_comments_500_is_ignored() {
+async fn review_comments_500() {
     test_reviews(TestParams {
         fail_get_review_comments: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn review_comments_bad_json_is_ignored() {
+    test_reviews(TestParams {
+        bad_json_review_comments: true,
         ..Default::default()
     })
     .await;

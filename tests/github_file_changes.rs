@@ -156,7 +156,14 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     match files {
         Err(e) => {
             if test_params.fail_request {
-                assert!(matches!(e, RestClientError::Request(_)));
+                assert!(
+                    matches!(
+                        e,
+                        RestClientError::Request(_)
+                            | RestClientError::RequestContext { task: _, source: _ }
+                    ),
+                    "Expected Request error, got: {e:?}"
+                );
             } else if !test_params.fail_serde_diff {
                 panic!("Failed to get changed files: {e:?}");
             }
