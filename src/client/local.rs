@@ -111,7 +111,7 @@ impl RestApiClient for LocalClient {
         if ignore_index {
             // When ignoring the index, we want to compare
             // the working directory changes, not the staged changes.
-            diff_args.push("--format=%b".to_string());
+            diff_args.push("--format=".to_string());
             git_sub_cmd.push("show");
         } else {
             git_sub_cmd.push("diff");
