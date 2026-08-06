@@ -43,7 +43,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: true # needed for `git push`
-      - uses: cargo-bins/cargo-binstall@732870f031d2fb36309d0deaf36abcc704a7be65 # v1.20.1
+      - uses: cargo-bins/cargo-binstall@e00d2c94cc0067b77737821097a62d91c0301baa # v1.21.1
       - run: cargo binstall -y git-cliff
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -105,7 +105,7 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
-      - uses: cargo-bins/cargo-binstall@732870f031d2fb36309d0deaf36abcc704a7be65 # v1.20.1
+      - uses: cargo-bins/cargo-binstall@e00d2c94cc0067b77737821097a62d91c0301baa # v1.21.1
       - run: cargo binstall -y git-cliff
         env:
           GITHUB_TOKEN: ${{ github.token }}
