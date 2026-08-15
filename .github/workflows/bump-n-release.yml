@@ -48,7 +48,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Install nushell
-        uses: hustcer/setup-nu@ccd5bb5426b05a32009c2ba967946231f3919c97 # v3.25
+        uses: hustcer/setup-nu@f3fd65374ffc4d60974c0dd2f7263c6c5c285f81 # v3.26
         with:
           version: ${{ vars.NUSHELL_VERSION || '*' }}
       - name: Install cargo-edit
@@ -74,7 +74,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Install nushell
-        uses: hustcer/setup-nu@ccd5bb5426b05a32009c2ba967946231f3919c97 # v3.25
+        uses: hustcer/setup-nu@f3fd65374ffc4d60974c0dd2f7263c6c5c285f81 # v3.26
         with:
           version: ${{ vars.NUSHELL_VERSION || '*' }}
       - name: Get changed packages
@@ -110,7 +110,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Install nushell
-        uses: hustcer/setup-nu@ccd5bb5426b05a32009c2ba967946231f3919c97 # v3.25
+        uses: hustcer/setup-nu@f3fd65374ffc4d60974c0dd2f7263c6c5c285f81 # v3.26
         with:
           version: ${{ vars.NUSHELL_VERSION || '*' }}
       - name: Generate a release notes
