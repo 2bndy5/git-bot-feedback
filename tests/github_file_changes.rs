@@ -169,9 +169,14 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             }
         }
         Ok(files) => {
-            assert_eq!(files.len(), 2);
+            let expected_files: &[&str] = if test_params.event_t == EventType::Push {
+                &["src/demo.cpp", "src/demo.hpp", "src/no_patch.cpp"]
+            } else {
+                &["src/demo.cpp", "src/demo.hpp"]
+            };
+            assert_eq!(files.len(), expected_files.len());
             for (file, diff_ctx) in files {
-                assert!(["src/demo.cpp", "src/demo.hpp"].contains(&file.as_str()));
+                assert!(expected_files.contains(&file.as_str()));
                 if file == "src/demo.hpp" {
                     let diff_hunk = DiffHunkHeader {
                         old_start: 5,
