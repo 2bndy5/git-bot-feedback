@@ -104,6 +104,7 @@ pub struct GithubChangedFile {
     /// The number of changes to the file contents.
     pub changes: i64,
     /// An enumeration describing the file's change status.
+    #[serde(default)]
     pub status: GitHubChangedFileStatus,
 }
 

@@ -1,5 +1,10 @@
 [
   {
+    "filename": "src/deleted.cpp",
+    "status": "removed",
+    "changes": 0
+  },
+  {
     "sha": "52501fa1dc96d6bc6f8a155816df041b1de975d9",
     "filename": ".github/workflows/cpp-lint-package.yml",
     "status": "modified",
