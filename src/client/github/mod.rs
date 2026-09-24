@@ -200,6 +200,8 @@ impl RestApiClient for GithubApiClient {
         _base_diff: Option<String>,
         _ignore_index: bool,
     ) -> Result<HashMap<String, FileDiffLines>, ClientError> {
+        use crate::client::github::serde_structs::GitHubChangedFileStatus;
+
         let (url, is_pr) = match &self.pull_request {
             Some(pr_event) => (
                 self.api_url.join(
@@ -244,6 +246,8 @@ impl RestApiClient for GithubApiClient {
                 if !file_filter
                     .extensions
                     .contains(&ext.to_string_lossy().to_string())
+                    // skip files that were removed, since there's no content to analyze.
+                    || matches!(file.status, GitHubChangedFileStatus::Removed)
                 {
                     continue;
                 }
@@ -256,10 +260,16 @@ impl RestApiClient for GithubApiClient {
                     for (name, info) in parse_diff(&diff, file_filter, lines_changed_only)? {
                         files.entry(name).or_insert(info);
                     }
-                } else if file.changes == 0 {
+                } else if file.changes == 0 || matches!(lines_changed_only, LinesChangedOnly::Off) {
                     // file may have been only renamed.
                     // include it in case files-changed-only is enabled.
                     files.entry(file.filename).or_default();
+                } else {
+                    log::warn!(
+                        "File {} has no patch info about {} changes, skipping",
+                        file.filename,
+                        file.changes
+                    );
                 }
                 // else changes are too big (per git server limits) or we don't care
             }

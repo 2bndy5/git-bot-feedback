@@ -77,6 +77,20 @@ pub struct User {
     pub id: u64,
 }
 
+#[cfg(feature = "file-changes")]
+#[derive(Debug, Deserialize, PartialEq, Eq, Clone, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum GitHubChangedFileStatus {
+    Added,
+    Removed,
+    Modified,
+    Renamed,
+    Copied,
+    Changed,
+    #[default]
+    Unchanged,
+}
+
 /// A structure for deserializing a single changed file in a CI event.
 #[cfg(feature = "file-changes")]
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -89,6 +103,8 @@ pub struct GithubChangedFile {
     pub patch: Option<String>,
     /// The number of changes to the file contents.
     pub changes: i64,
+    /// An enumeration describing the file's change status.
+    pub status: GitHubChangedFileStatus,
 }
 
 /// A structure for deserializing a Push event's changed files.
