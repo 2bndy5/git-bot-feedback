@@ -175,10 +175,14 @@ export def gen-changes [
         {out_path: ($out_path | path relative-to (pwd)), log_prefix: 'Updated'}
     }
     if (($paths | get 'include' | length) > 0) {
-        $args = $args | append ['--include-path', ...($paths | get 'include')]
+        for $p in ($paths | get 'include') {
+            $args = $args | append ['--include-path', $p]
+        }
     }
     if (($paths | get 'exclude' | length) > 0) {
-        $args = $args | append ['--exclude-path', ...($paths | get 'exclude')]
+        for $p in ($paths | get 'exclude') {
+            $args = $args | append ['--exclude-path', $p]
+        }
     }
     let args = $args # make args immutable (to use in `with-env` block below)
     with-env {GIT_CLIFF_TAG: $tag} {
