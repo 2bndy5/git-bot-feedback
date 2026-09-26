@@ -35,6 +35,7 @@ pub fn logger_init() {
     let _ = log::set_logger(&Logger);
 }
 
+#[allow(dead_code, reason = "not all tests need to capture logs")]
 pub fn take_logs() -> Vec<String> {
     std::mem::take(&mut *logs().lock().unwrap())
 }
