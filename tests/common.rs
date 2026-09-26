@@ -25,11 +25,7 @@ impl log::Log for Logger {
             )
         };
         logs().lock().unwrap().push(message.clone());
-        if record.target() == "CI_LOG_GROUPING" {
-            println!("{message}");
-        } else {
-            println!("{message}");
-        }
+        println!("{message}");
     }
 
     fn flush(&self) {}
