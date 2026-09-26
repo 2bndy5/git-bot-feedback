@@ -47,6 +47,22 @@ pub struct GiteaApiClient {
     rate_limit_headers: RestApiRateLimitHeaders,
 }
 
+fn step_summary_url() -> Option<String> {
+    let server_url = env::var("GITEA_SERVER_URL")
+        .or_else(|_| env::var("GITHUB_SERVER_URL"))
+        .ok()?;
+    let repo = env::var("GITEA_REPOSITORY")
+        .or_else(|_| env::var("GITHUB_REPOSITORY"))
+        .ok()?;
+    let run_id = env::var("GITEA_RUN_ID")
+        .or_else(|_| env::var("GITHUB_RUN_ID"))
+        .ok()?;
+    Some(format!(
+        "{}/{repo}/actions/runs/{run_id}",
+        server_url.trim_end_matches('/')
+    ))
+}
+
 #[async_trait]
 impl RestApiClient for GiteaApiClient {
     fn start_log_group(&self, name: &str) {
@@ -257,8 +273,12 @@ impl RestApiClient for GiteaApiClient {
             // step summary MD file can be overwritten/removed in CI runners
             return match OpenOptions::new().append(true).open(gh_out) {
                 Ok(mut gh_out_file) => {
-                    let result = writeln!(&mut gh_out_file, "\n{comment}\n");
-                    result.map_err(|e| ClientError::io("write to GITHUB_STEP_SUMMARY file", e))
+                    writeln!(&mut gh_out_file, "\n{comment}\n")
+                        .map_err(|e| ClientError::io("write to GITHUB_STEP_SUMMARY file", e))?;
+                    if let Some(step_summary_url) = step_summary_url() {
+                        log::info!("View step summary: {step_summary_url}");
+                    }
+                    Ok(())
                 }
                 Err(e) => Err(ClientError::io("write to GITHUB_STEP_SUMMARY file", e)),
             };
@@ -298,5 +318,35 @@ impl RestApiClient for GiteaApiClient {
 
     fn client_kind(&self) -> String {
         "gitea".to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::step_summary_url;
+    use std::env;
+
+    #[test]
+    fn get_step_summary_url() {
+        unsafe {
+            env::set_var("GITEA_SERVER_URL", "https://gitea.example.com/");
+            env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
+            env::set_var("GITEA_RUN_ID", "1234");
+        }
+        assert_eq!(
+            step_summary_url(),
+            Some("https://gitea.example.com/2bndy5/git-bot-feedback/actions/runs/1234".to_string())
+        );
+    }
+
+    #[test]
+    fn missing_step_summary_url_env_var() {
+        unsafe {
+            env::remove_var("GITEA_SERVER_URL");
+            env::remove_var("GITHUB_SERVER_URL");
+            env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
+            env::set_var("GITEA_RUN_ID", "1234");
+        }
+        assert_eq!(step_summary_url(), None);
     }
 }
