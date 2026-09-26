@@ -47,6 +47,22 @@ pub struct GiteaApiClient {
     rate_limit_headers: RestApiRateLimitHeaders,
 }
 
+fn step_summary_url() -> Option<String> {
+    let server_url = env::var("GITEA_SERVER_URL")
+        .or_else(|_| env::var("GITHUB_SERVER_URL"))
+        .ok()?;
+    let repo = env::var("GITEA_REPOSITORY")
+        .or_else(|_| env::var("GITHUB_REPOSITORY"))
+        .ok()?;
+    let run_id = env::var("GITEA_RUN_ID")
+        .or_else(|_| env::var("GITHUB_RUN_ID"))
+        .ok()?;
+    Some(format!(
+        "{}/{repo}/actions/runs/{run_id}",
+        server_url.trim_end_matches('/')
+    ))
+}
+
 #[async_trait]
 impl RestApiClient for GiteaApiClient {
     fn start_log_group(&self, name: &str) {
@@ -257,10 +273,14 @@ impl RestApiClient for GiteaApiClient {
             // step summary MD file can be overwritten/removed in CI runners
             return match OpenOptions::new().append(true).open(gh_out) {
                 Ok(mut gh_out_file) => {
-                    let result = writeln!(&mut gh_out_file, "\n{comment}\n");
-                    result.map_err(|e| ClientError::io("write to GITHUB_STEP_SUMMARY file", e))
+                    writeln!(&mut gh_out_file, "\n{comment}\n")
+                        .map_err(|e| ClientError::io("write to GITEA_STEP_SUMMARY file", e))?;
+                    if let Some(step_summary_url) = step_summary_url() {
+                        log::info!("View step summary at {step_summary_url}");
+                    }
+                    Ok(())
                 }
-                Err(e) => Err(ClientError::io("write to GITHUB_STEP_SUMMARY file", e)),
+                Err(e) => Err(ClientError::io("open GITEA_STEP_SUMMARY file", e)),
             };
         }
         Ok(())
