@@ -4,7 +4,7 @@ use mockito::Server;
 use std::{env, io::Read, path::Path};
 use tempfile::{NamedTempFile, tempdir};
 mod common;
-use common::logger_init;
+use common::{logger_init, take_logs};
 
 const COMMENT: &str = "Some comment text";
 
@@ -15,12 +15,14 @@ const SHA: &str = "DEADBEEF";
 struct TestParams {
     fail_summary: bool,
     absent: bool,
+    with_step_summary_url: bool,
 }
 
-async fn append_summary(test_params: TestParams) -> String {
+async fn append_summary(test_params: TestParams) -> (String, Vec<String>) {
     let tmp_dir = tempdir().unwrap();
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
+    take_logs();
     let mut step_summary_path = NamedTempFile::new_in(tmp_dir.path()).unwrap();
     if test_params.absent {
         unsafe {
@@ -48,6 +50,15 @@ async fn append_summary(test_params: TestParams) -> String {
         env::set_var("GITEA_SHA", SHA);
         env::set_var("CI", "true");
         env::set_var("GITEA_EVENT_NAME", "push");
+        if test_params.with_step_summary_url {
+            env::set_var("GITEA_SERVER_URL", "https://gitea.example.com");
+            env::set_var("GITEA_RUN_ID", "1234");
+        } else {
+            env::remove_var("GITEA_SERVER_URL");
+            env::remove_var("GITHUB_SERVER_URL");
+            env::remove_var("GITEA_RUN_ID");
+            env::remove_var("GITHUB_RUN_ID");
+        }
     }
     let gt_client = GiteaApiClient::new().unwrap();
 
@@ -62,12 +73,12 @@ async fn append_summary(test_params: TestParams) -> String {
             assert!(matches!(e, RestClientError::Io { task: _, source: _ }));
         }
     }
-    step_summary_content
+    (step_summary_content, take_logs())
 }
 
 #[tokio::test]
 async fn fail_gh_summary() {
-    let summary = append_summary(TestParams {
+    let (summary, _) = append_summary(TestParams {
         fail_summary: true,
         ..Default::default()
     })
@@ -77,16 +88,30 @@ async fn fail_gh_summary() {
 
 #[tokio::test]
 async fn pass_gh_summary() {
-    let summary = append_summary(TestParams::default()).await;
+    let (summary, logs) = append_summary(TestParams::default()).await;
     assert!(summary.contains(COMMENT));
+    assert!(!logs.iter().any(|log| log.contains("View step summary at")));
 }
 
 #[tokio::test]
 async fn absent_gh_summary() {
-    let summary = append_summary(TestParams {
+    let (summary, _) = append_summary(TestParams {
         absent: true,
         ..Default::default()
     })
     .await;
     assert!(summary.is_empty());
+}
+
+#[tokio::test]
+async fn pass_gh_summary_with_step_summary_url() {
+    let (summary, logs) = append_summary(TestParams {
+        with_step_summary_url: true,
+        ..Default::default()
+    })
+    .await;
+    assert!(summary.contains(COMMENT));
+    assert!(logs.iter().any(|log| log.contains(&format!(
+        "View step summary at https://gitea.example.com/{REPO}/actions/runs/1234"
+    ))));
 }

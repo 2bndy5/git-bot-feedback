@@ -373,32 +373,3 @@ impl RestApiClient for GithubApiClient {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::step_summary_url;
-    use std::env;
-
-    #[test]
-    fn get_step_summary_url() {
-        unsafe {
-            env::set_var("GITHUB_SERVER_URL", "https://github.com/");
-            env::set_var("GITHUB_REPOSITORY", "2bndy5/git-bot-feedback");
-            env::set_var("GITHUB_RUN_ID", "1234");
-        }
-        assert_eq!(
-            step_summary_url(),
-            Some("https://github.com/2bndy5/git-bot-feedback/actions/runs/1234".to_string())
-        );
-    }
-
-    #[test]
-    fn missing_step_summary_url_env_var() {
-        unsafe {
-            env::remove_var("GITHUB_SERVER_URL");
-            env::set_var("GITHUB_REPOSITORY", "2bndy5/git-bot-feedback");
-            env::set_var("GITHUB_RUN_ID", "1234");
-        }
-        assert_eq!(step_summary_url(), None);
-    }
-}
