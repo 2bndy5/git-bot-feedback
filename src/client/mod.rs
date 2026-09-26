@@ -358,3 +358,6 @@ pub fn init_client() -> Result<Box<dyn RestApiClient + Send + Sync>, ClientError
         Ok(Box::new(LocalClient))
     }
 }
+
+#[cfg(test)]
+pub(super) static STEP_SUMMARY_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

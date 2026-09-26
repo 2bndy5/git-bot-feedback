@@ -381,6 +381,7 @@ mod tests {
 
     #[test]
     fn get_step_summary_url() {
+        let _lock = super::super::STEP_SUMMARY_ENV_LOCK.lock().unwrap();
         unsafe {
             env::set_var("GITHUB_SERVER_URL", "https://github.com/");
             env::set_var("GITHUB_REPOSITORY", "2bndy5/git-bot-feedback");
@@ -394,6 +395,7 @@ mod tests {
 
     #[test]
     fn missing_step_summary_url_env_var() {
+        let _lock = super::super::STEP_SUMMARY_ENV_LOCK.lock().unwrap();
         unsafe {
             env::remove_var("GITHUB_SERVER_URL");
             env::set_var("GITHUB_REPOSITORY", "2bndy5/git-bot-feedback");
