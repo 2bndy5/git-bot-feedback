@@ -276,7 +276,7 @@ impl RestApiClient for GiteaApiClient {
                     writeln!(&mut gh_out_file, "\n{comment}\n")
                         .map_err(|e| ClientError::io("write to GITEA_STEP_SUMMARY file", e))?;
                     if let Some(step_summary_url) = step_summary_url() {
-                        log::info!("View step summary: {step_summary_url}");
+                        log::info!("View step summary at {step_summary_url}");
                     }
                     Ok(())
                 }
@@ -328,7 +328,6 @@ mod tests {
 
     #[test]
     fn get_step_summary_url() {
-        let _lock = super::super::STEP_SUMMARY_ENV_LOCK.lock().unwrap();
         unsafe {
             env::set_var("GITEA_SERVER_URL", "https://gitea.example.com/");
             env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
@@ -342,7 +341,6 @@ mod tests {
 
     #[test]
     fn missing_step_summary_url_env_var() {
-        let _lock = super::super::STEP_SUMMARY_ENV_LOCK.lock().unwrap();
         unsafe {
             env::remove_var("GITEA_SERVER_URL");
             env::remove_var("GITHUB_SERVER_URL");
