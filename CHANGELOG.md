@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
-## [git-bot-feedback/v0.8.3] - 2026-09-26
+## [git-bot-feedback/v0.8.4] - 2026-10-02
 
 ### <!-- 1 --> 🚀 Added
 
@@ -57,9 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Revise `FileAnnotations` impl by @2bndy5 in [#64](https://github.com/2bndy5/git-bot-feedback/pull/64)
 
-[git-bot-feedback/v0.8.3]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.2...git-bot-feedback/v0.8.3
+[git-bot-feedback/v0.8.4]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.3...git-bot-feedback/v0.8.4
 
-Full commit diff: [`git-bot-feedback/v0.8.2...git-bot-feedback/v0.8.3`][git-bot-feedback/v0.8.3]
+Full commit diff: [`git-bot-feedback/v0.8.3...git-bot-feedback/v0.8.4`][git-bot-feedback/v0.8.4]
 
 ## New Contributors
 
