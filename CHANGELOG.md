@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
-## [git-bot-feedback/v0.8.4] - 2026-10-02
+## [git-bot-feedback/v0.8.5] - 2026-10-04
 
 ### <!-- 1 --> 🚀 Added
 
@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move option's value instead of cloning it by @2bndy5 in [#99](https://github.com/2bndy5/git-bot-feedback/pull/99)
 - Output only diff using `git show` by @2bndy5 in [#102](https://github.com/2bndy5/git-bot-feedback/pull/102)
 - Improve Github client's `get_list_of_changed_files()` by @2bndy5 in [#123](https://github.com/2bndy5/git-bot-feedback/pull/123)
+- Match descendants of a given glob pattern by @2bndy5 in [#132](https://github.com/2bndy5/git-bot-feedback/pull/132)
 
 ### <!-- 8 --> 📝 Documentation
 
@@ -57,9 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Revise `FileAnnotations` impl by @2bndy5 in [#64](https://github.com/2bndy5/git-bot-feedback/pull/64)
 
-[git-bot-feedback/v0.8.4]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.3...git-bot-feedback/v0.8.4
+[git-bot-feedback/v0.8.5]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.4...git-bot-feedback/v0.8.5
 
-Full commit diff: [`git-bot-feedback/v0.8.3...git-bot-feedback/v0.8.4`][git-bot-feedback/v0.8.4]
+Full commit diff: [`git-bot-feedback/v0.8.4...git-bot-feedback/v0.8.5`][git-bot-feedback/v0.8.5]
 
 ## New Contributors
 
