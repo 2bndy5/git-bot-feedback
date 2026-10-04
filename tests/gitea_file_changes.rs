@@ -111,7 +111,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     } else {
         None
     };
-    let file_filter = FileFilter::new(&["", "!src/*"], &["rs", "yml"], log_scope);
+    let file_filter = FileFilter::new(&["", "!src/**"], &["rs", "yml"], log_scope);
     let files = client
         .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Off, None, false)
         .await;
@@ -136,10 +136,12 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             }
         }
         Ok(files) => {
-            assert_eq!(files.len(), 5);
+            assert_eq!(files.len(), 10);
+            let expected_file = "src/lib.rs".to_string();
+            assert!(files.keys().collect::<Vec<_>>().contains(&&expected_file));
             for (file, diff_ctx) in files {
                 assert!(file.starts_with("src/"));
-                if file == "src/lib.rs" {
+                if file == expected_file {
                     let diff_hunk = DiffHunkHeader {
                         old_start: 1,
                         old_lines: 20,

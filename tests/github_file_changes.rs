@@ -148,7 +148,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     } else {
         None
     };
-    let file_filter = FileFilter::new(&["", "!src/*"], &["cpp", "hpp"], log_scope);
+    let file_filter = FileFilter::new(&["", "!src/**"], &["cpp", "hpp"], log_scope);
     assert!(file_filter.is_file_ignored(Path::new("./Cargo.toml")));
     let files = client
         .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Off, None, false)
@@ -175,8 +175,9 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
                 &["src/demo.cpp", "src/demo.hpp"]
             };
             assert_eq!(files.len(), expected_files.len());
+            assert!(expected_files.iter().all(|f| files.contains_key(*f)));
             for (file, diff_ctx) in files {
-                assert!(expected_files.contains(&file.as_str()));
+                assert!(file.starts_with("src/"));
                 if file == "src/demo.hpp" {
                     let diff_hunk = DiffHunkHeader {
                         old_start: 5,

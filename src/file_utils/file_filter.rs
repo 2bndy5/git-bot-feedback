@@ -176,10 +176,20 @@ impl FileFilter {
         };
         for pattern in set {
             let pat = PathBuf::from(&pattern);
+            let is_valid_glob = fast_glob::validate(pattern).is_ok();
+            let is_glob = is_valid_glob
+                && pattern
+                    .chars()
+                    .any(|character| matches!(character, '*' | '?' | '[' | '{'));
             if pattern.is_empty()
-                || glob_match(pattern, file_name.to_string_lossy().as_ref())
+                || (is_valid_glob && glob_match(pattern, file_name.to_string_lossy().as_ref()))
                 || (pat.is_file() && file_name == pat)
                 || (pat.is_dir() && file_name.starts_with(pat))
+                || (is_glob
+                    && file_name.ancestors().any(|a| {
+                        !a.as_os_str().is_empty()
+                            && glob_match(pattern, a.to_string_lossy().as_ref())
+                    }))
             {
                 log::debug!(
                     "{}file {file_name:?} is {}ignored with domain {pattern:?}.",
@@ -454,6 +464,23 @@ mod tests {
         let file_filter = setup_ignore("!src/**/*", &[]);
         assert!(file_filter.is_file_not_ignored(&PathBuf::from("./src/lib.rs")));
         assert!(file_filter.is_file_not_ignored(&PathBuf::from("./src/file_utils/file_filter.rs")));
+    }
+
+    #[test]
+    fn ignore_glob_descendants() {
+        // Pattern is a glob that resolves to a directory (examples/<any>/build).
+        let file_filter = setup_ignore("examples/*/build", &[]);
+
+        // The directory itself matches (whole-path glob match).
+        assert!(file_filter.is_file_ignored(&PathBuf::from("examples/linux/build")));
+
+        // Files inside the matched directory should be ignored too,
+        // the same way a literal dir pattern like "src" ignores "src/lib.rs".
+        assert!(file_filter.is_file_ignored(&PathBuf::from("examples/linux/build/file.c")));
+        assert!(file_filter.is_file_ignored(&PathBuf::from("examples/linux/build/some/file.c")));
+
+        // Siblings outside the glob must not be ignored.
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("examples/linux/src/file.c")));
     }
 
     #[test]
