@@ -177,7 +177,6 @@ impl FileFilter {
         for pattern in set {
             let pat = PathBuf::from(&pattern);
             let is_valid_glob = fast_glob::validate(pattern).is_ok();
-            // Only ignored globs cover descendants of the directories they match.
             let is_glob = is_valid_glob
                 && pattern
                     .chars()
