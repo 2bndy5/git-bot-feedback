@@ -6,11 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback-py/v0.2.5] - 2026-10-04
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Match descendants of a given glob pattern by @2bndy5 in [#132](https://github.com/2bndy5/git-bot-feedback/pull/132)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.5 by @2bndy5 in [`55b72b7`](https://github.com/2bndy5/git-bot-feedback/commit/55b72b7e472fc6e2f33d0d76a20d0d0c2ab3cd9f)
+
+[git-bot-feedback-py/v0.2.5]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.2.4...git-bot-feedback-py/v0.2.5
+
+Full commit diff: [`git-bot-feedback-py/v0.2.4...git-bot-feedback-py/v0.2.5`][git-bot-feedback-py/v0.2.5]
+
 ## [git-bot-feedback-py/v0.2.4] - 2026-10-02
 
 ### <!-- 6 --> 📦 Dependency updates
 
 - Bump version to git-bot-feedback/v0.8.4 by @2bndy5 in [`41a9014`](https://github.com/2bndy5/git-bot-feedback/commit/41a90143260cd11d9597ecb09fc1b6dd41b793cd)
+- Bump version to git-bot-feedback-py/v0.2.4 by @2bndy5 in [`fc345db`](https://github.com/2bndy5/git-bot-feedback/commit/fc345dba18ecb0bc7d587542854115b317db2226)
 
 [git-bot-feedback-py/v0.2.4]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.2.3...git-bot-feedback-py/v0.2.4
 
