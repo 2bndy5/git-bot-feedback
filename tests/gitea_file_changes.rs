@@ -136,10 +136,12 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             }
         }
         Ok(files) => {
-            // file filter should only allow files under "src/"
-            assert!(files.keys().all(|k| k.starts_with("src/")));
+            assert_eq!(files.len(), 10);
+            let expected_file = "src/lib.rs".to_string();
+            assert!(files.keys().collect::<Vec<_>>().contains(&&expected_file));
             for (file, diff_ctx) in files {
-                if file == "src/lib.rs" {
+                assert!(file.starts_with("src/"));
+                if file == expected_file {
                     let diff_hunk = DiffHunkHeader {
                         old_start: 1,
                         old_lines: 20,

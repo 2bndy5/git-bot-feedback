@@ -174,10 +174,10 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             } else {
                 &["src/demo.cpp", "src/demo.hpp"]
             };
-            // file filter should only allow files under "src/"
-            assert!(files.keys().all(|k| k.starts_with("src/")));
+            assert_eq!(files.len(), expected_files.len());
             assert!(expected_files.iter().all(|f| files.contains_key(*f)));
             for (file, diff_ctx) in files {
+                assert!(file.starts_with("src/"));
                 if file == "src/demo.hpp" {
                     let diff_hunk = DiffHunkHeader {
                         old_start: 5,
