@@ -176,13 +176,21 @@ impl FileFilter {
         };
         for pattern in set {
             let pat = PathBuf::from(&pattern);
+            let is_valid_glob = fast_glob::validate(pattern).is_ok();
+            // Only ignored globs cover descendants of the directories they match.
+            let is_glob = is_valid_glob
+                && pattern
+                    .chars()
+                    .any(|character| matches!(character, '*' | '?' | '[' | '{'));
             if pattern.is_empty()
-                || glob_match(pattern, file_name.to_string_lossy().as_ref())
+                || (is_valid_glob && glob_match(pattern, file_name.to_string_lossy().as_ref()))
                 || (pat.is_file() && file_name == pat)
                 || (pat.is_dir() && file_name.starts_with(pat))
-                || file_name.ancestors().any(|a| {
-                    !a.as_os_str().is_empty() && glob_match(pattern, a.to_string_lossy().as_ref())
-                })
+                || (is_glob
+                    && file_name.ancestors().any(|a| {
+                        !a.as_os_str().is_empty()
+                            && glob_match(pattern, a.to_string_lossy().as_ref())
+                    }))
             {
                 log::debug!(
                     "{}file {file_name:?} is {}ignored with domain {pattern:?}.",

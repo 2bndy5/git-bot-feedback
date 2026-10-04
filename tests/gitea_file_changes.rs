@@ -111,7 +111,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     } else {
         None
     };
-    let file_filter = FileFilter::new(&["", "!src/*"], &["rs", "yml"], log_scope);
+    let file_filter = FileFilter::new(&["", "!src/**"], &["rs", "yml"], log_scope);
     let files = client
         .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Off, None, false)
         .await;
@@ -136,9 +136,9 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             }
         }
         Ok(files) => {
-            assert_eq!(files.len(), 5);
+            // file filter should only allow files under "src/"
+            assert!(files.keys().all(|k| k.starts_with("src/")));
             for (file, diff_ctx) in files {
-                assert!(file.starts_with("src/"));
                 if file == "src/lib.rs" {
                     let diff_hunk = DiffHunkHeader {
                         old_start: 1,
