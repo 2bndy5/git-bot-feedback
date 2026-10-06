@@ -218,6 +218,29 @@ impl GitClient {
         Ok(())
     }
 
+    /// Mark the start of a group of logs statements.
+    ///
+    /// The name given is used as the unique group name.
+    #[pyo3(
+        signature = (name),
+        text_signature = "(name: str) -> None"
+    )]
+    pub fn start_log_group(&self, name: &str) {
+        self.client.blocking_lock().start_log_group(name);
+    }
+
+    /// Mark the end of a group of logs statements.
+    ///
+    /// Some CI platforms expect the given name to match an already started group of logs.
+    /// Other CI platforms do not actually used the given name.
+    #[pyo3(
+        signature = (name),
+        text_signature = "(name: str) -> None"
+    )]
+    pub fn end_log_group(&self, name: &str) {
+        self.client.blocking_lock().end_log_group(name);
+    }
+
     // /// Construct a HTTP request to be sent.
     // ///
     // /// The idea here is that this method is called before [`Self::send_api_request()`].
