@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback-py/v0.2.6] - 2026-10-06
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Add log grouping functions to python wrapper by @2bndy5 in [#133](https://github.com/2bndy5/git-bot-feedback/pull/133)
+
+[git-bot-feedback-py/v0.2.6]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.2.5...git-bot-feedback-py/v0.2.6
+
+Full commit diff: [`git-bot-feedback-py/v0.2.5...git-bot-feedback-py/v0.2.6`][git-bot-feedback-py/v0.2.6]
+
 ## [git-bot-feedback-py/v0.2.5] - 2026-10-04
 
 ### <!-- 4 --> 🛠️ Fixed
@@ -15,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### <!-- 6 --> 📦 Dependency updates
 
 - Bump version to git-bot-feedback/v0.8.5 by @2bndy5 in [`55b72b7`](https://github.com/2bndy5/git-bot-feedback/commit/55b72b7e472fc6e2f33d0d76a20d0d0c2ab3cd9f)
+- Bump version to git-bot-feedback-py/v0.2.5 by @2bndy5 in [`02ed42d`](https://github.com/2bndy5/git-bot-feedback/commit/02ed42d76f20087dbe73b56a6db67aa9041ee23a)
 
 [git-bot-feedback-py/v0.2.5]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.2.4...git-bot-feedback-py/v0.2.5
 
