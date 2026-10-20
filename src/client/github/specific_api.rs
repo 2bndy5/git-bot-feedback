@@ -41,7 +41,11 @@ impl GithubApiClient {
         // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
         let gh_api_url = env::var("GITHUB_API_URL").unwrap_or("https://api.github.com".to_string());
         let api_url = Url::parse(format!("{}/", gh_api_url.trim_end_matches('/')).as_str())?;
-        let graphql_url = Self::graphql_url_from(&api_url)?;
+        let graphql_url = Url::parse(
+            env::var("GITHUB_GRAPHQL_URL")
+                .unwrap_or("https://api.github.com/graphql".to_string())
+                .as_str(),
+        )?;
 
         Ok(Self {
             client: Client::builder()
@@ -62,20 +66,6 @@ impl GithubApiClient {
                 retry: "retry-after".to_string(),
             },
         })
-    }
-
-    /// Derive the GraphQL endpoint from the REST API URL.
-    ///
-    /// GitHub Enterprise Server serves the REST API at `<host>/api/v3/` and
-    /// GraphQL at `<host>/api/graphql`, while github.com uses
-    /// `https://api.github.com/graphql`.
-    fn graphql_url_from(api_url: &Url) -> Result<Url, ClientError> {
-        let path = if api_url.path().ends_with("/v3/") {
-            "../graphql"
-        } else {
-            "graphql"
-        };
-        Ok(api_url.join(path)?)
     }
 
     pub(super) fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
@@ -444,26 +434,15 @@ mod tests {
             env::set_var("GITHUB_EVENT_NAME", "push");
             // suffix the URL with `//`; expect `client.api_url` to end with a single `/`
             env::set_var("GITHUB_API_URL", format!("{gh_api_url}//"));
+            env::set_var("GITHUB_GRAPHQL_URL", "https://ghe.example.com/api/graphql");
         }
         let client = GithubApiClient::new().unwrap();
+        assert_eq!(
+            client.graphql_url.as_str(),
+            "https://ghe.example.com/api/graphql"
+        );
         assert!(client.api_url.as_str().ends_with("/v3/"));
         let endpoint = client.api_url.join("repos/").unwrap();
         assert_eq!(endpoint.as_str(), "https://api.github.com/v3/repos/");
-    }
-
-    #[test]
-    fn graphql_url_from_api_url() {
-        for (api_url, expected) in [
-            ("https://api.github.com/", "https://api.github.com/graphql"),
-            (
-                "https://ghe.example.com/api/v3/",
-                "https://ghe.example.com/api/graphql",
-            ),
-            ("http://127.0.0.1:8080/", "http://127.0.0.1:8080/graphql"),
-        ] {
-            let url = reqwest::Url::parse(api_url).unwrap();
-            let graphql_url = GithubApiClient::graphql_url_from(&url).unwrap();
-            assert_eq!(graphql_url.as_str(), expected);
-        }
     }
 }

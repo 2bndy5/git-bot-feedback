@@ -43,7 +43,7 @@ pub struct GithubApiClient {
     /// The value of the `GITHUB_API_URL` environment variable.
     api_url: Url,
 
-    /// The GraphQL endpoint derived from [`Self::api_url`].
+    /// The value of the `GITHUB_GRAPHQL_URL` environment variable.
     graphql_url: Url,
 
     /// The value of the `GITHUB_REPOSITORY` environment variable.
