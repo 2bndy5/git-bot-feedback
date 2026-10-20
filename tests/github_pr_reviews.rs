@@ -39,6 +39,7 @@ struct TestParams {
     is_draft: bool,
     is_closed: bool,
     is_locked: bool,
+    summary_marker_exists: bool,
 }
 
 impl Default for TestParams {
@@ -57,6 +58,7 @@ impl Default for TestParams {
             is_draft: false,
             is_closed: false,
             is_locked: false,
+            summary_marker_exists: false,
         }
     }
 }
@@ -429,7 +431,11 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
     let mut opts = ReviewOptions {
         marker: MARKER.to_string(),
         action: test_params.action.clone(),
-        summary,
+        summary: if test_params.summary_marker_exists {
+            format!("{MARKER}{summary}")
+        } else {
+            summary
+        },
         comments: test_control_vars.new_review_comments.clone(),
         delete_review_comments: test_params.delete_outdated,
         ..Default::default()
@@ -583,6 +589,15 @@ async fn is_draft() {
 async fn is_locked() {
     test_reviews(&TestParams {
         is_locked: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn summary_review_marker() {
+    test_reviews(&TestParams {
+        summary_marker_exists: true,
         ..Default::default()
     })
     .await;
