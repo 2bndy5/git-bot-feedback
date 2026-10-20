@@ -334,7 +334,11 @@ impl RestApiClient for GithubApiClient {
                     ReviewAction::Approve => String::from("APPROVE"),
                     ReviewAction::RequestChanges => String::from("REQUEST_CHANGES"),
                 },
-                body: format!("{}{}", options.marker, options.summary),
+                body: if options.summary.starts_with(&options.marker) {
+                    options.summary.clone()
+                } else {
+                    format!("{}{}", options.marker, options.summary)
+                },
                 comments: options
                     .comments
                     .iter()
