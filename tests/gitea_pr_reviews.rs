@@ -53,6 +53,7 @@ struct TestParams {
     review_with_no_comments: bool,
     paginate_review_comments: bool,
     no_token: bool,
+    summary_marker_exists: bool,
 }
 
 impl Default for TestParams {
@@ -70,6 +71,7 @@ impl Default for TestParams {
             review_with_no_comments: false,
             paginate_review_comments: false,
             no_token: false,
+            summary_marker_exists: false,
         }
     }
 }
@@ -508,7 +510,11 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
     let mut opts = ReviewOptions {
         marker: MARKER.to_string(),
         action: ReviewAction::Comment,
-        summary,
+        summary: if test_params.summary_marker_exists {
+            format!("{MARKER}{summary}")
+        } else {
+            summary.clone()
+        },
         comments: test_control_vars.new_review_comments.clone(),
         delete_review_comments: test_params.delete_reviews,
         ..Default::default()
@@ -685,6 +691,15 @@ async fn review_with_zero_comment_count() {
 async fn paginated_review_comments() {
     test_reviews(TestParams {
         paginate_review_comments: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn review_summary_marker() {
+    test_reviews(TestParams {
+        summary_marker_exists: true,
         ..Default::default()
     })
     .await;
