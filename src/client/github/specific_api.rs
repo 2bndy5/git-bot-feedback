@@ -40,7 +40,7 @@ impl GithubApiClient {
         };
         // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
         let gh_api_url = env::var("GITHUB_API_URL").unwrap_or("https://api.github.com".to_string());
-        let api_url = Url::parse(gh_api_url.as_str())?;
+        let api_url = Url::parse(format!("{}/", gh_api_url.trim_end_matches('/')).as_str())?;
 
         Ok(Self {
             client: Client::builder()
@@ -278,6 +278,11 @@ impl FileAnnotation {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use std::env;
+
+    use super::GithubApiClient;
     use crate::{AnnotationLevel, FileAnnotation};
 
     #[test]
@@ -412,5 +417,21 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(annotation.fmt_github(), "::debug::This is a debug message");
+    }
+
+    #[test]
+    fn ensure_api_url_has_trailing_slash() {
+        let gh_api_url = "https://api.github.com/v3";
+        unsafe {
+            env::set_var("GITHUB_REPOSITORY", "2bndy5/git-bot-feedback");
+            env::set_var("GITHUB_SHA", "abc123");
+            env::set_var("GITHUB_EVENT_NAME", "push");
+            // suffix the URL with `//`; expect `client.api_url` to end with a single `/`
+            env::set_var("GITHUB_API_URL", format!("{gh_api_url}//"));
+        }
+        let client = GithubApiClient::new().unwrap();
+        assert!(client.api_url.as_str().ends_with("/v3/"));
+        let endpoint = client.api_url.join("repos/").unwrap();
+        assert_eq!(endpoint.as_str(), "https://api.github.com/v3/repos/");
     }
 }
