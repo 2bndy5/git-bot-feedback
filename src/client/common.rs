@@ -22,6 +22,7 @@ pub struct PullRequestInfo {
     /// Is this PR a draft?
     pub draft: bool,
     /// Is this PR locked?
+    #[serde(alias = "is_locked")]
     pub locked: bool,
     /// The Pull Request's number.
     pub number: u64,

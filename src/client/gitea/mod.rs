@@ -270,7 +270,7 @@ impl RestApiClient for GiteaApiClient {
                 Ok(mut gh_out_file) => {
                     for out_var in vars {
                         out_var.validate()?;
-                        writeln!(&mut gh_out_file, "{}={}\n", out_var.name, out_var.value)
+                        writeln!(&mut gh_out_file, "{out_var}")
                             .map_err(|e| ClientError::io("write to GITEA_OUTPUT file", e))?;
                     }
                     Ok(())

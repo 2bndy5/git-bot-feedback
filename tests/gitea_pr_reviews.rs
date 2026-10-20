@@ -154,7 +154,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                 "draft": test_params.is_draft,
                 "state": "open",
                 "number": PR,
-                "locked": test_params.is_locked,
+                "is_locked": test_params.is_locked,
             }
         })
         .to_string();
@@ -399,10 +399,8 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                         server
                             .mock(
                                 "POST",
-                                format!(
-                                    "/api/v1/repos/{REPO}/pulls/{PR}/comments/{comment_id}/resolve"
-                                )
-                                .as_str(),
+                                format!("/api/v1/repos/{REPO}/pulls/comments/{comment_id}/resolve")
+                                    .as_str(),
                             )
                             .match_header("Authorization", format!("token {TOKEN}").as_str())
                             .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
@@ -490,7 +488,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                 {
                     "body": format!("{MARKER}A new comment (with prepended marker)"),
                     "new_position": 42,
-                    "old_position": 40,
+                    "old_position": 0,
                     "path": "src/lib.rs",
                 },
             ]
@@ -499,6 +497,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
             server
                 .mock("POST", review_url_path.as_str())
                 .match_body(Matcher::PartialJson(expected_review_body))
+                .match_header("Content-Type", "application/json")
                 .match_header("Authorization", format!("token {TOKEN}").as_str())
                 .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
                 .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())

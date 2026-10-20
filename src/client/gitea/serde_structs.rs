@@ -22,7 +22,8 @@ pub struct ThreadComment {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct User {
     pub login: String,
-    pub id: u64,
+    /// Negative for built-in users, such as `gitea-actions` (-2).
+    pub id: i64,
 }
 
 #[derive(Debug, Serialize, PartialEq, Clone)]
@@ -46,7 +47,9 @@ impl From<&crate::ReviewComment> for ReviewDiffComment {
         Self {
             body: comment.comment.clone(),
             new_position: comment.line_end as i64,
-            old_position: comment.line_start.map(|i| i as i64).unwrap_or_default(),
+            // Gitea has no multi-line comments; a non-zero old_position puts
+            // the comment on the old side of the diff.
+            old_position: 0,
             path: comment.path.clone(),
         }
     }

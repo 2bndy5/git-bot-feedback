@@ -18,12 +18,15 @@ use std::{collections::HashMap, env, fs};
 impl GiteaApiClient {
     /// Instantiate a [`GiteaApiClient`] object.
     pub fn new() -> Result<Self, ClientError> {
-        let event_name = env::var("GITEA_EVENT_NAME").unwrap_or(String::from("unknown"));
+        let event_name = env::var("GITEA_EVENT_NAME")
+            .or_else(|_| env::var("GITHUB_EVENT_NAME"))
+            .unwrap_or(String::from("unknown"));
         let pull_request = {
             match event_name.as_str() {
                 "pull_request" => {
                     // GITEA_*** env vars cannot be overwritten in CI runners on GitHub.
                     let event_payload_path = env::var("GITEA_EVENT_PATH")
+                        .or_else(|_| env::var("GITHUB_EVENT_PATH"))
                         .map_err(|e| ClientError::env_var("GITEA_EVENT_PATH", e))?;
                     // event payload JSON file can be overwritten/removed in CI runners
                     let file_buf = fs::read_to_string(event_payload_path.clone())
@@ -37,10 +40,16 @@ impl GiteaApiClient {
             }
         };
         // GITEA_*** env vars cannot be overwritten in CI runners on GitHub.
-        let gh_api_url = format!(
-            "{}/api/v1/",
-            env::var("GITEA_API_URL").map_err(|e| ClientError::env_var("GITEA_API_URL", e))?
-        );
+        // The runner sets GITHUB_API_URL to the full API root (eg. `<server>/api/v1`).
+        let gh_api_url = match env::var("GITEA_API_URL") {
+            Ok(server) => format!("{}/api/v1/", server.trim_end_matches('/')),
+            Err(_) => format!(
+                "{}/",
+                env::var("GITHUB_API_URL")
+                    .map_err(|e| ClientError::env_var("GITHUB_API_URL", e))?
+                    .trim_end_matches('/')
+            ),
+        };
         let api_url = Url::parse(gh_api_url.as_str())?;
 
         Ok(Self {
@@ -52,8 +61,11 @@ impl GiteaApiClient {
             event_name,
             api_url,
             repo: env::var("GITEA_REPOSITORY")
+                .or_else(|_| env::var("GITHUB_REPOSITORY"))
                 .map_err(|e| ClientError::env_var("GITEA_REPOSITORY", e))?,
-            sha: env::var("GITEA_SHA").map_err(|e| ClientError::env_var("GITEA_SHA", e))?,
+            sha: env::var("GITEA_SHA")
+                .or_else(|_| env::var("GITHUB_SHA"))
+                .map_err(|e| ClientError::env_var("GITEA_SHA", e))?,
             debug_enabled: env::var("ACTIONS_STEP_DEBUG").is_ok_and(|val| &val == "true"),
             rate_limit_headers: RestApiRateLimitHeaders {
                 reset: "x-ratelimit-reset".to_string(),
@@ -66,6 +78,7 @@ impl GiteaApiClient {
     pub(super) fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_str("application/json")?);
+        headers.insert("Content-Type", HeaderValue::from_str("application/json")?);
         if let Ok(token) = env::var("GITEA_TOKEN") {
             log::debug!("Using auth token from GITEA_TOKEN environment variable");
             let mut val = HeaderValue::from_str(format!("token {token}").as_str())?;
@@ -377,8 +390,14 @@ impl GiteaApiClient {
         let base_url = format!("{}repos/{}/pulls/{pr_number}", self.api_url, self.repo);
         // resolve individual comments first
         for comment_id in comment_ids {
-            let comment_url =
-                Url::parse(format!("{base_url}/comments/{comment_id}/resolve").as_str())?;
+            // This endpoint is not scoped to a PR number.
+            let comment_url = Url::parse(
+                format!(
+                    "{}repos/{}/pulls/comments/{comment_id}/resolve",
+                    self.api_url, self.repo
+                )
+                .as_str(),
+            )?;
             let request =
                 self.make_api_request(&self.client, comment_url, Method::POST, None, None)?;
             match self
