@@ -44,13 +44,29 @@ jobs:
           fetch-tags: true
           persist-credentials: true # needed for `git push`
       - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # v1.25.3
-      - run: cargo binstall -y git-cliff
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
       - name: Install nushell
         uses: hustcer/setup-nu@95cd3bfe252450ef7d35dd9a7ddecf3484341134 # v3.28
         with:
           version: ${{ vars.NUSHELL_VERSION || '*' }}
+      - name: Extract pinned git-cliff version
+        id: extract-cliff-ver
+        shell: nu {0}
+        run: |-
+          let cliff_ver = (
+            open '.github/requirements.txt'
+            | lines
+            | where {|line| $line | str trim --left | str starts-with 'git-cliff'}
+            | first
+            | str trim
+            | str replace 'git-cliff==' ''
+          )
+          $"cliff_ver=($cliff_ver)\n" | save --append $env.GITHUB_OUTPUT
+      - name: Install git-cliff
+        run: |
+          cargo binstall -y git-cliff --version "$CLIFF_VER"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLIFF_VER: ${{ steps.extract-cliff-ver.outputs.cliff_ver }}
       - name: Install cargo-edit
         run: >-
           cargo install cargo-edit
@@ -106,13 +122,29 @@ jobs:
           fetch-tags: true
           persist-credentials: false
       - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # v1.25.3
-      - run: cargo binstall -y git-cliff
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
       - name: Install nushell
         uses: hustcer/setup-nu@95cd3bfe252450ef7d35dd9a7ddecf3484341134 # v3.28
         with:
           version: ${{ vars.NUSHELL_VERSION || '*' }}
+      - name: Extract pinned git-cliff version
+        id: extract-cliff-ver
+        shell: nu {0}
+        run: |-
+          let cliff_ver = (
+            open '.github/requirements.txt'
+            | lines
+            | where {|line| $line | str trim --left | str starts-with 'git-cliff'}
+            | first
+            | str trim
+            | str replace 'git-cliff==' ''
+          )
+          $"cliff_ver=($cliff_ver)\n" | save --append $env.GITHUB_OUTPUT
+      - name: Install git-cliff
+        run: |
+          cargo binstall -y git-cliff --version "$CLIFF_VER"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLIFF_VER: ${{ steps.extract-cliff-ver.outputs.cliff_ver }}
       - name: Generate a release notes
         env:
           PKG: ${{ matrix.pkg }}

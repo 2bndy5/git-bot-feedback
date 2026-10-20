@@ -8,59 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [git-bot-feedback/v0.8.8] - 2026-10-20
 
-### <!-- 1 --> 🚀 Added
-
-- Implement GitHub client by @2bndy5 in [#1](https://github.com/2bndy5/git-bot-feedback/pull/1)
-- List file changes by @2bndy5 in [#11](https://github.com/2bndy5/git-bot-feedback/pull/11)
-- Allow custom base for local diff by @2bndy5 in [#30](https://github.com/2bndy5/git-bot-feedback/pull/30)
-- Propagate more errors to user for adequate handling by @2bndy5 in [#31](https://github.com/2bndy5/git-bot-feedback/pull/31)
-- Use helper functions to reduce error handling code by @2bndy5 in [#33](https://github.com/2bndy5/git-bot-feedback/pull/33)
-- Comprehensive output variable validation by @2bndy5 in [#35](https://github.com/2bndy5/git-bot-feedback/pull/35)
-- Support file annotations by @2bndy5 in [#37](https://github.com/2bndy5/git-bot-feedback/pull/37)
-- Support PR reviews by @2bndy5 in [#34](https://github.com/2bndy5/git-bot-feedback/pull/34)
-- Expose `debug_enabled` and `event_name` by @2bndy5 in [#60](https://github.com/2bndy5/git-bot-feedback/pull/60)
-- Implement Display for LinesChangedOnly by @2bndy5 in [#59](https://github.com/2bndy5/git-bot-feedback/pull/59)
-- Add `init_client()` and `LocalClient` by @2bndy5 in [#61](https://github.com/2bndy5/git-bot-feedback/pull/61)
-- Allow custom user-agent header value by @2bndy5 in [#62](https://github.com/2bndy5/git-bot-feedback/pull/62)
-- Revise `FileFilter::walk_dir()` by @2bndy5 in [#78](https://github.com/2bndy5/git-bot-feedback/pull/78)
-- Strip parent path from `walk_dir()` results by @2bndy5 in [#83](https://github.com/2bndy5/git-bot-feedback/pull/83)
-- Add python bindings by @2bndy5 in [#90](https://github.com/2bndy5/git-bot-feedback/pull/90)
-- Add Gitea support by @2bndy5 in [#94](https://github.com/2bndy5/git-bot-feedback/pull/94)
-- Log link to view step summary by @Copilot in [#125](https://github.com/2bndy5/git-bot-feedback/pull/125)
-
-### <!-- 10 --> 💥 Breaking Changes
-
-- Rename `FileFilter::is_not_ignored()` to `is_qualified()` by @2bndy5 in [#57](https://github.com/2bndy5/git-bot-feedback/pull/57)
-
 ### <!-- 4 --> 🛠️ Fixed
 
-- Use synchronous `std::{fs, process::Command}` by @2bndy5 in [#29](https://github.com/2bndy5/git-bot-feedback/pull/29)
-- Make `RestApiClient` a dyn-compatible async trait by @2bndy5 in [#36](https://github.com/2bndy5/git-bot-feedback/pull/36)
-- Remove `async` from non-async functions by @2bndy5 in [#58](https://github.com/2bndy5/git-bot-feedback/pull/58)
-- Use stricter linting rules by @2bndy5 in [#63](https://github.com/2bndy5/git-bot-feedback/pull/63)
-- Write only 1 LF for GH output vars by @2bndy5 in [`7add27b`](https://github.com/2bndy5/git-bot-feedback/commit/7add27b0637d65e2741e05eb55e3e3e712f46236)
-- Honor `ignore_index` when asserted by @2bndy5 in [#75](https://github.com/2bndy5/git-bot-feedback/pull/75)
-- Strip relative path from `FileFilter::walk_dir()` results by @2bndy5 in [#84](https://github.com/2bndy5/git-bot-feedback/pull/84)
-- Use correct name of PR review state that is "COMMENTED" by @2bndy5 in [#89](https://github.com/2bndy5/git-bot-feedback/pull/89)
-- Fail on unsuccessful return code from request for file changes by @2bndy5 in [#95](https://github.com/2bndy5/git-bot-feedback/pull/95)
-- Trim line endings from file names when parsing diff strings by @2bndy5 in [#97](https://github.com/2bndy5/git-bot-feedback/pull/97)
-- Fail on parsing erroneous diff by @2bndy5 in [#98](https://github.com/2bndy5/git-bot-feedback/pull/98)
-- Move option's value instead of cloning it by @2bndy5 in [#99](https://github.com/2bndy5/git-bot-feedback/pull/99)
-- Output only diff using `git show` by @2bndy5 in [#102](https://github.com/2bndy5/git-bot-feedback/pull/102)
-- Improve Github client's `get_list_of_changed_files()` by @2bndy5 in [#123](https://github.com/2bndy5/git-bot-feedback/pull/123)
-- Match descendants of a given glob pattern by @2bndy5 in [#132](https://github.com/2bndy5/git-bot-feedback/pull/132)
-- Ensure `GITHUB_API_URL` ends with a `/` by @2bndy5 in [#140](https://github.com/2bndy5/git-bot-feedback/pull/140)
-- Conditionally prepend marker to PR review summary by @2bndy5 in [#139](https://github.com/2bndy5/git-bot-feedback/pull/139)
-- Conditionally prepend marker to Gitea PR review summary by @2bndy5 in [#141](https://github.com/2bndy5/git-bot-feedback/pull/141)
 - Use GITHUB_GRAPHQL_URL for GraphQL requests by @shenxianpeng in [#143](https://github.com/2bndy5/git-bot-feedback/pull/143)
 
-### <!-- 8 --> 📝 Documentation
+### <!-- 6 --> 📦 Dependency updates
 
-- Expand on some methods' doc comments by @2bndy5 in [#96](https://github.com/2bndy5/git-bot-feedback/pull/96)
-
-### <!-- 9 --> 🗨️ Changed
-
-- Revise `FileAnnotations` impl by @2bndy5 in [#64](https://github.com/2bndy5/git-bot-feedback/pull/64)
+- Bump version to git-bot-feedback/v0.8.8 by @2bndy5 in [`8c71b01`](https://github.com/2bndy5/git-bot-feedback/commit/8c71b0188cb9106dcd2fdba4d7cadaf99e34463a)
 
 [git-bot-feedback/v0.8.8]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.7...git-bot-feedback/v0.8.8
 
@@ -69,7 +23,401 @@ Full commit diff: [`git-bot-feedback/v0.8.7...git-bot-feedback/v0.8.8`][git-bot-
 ## New Contributors
 
 - @shenxianpeng made their first contribution in [#143](https://github.com/2bndy5/git-bot-feedback/pull/143)
+
+## [git-bot-feedback/v0.8.7] - 2026-10-20
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Conditionally prepend marker to Gitea PR review summary by @2bndy5 in [#141](https://github.com/2bndy5/git-bot-feedback/pull/141)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.7 by @2bndy5 in [`6db742e`](https://github.com/2bndy5/git-bot-feedback/commit/6db742e3cd81c9faa2c8eb1efe63da6831557c50)
+
+[git-bot-feedback/v0.8.7]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.6...git-bot-feedback/v0.8.7
+
+Full commit diff: [`git-bot-feedback/v0.8.6...git-bot-feedback/v0.8.7`][git-bot-feedback/v0.8.7]
+
+## [git-bot-feedback/v0.8.6] - 2026-10-20
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Ensure `GITHUB_API_URL` ends with a `/` by @2bndy5 in [#140](https://github.com/2bndy5/git-bot-feedback/pull/140)
+- Conditionally prepend marker to PR review summary by @2bndy5 in [#139](https://github.com/2bndy5/git-bot-feedback/pull/139)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.6 by @2bndy5 in [`9e1f04d`](https://github.com/2bndy5/git-bot-feedback/commit/9e1f04dccc46ed7a939741a697f593ddc543e51e)
+
+[git-bot-feedback/v0.8.6]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.5...git-bot-feedback/v0.8.6
+
+Full commit diff: [`git-bot-feedback/v0.8.5...git-bot-feedback/v0.8.6`][git-bot-feedback/v0.8.6]
+
+## [git-bot-feedback/v0.8.5] - 2026-10-04
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Match descendants of a given glob pattern by @2bndy5 in [#132](https://github.com/2bndy5/git-bot-feedback/pull/132)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.5 by @2bndy5 in [`55b72b7`](https://github.com/2bndy5/git-bot-feedback/commit/55b72b7e472fc6e2f33d0d76a20d0d0c2ab3cd9f)
+
+[git-bot-feedback/v0.8.5]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.4...git-bot-feedback/v0.8.5
+
+Full commit diff: [`git-bot-feedback/v0.8.4...git-bot-feedback/v0.8.5`][git-bot-feedback/v0.8.5]
+
+## [git-bot-feedback/v0.8.4] - 2026-10-02
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump pyo3 to v0.29.3 and others by @2bndy5 in [#129](https://github.com/2bndy5/git-bot-feedback/pull/129)
+- Bump version to git-bot-feedback/v0.8.4 by @2bndy5 in [`41a9014`](https://github.com/2bndy5/git-bot-feedback/commit/41a90143260cd11d9597ecb09fc1b6dd41b793cd)
+
+[git-bot-feedback/v0.8.4]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.3...git-bot-feedback/v0.8.4
+
+Full commit diff: [`git-bot-feedback/v0.8.3...git-bot-feedback/v0.8.4`][git-bot-feedback/v0.8.4]
+
+## [git-bot-feedback/v0.8.3] - 2026-09-26
+
+### <!-- 1 --> 🚀 Added
+
+- Log link to view step summary by @Copilot in [#125](https://github.com/2bndy5/git-bot-feedback/pull/125)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.3 by @2bndy5 in [`131efb2`](https://github.com/2bndy5/git-bot-feedback/commit/131efb2fa166d48b7467abd16e43e01c52e2d0fd)
+
+[git-bot-feedback/v0.8.3]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.2...git-bot-feedback/v0.8.3
+
+Full commit diff: [`git-bot-feedback/v0.8.2...git-bot-feedback/v0.8.3`][git-bot-feedback/v0.8.3]
+
+## New Contributors
+
 - @Copilot made their first contribution in [#125](https://github.com/2bndy5/git-bot-feedback/pull/125)
+
+## [git-bot-feedback/v0.8.2] - 2026-09-24
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Improve Github client's `get_list_of_changed_files()` by @2bndy5 in [#123](https://github.com/2bndy5/git-bot-feedback/pull/123)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.2 by @2bndy5 in [`0e5400a`](https://github.com/2bndy5/git-bot-feedback/commit/0e5400a13f9ee9db19faff7d01a7f70c6869ae42)
+
+[git-bot-feedback/v0.8.2]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.1...git-bot-feedback/v0.8.2
+
+Full commit diff: [`git-bot-feedback/v0.8.1...git-bot-feedback/v0.8.2`][git-bot-feedback/v0.8.2]
+
+## [git-bot-feedback/v0.8.1] - 2026-07-14
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Output only diff using `git show` by @2bndy5 in [#102](https://github.com/2bndy5/git-bot-feedback/pull/102)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.1 by @2bndy5 in [`71dac26`](https://github.com/2bndy5/git-bot-feedback/commit/71dac265a5919e02ec2a6c54ee3dd1bebfb5d156)
+
+[git-bot-feedback/v0.8.1]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.0...git-bot-feedback/v0.8.1
+
+Full commit diff: [`git-bot-feedback/v0.8.0...git-bot-feedback/v0.8.1`][git-bot-feedback/v0.8.1]
+
+## [git-bot-feedback/v0.8.0] - 2026-07-01
+
+### <!-- 1 --> 🚀 Added
+
+- Add Gitea support by @2bndy5 in [#94](https://github.com/2bndy5/git-bot-feedback/pull/94)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Fail on unsuccessful return code from request for file changes by @2bndy5 in [#95](https://github.com/2bndy5/git-bot-feedback/pull/95)
+- Trim line endings from file names when parsing diff strings by @2bndy5 in [#97](https://github.com/2bndy5/git-bot-feedback/pull/97)
+- Fail on parsing erroneous diff by @2bndy5 in [#98](https://github.com/2bndy5/git-bot-feedback/pull/98)
+- Move option's value instead of cloning it by @2bndy5 in [#99](https://github.com/2bndy5/git-bot-feedback/pull/99)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.0 by @2bndy5 in [`d6070e7`](https://github.com/2bndy5/git-bot-feedback/commit/d6070e7d41cdc8a1c01c5f3a69a16aa8bdff0d25)
+
+### <!-- 8 --> 📝 Documentation
+
+- Expand on some methods' doc comments by @2bndy5 in [#96](https://github.com/2bndy5/git-bot-feedback/pull/96)
+
+[git-bot-feedback/v0.8.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.7.1...git-bot-feedback/v0.8.0
+
+Full commit diff: [`git-bot-feedback/v0.7.1...git-bot-feedback/v0.8.0`][git-bot-feedback/v0.8.0]
+
+## [git-bot-feedback/v0.7.1] - 2026-06-29
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.7.1 by @2bndy5 in [`5011a04`](https://github.com/2bndy5/git-bot-feedback/commit/5011a04d4806b08e54a1ed2ba456badb7622e682)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Change to LGPL-3.0-or-later license by @2bndy5 in [#93](https://github.com/2bndy5/git-bot-feedback/pull/93)
+
+[git-bot-feedback/v0.7.1]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.7.0...git-bot-feedback/v0.7.1
+
+Full commit diff: [`git-bot-feedback/v0.7.0...git-bot-feedback/v0.7.1`][git-bot-feedback/v0.7.1]
+
+## [git-bot-feedback/v0.7.0] - 2026-06-29
+
+### <!-- 1 --> 🚀 Added
+
+- Add python bindings by @2bndy5 in [#90](https://github.com/2bndy5/git-bot-feedback/pull/90)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Use correct name of PR review state that is "COMMENTED" by @2bndy5 in [#89](https://github.com/2bndy5/git-bot-feedback/pull/89)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.7.0 by @2bndy5 in [`89edac4`](https://github.com/2bndy5/git-bot-feedback/commit/89edac47aa122fcdc67d3dd8b5c83d6228ba613e)
+
+[git-bot-feedback/v0.7.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.6.1...git-bot-feedback/v0.7.0
+
+Full commit diff: [`git-bot-feedback/v0.6.1...git-bot-feedback/v0.7.0`][git-bot-feedback/v0.7.0]
+
+## [git-bot-feedback/v0.6.1] - 2026-06-15
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Strip relative path from `FileFilter::walk_dir()` results by @2bndy5 in [#84](https://github.com/2bndy5/git-bot-feedback/pull/84)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.6.1 by @2bndy5 in [`81314f2`](https://github.com/2bndy5/git-bot-feedback/commit/81314f2d71841e312ddccb49681920986ced047d)
+
+[git-bot-feedback/v0.6.1]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.6.0...git-bot-feedback/v0.6.1
+
+Full commit diff: [`git-bot-feedback/v0.6.0...git-bot-feedback/v0.6.1`][git-bot-feedback/v0.6.1]
+
+## [git-bot-feedback/v0.6.0] - 2026-06-15
+
+### <!-- 1 --> 🚀 Added
+
+- Strip parent path from `walk_dir()` results by @2bndy5 in [#83](https://github.com/2bndy5/git-bot-feedback/pull/83)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.6.0 by @2bndy5 in [`13ea76e`](https://github.com/2bndy5/git-bot-feedback/commit/13ea76e7fe0ebbeafea7d49d9adf0cb27db13a21)
+
+[git-bot-feedback/v0.6.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.5.6...git-bot-feedback/v0.6.0
+
+Full commit diff: [`git-bot-feedback/v0.5.6...git-bot-feedback/v0.6.0`][git-bot-feedback/v0.6.0]
+
+## [git-bot-feedback/v0.5.6] - 2026-06-11
+
+### <!-- 1 --> 🚀 Added
+
+- Revise `FileFilter::walk_dir()` by @2bndy5 in [#78](https://github.com/2bndy5/git-bot-feedback/pull/78)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.5.6 by @2bndy5 in [`de6bf8d`](https://github.com/2bndy5/git-bot-feedback/commit/de6bf8dbe144dbceca90dc00e9ce79b0a774a712)
+
+[git-bot-feedback/v0.5.6]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.5.5...git-bot-feedback/v0.5.6
+
+Full commit diff: [`git-bot-feedback/v0.5.5...git-bot-feedback/v0.5.6`][git-bot-feedback/v0.5.6]
+
+## [git-bot-feedback/v0.5.5] - 2026-06-05
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.5.5 by @2bndy5 in [`a63f8fa`](https://github.com/2bndy5/git-bot-feedback/commit/a63f8fabfbcee2828992e039803671c81074ee2c)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Use SPDX identifier for license in crate metadata by @2bndy5 in [`ea8d88a`](https://github.com/2bndy5/git-bot-feedback/commit/ea8d88a5cfe8e655f0456be7b75884fa6347a6e0)
+
+[git-bot-feedback/v0.5.5]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.5.4...git-bot-feedback/v0.5.5
+
+Full commit diff: [`git-bot-feedback/v0.5.4...git-bot-feedback/v0.5.5`][git-bot-feedback/v0.5.5]
+
+## [git-bot-feedback/v0.5.4] - 2026-06-03
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Honor `ignore_index` when asserted by @2bndy5 in [#75](https://github.com/2bndy5/git-bot-feedback/pull/75)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.5.4 by @2bndy5 in [`fb588c3`](https://github.com/2bndy5/git-bot-feedback/commit/fb588c35243dc0aeffe4c17df3649a761dc50ef0)
+
+[git-bot-feedback/v0.5.4]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.5.3...git-bot-feedback/v0.5.4
+
+Full commit diff: [`git-bot-feedback/v0.5.3...git-bot-feedback/v0.5.4`][git-bot-feedback/v0.5.4]
+
+## [git-bot-feedback/v0.5.3] - 2026-04-18
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Relax dependencies' constraints by @2bndy5 in [#65](https://github.com/2bndy5/git-bot-feedback/pull/65)
+- Bump version to v0.5.3 by @2bndy5 in [`45325de`](https://github.com/2bndy5/git-bot-feedback/commit/45325de25efa0a650243d0b4f01315522f30c7a2)
+
+[git-bot-feedback/v0.5.3]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.5.2...git-bot-feedback/v0.5.3
+
+Full commit diff: [`git-bot-feedback/v0.5.2...git-bot-feedback/v0.5.3`][git-bot-feedback/v0.5.3]
+
+## [git-bot-feedback/v0.5.2] - 2026-04-18
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.5.2 by @2bndy5 in [`737fc35`](https://github.com/2bndy5/git-bot-feedback/commit/737fc35df6b40b8e141efb6b89ad662efaaccb35)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Revise `FileAnnotations` impl by @2bndy5 in [#64](https://github.com/2bndy5/git-bot-feedback/pull/64)
+
+[git-bot-feedback/v0.5.2]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.5.1...git-bot-feedback/v0.5.2
+
+Full commit diff: [`git-bot-feedback/v0.5.1...git-bot-feedback/v0.5.2`][git-bot-feedback/v0.5.2]
+
+## [git-bot-feedback/v0.5.1] - 2026-04-17
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Write only 1 LF for GH output vars by @2bndy5 in [`7add27b`](https://github.com/2bndy5/git-bot-feedback/commit/7add27b0637d65e2741e05eb55e3e3e712f46236)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.5.1 by @2bndy5 in [`2802dd0`](https://github.com/2bndy5/git-bot-feedback/commit/2802dd081cb7aac84eb5230d26a1c9a89b156b3d)
+
+[git-bot-feedback/v0.5.1]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.5.0...git-bot-feedback/v0.5.1
+
+Full commit diff: [`git-bot-feedback/v0.5.0...git-bot-feedback/v0.5.1`][git-bot-feedback/v0.5.1]
+
+## [git-bot-feedback/v0.5.0] - 2026-04-17
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Use stricter linting rules by @2bndy5 in [#63](https://github.com/2bndy5/git-bot-feedback/pull/63)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.5.0 by @2bndy5 in [`83121f2`](https://github.com/2bndy5/git-bot-feedback/commit/83121f2984388b4013dc3c30b849659d5e2533d9)
+
+[git-bot-feedback/v0.5.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.4.0...git-bot-feedback/v0.5.0
+
+Full commit diff: [`git-bot-feedback/v0.4.0...git-bot-feedback/v0.5.0`][git-bot-feedback/v0.5.0]
+
+## [git-bot-feedback/v0.4.0] - 2026-04-17
+
+### <!-- 1 --> 🚀 Added
+
+- Expose `debug_enabled` and `event_name` by @2bndy5 in [#60](https://github.com/2bndy5/git-bot-feedback/pull/60)
+- Implement Display for LinesChangedOnly by @2bndy5 in [#59](https://github.com/2bndy5/git-bot-feedback/pull/59)
+- Add `init_client()` and `LocalClient` by @2bndy5 in [#61](https://github.com/2bndy5/git-bot-feedback/pull/61)
+- Allow custom user-agent header value by @2bndy5 in [#62](https://github.com/2bndy5/git-bot-feedback/pull/62)
+
+### <!-- 10 --> 💥 Breaking Changes
+
+- Rename `FileFilter::is_not_ignored()` to `is_qualified()` by @2bndy5 in [#57](https://github.com/2bndy5/git-bot-feedback/pull/57)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Remove `async` from non-async functions by @2bndy5 in [#58](https://github.com/2bndy5/git-bot-feedback/pull/58)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.4.0 by @2bndy5 in [`d4406ff`](https://github.com/2bndy5/git-bot-feedback/commit/d4406ff45f9bc3a83580747e466cd157fe393efe)
+
+[git-bot-feedback/v0.4.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.3.0...git-bot-feedback/v0.4.0
+
+Full commit diff: [`git-bot-feedback/v0.3.0...git-bot-feedback/v0.4.0`][git-bot-feedback/v0.4.0]
+
+## [git-bot-feedback/v0.3.0] - 2026-04-15
+
+### <!-- 1 --> 🚀 Added
+
+- Allow custom base for local diff by @2bndy5 in [#30](https://github.com/2bndy5/git-bot-feedback/pull/30)
+- Propagate more errors to user for adequate handling by @2bndy5 in [#31](https://github.com/2bndy5/git-bot-feedback/pull/31)
+- Use helper functions to reduce error handling code by @2bndy5 in [#33](https://github.com/2bndy5/git-bot-feedback/pull/33)
+- Comprehensive output variable validation by @2bndy5 in [#35](https://github.com/2bndy5/git-bot-feedback/pull/35)
+- Support file annotations by @2bndy5 in [#37](https://github.com/2bndy5/git-bot-feedback/pull/37)
+- Support PR reviews by @2bndy5 in [#34](https://github.com/2bndy5/git-bot-feedback/pull/34)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Use synchronous `std::{fs, process::Command}` by @2bndy5 in [#29](https://github.com/2bndy5/git-bot-feedback/pull/29)
+- Make `RestApiClient` a dyn-compatible async trait by @2bndy5 in [#36](https://github.com/2bndy5/git-bot-feedback/pull/36)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump the cargo group across 1 directory with 10 updates by @dependabot[bot] in [#28](https://github.com/2bndy5/git-bot-feedback/pull/28)
+- Bump the cargo group across 1 directory with 4 updates by @dependabot[bot] in [#40](https://github.com/2bndy5/git-bot-feedback/pull/40)
+- Bump tokio from 1.50.0 to 1.51.0 in the cargo group by @dependabot[bot] in [#47](https://github.com/2bndy5/git-bot-feedback/pull/47)
+- Bump tokio to v1.52.0 by @2bndy5 in [`b0ef1d5`](https://github.com/2bndy5/git-bot-feedback/commit/b0ef1d5668218c4c445048583e24a78fccf7664a)
+- Bump version to v0.3.0 by @2bndy5 in [`c8e8341`](https://github.com/2bndy5/git-bot-feedback/commit/c8e834160052393dfe626027e5ef997033047f16)
+
+[git-bot-feedback/v0.3.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.2.0...git-bot-feedback/v0.3.0
+
+Full commit diff: [`git-bot-feedback/v0.2.0...git-bot-feedback/v0.3.0`][git-bot-feedback/v0.3.0]
+
+## [git-bot-feedback/v0.2.0] - 2025-10-25
+
+### <!-- 1 --> 🚀 Added
+
+- List file changes by @2bndy5 in [#11](https://github.com/2bndy5/git-bot-feedback/pull/11)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump the cargo group across 1 directory with 9 updates by @dependabot[bot] in [#10](https://github.com/2bndy5/git-bot-feedback/pull/10)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Fix bump-n-release script by @2bndy5 in [`b7c8ee3`](https://github.com/2bndy5/git-bot-feedback/commit/b7c8ee3fd68816c3dc2ba6583a1dd832122a2936)
+
+[git-bot-feedback/v0.2.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.1.4...git-bot-feedback/v0.2.0
+
+Full commit diff: [`git-bot-feedback/v0.1.4...git-bot-feedback/v0.2.0`][git-bot-feedback/v0.2.0]
+
+## [git-bot-feedback/v0.1.4] - 2025-08-18
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump the cargo group with 3 updates by @dependabot[bot] in [#2](https://github.com/2bndy5/git-bot-feedback/pull/2)
+- Bump version to v0.1.4 by @2bndy5 in [`19c6330`](https://github.com/2bndy5/git-bot-feedback/commit/19c6330e8c4aa0e4ee18482b761277bd294bb6f3)
+
+[git-bot-feedback/v0.1.4]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.1.3...git-bot-feedback/v0.1.4
+
+Full commit diff: [`git-bot-feedback/v0.1.3...git-bot-feedback/v0.1.4`][git-bot-feedback/v0.1.4]
+
+## New Contributors
+
+- @dependabot[bot] made their first contribution in [#2](https://github.com/2bndy5/git-bot-feedback/pull/2)
+
+## [git-bot-feedback/v0.1.3] - 2025-07-19
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to v0.1.3 by @2bndy5 in [`c5e4d9b`](https://github.com/2bndy5/git-bot-feedback/commit/c5e4d9b9ce474d26e6a92286c1b58207351cd153)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Bump serde_json from 1.0.140 to 1.0.141 by @2bndy5 in [`e831cd8`](https://github.com/2bndy5/git-bot-feedback/commit/e831cd8b937620eb804f4efad02f683d0317eeb6)
+
+[git-bot-feedback/v0.1.3]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.1.2...git-bot-feedback/v0.1.3
+
+Full commit diff: [`git-bot-feedback/v0.1.2...git-bot-feedback/v0.1.3`][git-bot-feedback/v0.1.3]
+
+## [git-bot-feedback/v0.1.2] - 2025-07-16
+
+### <!-- 1 --> 🚀 Added
+
+- Implement GitHub client by @2bndy5 in [#1](https://github.com/2bndy5/git-bot-feedback/pull/1)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Detect CI context in build-n-release.nu script by @2bndy5 in [`ae77080`](https://github.com/2bndy5/git-bot-feedback/commit/ae77080563f20f0374c4692d79d2096abbe14b66)
+- Bump version to v0.1.2 by @2bndy5 in [`9c6cef4`](https://github.com/2bndy5/git-bot-feedback/commit/9c6cef41be1c2780b95cc18277bb9e180d78886f)
+
+[git-bot-feedback/v0.1.2]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.1.1...git-bot-feedback/v0.1.2
+
+Full commit diff: [`git-bot-feedback/v0.1.1...git-bot-feedback/v0.1.2`][git-bot-feedback/v0.1.2]
 
 
 <!-- generated by git-cliff -->
