@@ -218,7 +218,7 @@ impl GithubApiClient {
         let mut after_thread = None;
         let mut after_comment = None;
         let mut has_next_page = true;
-        let graphql_url = self.api_url.join("/graphql")?;
+        let graphql_url = self.graphql_url.clone();
         while has_next_page {
             let variables = json!({
                 "owner": repo_owner.to_string(),
@@ -400,7 +400,7 @@ impl GithubApiClient {
         };
         let request = self.make_api_request(
             &self.client,
-            self.api_url.join("/graphql")?,
+            self.graphql_url.clone(),
             Method::POST,
             Some(json!({"query": mutation, "variables": { "id": id.value() }}).to_string()),
             None,
@@ -429,7 +429,7 @@ impl GithubApiClient {
         marker: &str,
     ) -> Result<(), ClientError> {
         let mut next_page = Some(Url::parse_with_params(url.as_str(), [("page", "1")])?);
-        let graphql_url = self.api_url.join("/graphql")?;
+        let graphql_url = self.graphql_url.clone();
         while let Some(endpoint) = next_page.take() {
             let request = self.make_api_request(&self.client, endpoint, Method::GET, None, None)?;
             let response = self
