@@ -48,14 +48,13 @@ const COMMON_EXCLUDES = [
     'bindings/python/README.md'
     'package.json'
     'codecov.yml'
-    'Cargo.toml'
     'cspell.config.yml'
     '**/CHANGELOG.md'
 ]
 
 const PkgPaths = {
     'git-bot-feedback': {
-        include: ['src/**/*']
+        include: ['src/**/*', 'Cargo.toml']
         exclude: [...$COMMON_EXCLUDES]
         path: '.'
     },
@@ -159,9 +158,10 @@ export def gen-changes [
 
     mut args = [
         '--config' $"($config_path | path join 'cliff.toml')"
+        '--tag-pattern' $"($pkg)/v*"
     ]
     if (($tag | str length) > 0) {
-        $args = $args | append ['--tag', $tag, '--tag-pattern', $"($pkg)/v*"]
+        $args = $args | append ['--tag', $tag]
     }
     let prompt = if $unreleased {
         let out_path = $config_path | path join 'ReleaseNotes.md'
@@ -185,7 +185,11 @@ export def gen-changes [
         }
     }
     let args = $args # make args immutable (to use in `with-env` block below)
-    with-env {GIT_CLIFF_TAG: $tag} {
+    if (($tag | str length) > 0) {
+        with-env {GIT_CLIFF_TAG: $tag} {
+            run-cmd 'git-cliff' ...$args
+        }
+    } else {
         run-cmd 'git-cliff' ...$args
     }
     print ($prompt | format pattern '{log_prefix} {out_path}')
