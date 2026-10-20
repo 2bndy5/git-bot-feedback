@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback-py/v0.2.8] - 2026-10-20
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Conditionally prepend marker to Gitea PR review summary by @2bndy5 in [#141](https://github.com/2bndy5/git-bot-feedback/pull/141)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.8.7 by @2bndy5 in [`6db742e`](https://github.com/2bndy5/git-bot-feedback/commit/6db742e3cd81c9faa2c8eb1efe63da6831557c50)
+
+[git-bot-feedback-py/v0.2.8]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.2.7...git-bot-feedback-py/v0.2.8
+
+Full commit diff: [`git-bot-feedback-py/v0.2.7...git-bot-feedback-py/v0.2.8`][git-bot-feedback-py/v0.2.8]
+
 ## [git-bot-feedback-py/v0.2.7] - 2026-10-20
 
 ### <!-- 4 --> 🛠️ Fixed
@@ -16,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### <!-- 6 --> 📦 Dependency updates
 
 - Bump version to git-bot-feedback/v0.8.6 by @2bndy5 in [`9e1f04d`](https://github.com/2bndy5/git-bot-feedback/commit/9e1f04dccc46ed7a939741a697f593ddc543e51e)
+- Bump version to git-bot-feedback-py/v0.2.7 by @2bndy5 in [`021043e`](https://github.com/2bndy5/git-bot-feedback/commit/021043e6e87736b07dd49feba21377d68e6b69a3)
 
 [git-bot-feedback-py/v0.2.7]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.2.6...git-bot-feedback-py/v0.2.7
 
