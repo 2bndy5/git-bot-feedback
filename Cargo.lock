@@ -433,7 +433,7 @@ dependencies = [
 
 [[package]]
 name = "git-bot-feedback-py"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "git-bot-feedback",
  "pyo3",
