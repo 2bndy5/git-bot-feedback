@@ -41,6 +41,11 @@ impl GithubApiClient {
         // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
         let gh_api_url = env::var("GITHUB_API_URL").unwrap_or("https://api.github.com".to_string());
         let api_url = Url::parse(format!("{}/", gh_api_url.trim_end_matches('/')).as_str())?;
+        let graphql_url = Url::parse(
+            env::var("GITHUB_GRAPHQL_URL")
+                .unwrap_or("https://api.github.com/graphql".to_string())
+                .as_str(),
+        )?;
 
         Ok(Self {
             client: Client::builder()
@@ -50,6 +55,7 @@ impl GithubApiClient {
             pull_request,
             event_name,
             api_url,
+            graphql_url,
             repo: env::var("GITHUB_REPOSITORY")
                 .map_err(|e| ClientError::env_var("GITHUB_REPOSITORY", e))?,
             sha: env::var("GITHUB_SHA").map_err(|e| ClientError::env_var("GITHUB_SHA", e))?,
@@ -428,8 +434,13 @@ mod tests {
             env::set_var("GITHUB_EVENT_NAME", "push");
             // suffix the URL with `//`; expect `client.api_url` to end with a single `/`
             env::set_var("GITHUB_API_URL", format!("{gh_api_url}//"));
+            env::set_var("GITHUB_GRAPHQL_URL", "https://ghe.example.com/api/graphql");
         }
         let client = GithubApiClient::new().unwrap();
+        assert_eq!(
+            client.graphql_url.as_str(),
+            "https://ghe.example.com/api/graphql"
+        );
         assert!(client.api_url.as_str().ends_with("/v3/"));
         let endpoint = client.api_url.join("repos/").unwrap();
         assert_eq!(endpoint.as_str(), "https://api.github.com/v3/repos/");

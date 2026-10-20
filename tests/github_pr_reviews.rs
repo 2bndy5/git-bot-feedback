@@ -188,6 +188,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
     let mut server = Server::new_async().await;
     unsafe {
         env::set_var("GITHUB_API_URL", server.url());
+        env::set_var("GITHUB_GRAPHQL_URL", format!("{}/graphql", server.url()));
     }
 
     logger_init();
