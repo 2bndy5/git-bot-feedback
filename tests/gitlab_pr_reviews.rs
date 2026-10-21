@@ -61,6 +61,7 @@ struct TestParams {
     all_comments_reused: bool,
     fail_create_draft: bool,
     fail_get_drafts: bool,
+    other_drafts: bool,
     approved_before: bool,
     no_token: bool,
 }
@@ -76,6 +77,7 @@ impl Default for TestParams {
             all_comments_reused: false,
             fail_create_draft: false,
             fail_get_drafts: false,
+            other_drafts: false,
             approved_before: false,
             no_token: false,
         }
@@ -325,15 +327,12 @@ async fn setup_and_run(test_params: &TestParams) {
         mocks.push(if test_params.fail_get_drafts {
             drafts.with_status(500).create()
         } else {
-            drafts
-                .with_body(
-                    json!([
-                        {"id": 900, "note": format!("{MARKER}A stale draft")},
-                        {"id": 901, "note": "A user's draft"},
-                    ])
-                    .to_string(),
-                )
-                .create()
+            let mut pending = vec![json!({"id": 900, "note": format!("{MARKER}A stale draft")})];
+            if test_params.other_drafts {
+                // a review that the token's user has in progress
+                pending.push(json!({"id": 901, "note": "A user's draft"}));
+            }
+            drafts.with_body(json!(pending).to_string()).create()
         });
         if !test_params.fail_get_drafts {
             mocks.push(
@@ -343,7 +342,7 @@ async fn setup_and_run(test_params: &TestParams) {
             );
         }
     }
-    let mut drafts_created = 0;
+    let mut drafts_created = vec![];
     if creates_drafts {
         mocks.push(
             mock_api(&mut server, "GET", "/raw_diffs")
@@ -368,9 +367,11 @@ async fn setup_and_run(test_params: &TestParams) {
                             "new_line": 42,
                         },
                     })))
+                    .with_status(201)
+                    .with_body(json!({"id": 1001, "note": "..."}).to_string())
                     .create(),
             );
-            drafts_created += 1;
+            drafts_created.push(1001);
         }
         // a multi-line suggestion on unchanged lines
         mocks.push(
@@ -390,10 +391,11 @@ async fn setup_and_run(test_params: &TestParams) {
                     },
                 })))
                 .with_status(if test_params.fail_create_draft { 400 } else { 201 })
+                .with_body(json!({"id": 1002, "note": "..."}).to_string())
                 .create(),
         );
         if !test_params.fail_create_draft {
-            drafts_created += 1;
+            drafts_created.push(1002);
         }
         // a comment on an added line has no `old_line`
         mocks.push(
@@ -411,13 +413,27 @@ async fn setup_and_run(test_params: &TestParams) {
                     },
                 })))
                 .with_status(201)
+                .with_body(json!({"id": 1003, "note": "..."}).to_string())
                 .create(),
         );
-        drafts_created += 1;
+        drafts_created.push(1003);
     }
     if can_post {
         let request_changes = test_params.action == ReviewAction::RequestChanges;
-        if drafts_created > 0 || request_changes {
+        if test_params.other_drafts || test_params.fail_get_drafts {
+            // only this review's drafts are published
+            for id in &drafts_created {
+                mocks.push(
+                    mock_api(
+                        &mut server,
+                        "PUT",
+                        format!("/draft_notes/{id}/publish").as_str(),
+                    )
+                    .with_status(204)
+                    .create(),
+                );
+            }
+        } else if !drafts_created.is_empty() || request_changes {
             let payload = if request_changes {
                 json!({"reviewer_state": "requested_changes"})
             } else {
@@ -597,6 +613,25 @@ async fn fail_create_draft() {
 async fn fail_get_drafts() {
     setup_and_run(&TestParams {
         fail_get_drafts: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn other_pending_drafts() {
+    setup_and_run(&TestParams {
+        other_drafts: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn other_pending_drafts_request_changes() {
+    setup_and_run(&TestParams {
+        other_drafts: true,
+        action: ReviewAction::RequestChanges,
         ..Default::default()
     })
     .await;

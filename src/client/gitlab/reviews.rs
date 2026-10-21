@@ -193,7 +193,10 @@ impl GitlabApiClient {
     ///
     /// Publishing a review publishes all of the user's pending draft notes.
     /// This prevents publishing leftovers from a previous review that failed to be published.
-    async fn delete_stale_draft_notes(&self, iid: u64, marker: &str) -> Result<(), ClientError> {
+    ///
+    /// Returns `true` if the user may have other pending draft notes (eg. a review in progress
+    /// when `GITLAB_TOKEN` is a personal access token).
+    async fn delete_stale_draft_notes(&self, iid: u64, marker: &str) -> Result<bool, ClientError> {
         let url = self.project_url(format!("merge_requests/{iid}/draft_notes").as_str())?;
         let request = self.make_api_request(&self.client, url.clone(), Method::GET, None, None)?;
         let response = self
@@ -203,7 +206,7 @@ impl GitlabApiClient {
         if !response.status().is_success() {
             self.log_response(response, "Failed to get pending draft notes")
                 .await;
-            return Ok(());
+            return Ok(true);
         }
         let drafts = serde_json::from_str::<Vec<ExistingDraftNote>>(&response.text().await?)
             .map_err(|e| ClientError::json("deserialize pending draft notes", e))?;
@@ -219,24 +222,24 @@ impl GitlabApiClient {
             self.log_response(response, "Failed to delete stale draft note")
                 .await;
         }
-        Ok(())
+        Ok(drafts.iter().any(|d| !d.note.starts_with(marker)))
     }
 
     /// Create a draft note for each of the given `comments`.
     ///
-    /// Returns the number of draft notes that were created.
+    /// Returns the IDs of the draft notes that were created.
     async fn create_draft_notes(
         &self,
         iid: u64,
         diff_refs: &DiffRefs,
         options: &ReviewOptions,
-    ) -> Result<usize, ClientError> {
+    ) -> Result<Vec<u64>, ClientError> {
+        let mut created = vec![];
         if options.comments.is_empty() {
-            return Ok(0);
+            return Ok(created);
         }
         let positions = parse_positions(&self.get_merge_request_raw_diff(iid).await?);
         let url = self.project_url(format!("merge_requests/{iid}/draft_notes").as_str())?;
-        let mut created = 0;
         for comment in &options.comments {
             let Some(file) = positions.get(&comment.path) else {
                 log::warn!(
@@ -272,7 +275,9 @@ impl GitlabApiClient {
                 .await
                 .map_err(|e| e.add_request_context("create review comment"))?;
             if response.status().is_success() {
-                created += 1;
+                let draft = serde_json::from_str::<ExistingDraftNote>(&response.text().await?)
+                    .map_err(|e| ClientError::json("deserialize created review comment", e))?;
+                created.push(draft.id);
             } else {
                 self.log_response(response, "Failed to create review comment")
                     .await;
@@ -288,10 +293,22 @@ impl GitlabApiClient {
         diff_refs: &DiffRefs,
         options: &ReviewOptions,
     ) -> Result<(), ClientError> {
-        self.delete_stale_draft_notes(iid, &options.marker).await?;
+        let has_other_drafts = self.delete_stale_draft_notes(iid, &options.marker).await?;
         let drafts = self.create_draft_notes(iid, diff_refs, options).await?;
         let request_changes = options.action == ReviewAction::RequestChanges;
-        if drafts > 0 || request_changes {
+        if has_other_drafts {
+            // Publishing all draft notes would also publish the user's other pending drafts.
+            log::warn!(
+                "Publishing review comments one at a time because the GitLab user has other pending draft notes on this merge request"
+            );
+            for id in drafts {
+                let url = self.project_url(
+                    format!("merge_requests/{iid}/draft_notes/{id}/publish").as_str(),
+                )?;
+                self.send_and_log(Method::PUT, url, None, "publish review comment")
+                    .await?;
+            }
+        } else if !drafts.is_empty() || request_changes {
             // `reviewer_state` is ignored by GitLab versions older than v19.2
             let payload = if request_changes {
                 json!({"reviewer_state": "requested_changes"})
@@ -300,7 +317,8 @@ impl GitlabApiClient {
             };
             let url = self
                 .project_url(format!("merge_requests/{iid}/draft_notes/bulk_publish").as_str())?;
-            self.send_and_log(url, payload, "publish review").await?;
+            self.send_and_log(Method::POST, url, Some(payload), "publish review")
+                .await?;
         }
 
         // A summary note is posted separately because older GitLab versions do not support
@@ -314,13 +332,18 @@ impl GitlabApiClient {
                 .unwrap_or(&options.summary)
         );
         let url = self.project_url(format!("merge_requests/{iid}/notes").as_str())?;
-        self.send_and_log(url, json!({"body": summary}), "post review summary")
-            .await?;
+        self.send_and_log(
+            Method::POST,
+            url,
+            Some(json!({"body": summary})),
+            "post review summary",
+        )
+        .await?;
 
         match options.action {
             ReviewAction::Approve => {
                 let url = self.project_url(format!("merge_requests/{iid}/approve").as_str())?;
-                self.send_and_log(url, json!({}), "approve merge request")
+                self.send_and_log(Method::POST, url, None, "approve merge request")
                     .await?;
             }
             ReviewAction::RequestChanges => {
@@ -343,18 +366,19 @@ impl GitlabApiClient {
         Ok(())
     }
 
-    /// Send a POST request with a JSON `payload` and log the response if it failed.
+    /// Send a request (with an optional JSON `payload`) and log the response if it failed.
     async fn send_and_log(
         &self,
+        method: Method,
         url: Url,
-        payload: serde_json::Value,
+        payload: Option<serde_json::Value>,
         task: &str,
     ) -> Result<(), ClientError> {
         let request = self.make_api_request(
             &self.client,
             url,
-            Method::POST,
-            Some(payload.to_string()),
+            method,
+            payload.map(|p| p.to_string()),
             None,
         )?;
         let response = self
