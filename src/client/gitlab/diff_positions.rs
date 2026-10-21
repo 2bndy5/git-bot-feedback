@@ -158,11 +158,7 @@ pub fn parse_positions(diff: &str) -> HashMap<String, FilePositions> {
             old_line = header.old_start;
             new_line = header.new_start;
             let (old_left, new_left) = (header.old_count, header.new_count);
-            if old_left == 0 && new_left == 0 {
-                file.hunks.push(header);
-            } else {
-                hunk = Some((header, old_left, new_left));
-            }
+            hunk = Some((header, old_left, new_left));
         }
     }
     if let Some((done, _, _)) = hunk.take() {
@@ -296,6 +292,17 @@ rename to src/after.h
         assert_eq!(files.get("a.c").unwrap().old_line(1), None);
         assert_eq!(files.get("a.c").unwrap().old_line(2), Some(1));
         assert_eq!(files.get("b.c").unwrap().old_line(1), None);
+    }
+
+    #[test]
+    fn truncated_diff() {
+        // The last hunk claims more lines than the diff has.
+        let diff =
+            "diff --git a/a.c b/a.c\n--- a/a.c\n+++ b/a.c\n@@ -1,3 +1,4 @@\n context\n+new\n";
+        let files = parse_positions(diff);
+        let file = files.get("a.c").unwrap();
+        assert_eq!(file.old_line(1), Some(1));
+        assert_eq!(file.old_line(2), None);
     }
 
     #[test]

@@ -13,6 +13,7 @@ use git_bot_feedback::{
 use std::{env, path::Path};
 
 const PROJECT_ID: &str = "42";
+const FORK_PROJECT_ID: &str = "13";
 const SHA: &str = "deadbeef";
 const MR: u64 = 7;
 const TOKEN: &str = "123456";
@@ -37,9 +38,13 @@ fn set_env(api_url: &str, event_t: &EventType) {
         if *event_t == EventType::PullRequest {
             env::set_var("CI_PIPELINE_SOURCE", "merge_request_event");
             env::set_var("CI_MERGE_REQUEST_IID", MR.to_string());
+            env::set_var("CI_MERGE_REQUEST_PROJECT_ID", PROJECT_ID);
+            // the pipeline of a merge request from a fork runs in the fork
+            env::set_var("CI_PROJECT_ID", FORK_PROJECT_ID);
         } else {
             env::set_var("CI_PIPELINE_SOURCE", "push");
             env::remove_var("CI_MERGE_REQUEST_IID");
+            env::remove_var("CI_MERGE_REQUEST_PROJECT_ID");
         }
         env::remove_var("GITEA_ACTIONS");
         env::remove_var("GITHUB_ACTIONS");
@@ -322,6 +327,18 @@ fn bad_merge_request_iid() {
     assert!(matches!(
         GitlabApiClient::new(),
         Err(RestClientError::MalformedEventInfo(_))
+    ));
+}
+
+#[test]
+fn missing_merge_request_project_id() {
+    set_env("https://gitlab.example.com/api/v4", &EventType::PullRequest);
+    unsafe {
+        env::remove_var("CI_MERGE_REQUEST_PROJECT_ID");
+    }
+    assert!(matches!(
+        GitlabApiClient::new(),
+        Err(RestClientError::EnvVar { name, .. }) if name == "CI_MERGE_REQUEST_PROJECT_ID"
     ));
 }
 

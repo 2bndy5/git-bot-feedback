@@ -33,6 +33,13 @@ impl GitlabApiClient {
             env::var("CI_API_V4_URL").map_err(|e| ClientError::env_var("CI_API_V4_URL", e))?;
         // A trailing slash is needed to preserve the URL's path when joining relative paths.
         let api_url = Url::parse(format!("{}/", api_url.trim_end_matches('/')).as_str())?;
+        // The pipeline of a merge request from a fork runs in the fork (`CI_PROJECT_ID`),
+        // but the merge request belongs to the target project.
+        let project_var = if merge_request_iid.is_some() {
+            "CI_MERGE_REQUEST_PROJECT_ID"
+        } else {
+            "CI_PROJECT_ID"
+        };
 
         Ok(Self {
             client: Client::builder()
@@ -42,8 +49,7 @@ impl GitlabApiClient {
             merge_request_iid,
             event_name: env::var("CI_PIPELINE_SOURCE").unwrap_or(String::from("unknown")),
             api_url,
-            project_id: env::var("CI_PROJECT_ID")
-                .map_err(|e| ClientError::env_var("CI_PROJECT_ID", e))?,
+            project_id: env::var(project_var).map_err(|e| ClientError::env_var(project_var, e))?,
             sha: env::var("CI_COMMIT_SHA").map_err(|e| ClientError::env_var("CI_COMMIT_SHA", e))?,
             debug_enabled: env::var("CI_DEBUG_TRACE").is_ok_and(|val| &val == "true"),
             rate_limit_headers: RestApiRateLimitHeaders {
@@ -79,12 +85,19 @@ impl GitlabApiClient {
             .join(format!("projects/{}/{path}", self.project_id).as_str())?)
     }
 
+    /// Create a URL for the given `path` relative to the merge request's REST API endpoint.
+    ///
+    /// The given `path` should be empty or begin with a `/`.
+    pub(super) fn merge_request_url(&self, iid: u64, path: &str) -> Result<Url, ClientError> {
+        self.project_url(format!("merge_requests/{iid}{path}").as_str())
+    }
+
     /// Get information about the merge request with the given `iid`.
     pub(super) async fn get_merge_request(
         &self,
         iid: u64,
     ) -> Result<MergeRequestInfo, ClientError> {
-        let url = self.project_url(format!("merge_requests/{iid}").as_str())?;
+        let url = self.merge_request_url(iid, "")?;
         let request = self.make_api_request(&self.client, url, Method::GET, None, None)?;
         let response = self
             .send_api_request(&self.client, request, &self.rate_limit_headers)
@@ -106,7 +119,7 @@ impl GitlabApiClient {
     /// This endpoint was added in GitLab v17.9.
     pub(super) async fn get_merge_request_raw_diff(&self, iid: u64) -> Result<String, ClientError> {
         const TASK: &str = "get merge request raw diffs (requires GitLab v17.9 or newer)";
-        let url = self.project_url(format!("merge_requests/{iid}/raw_diffs").as_str())?;
+        let url = self.merge_request_url(iid, "/raw_diffs")?;
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_str("text/plain")?);
         let request = self.make_api_request(&self.client, url, Method::GET, None, Some(headers))?;
@@ -139,30 +152,18 @@ impl GitlabApiClient {
 
         if !is_lgtm || !options.no_lgtm {
             let payload = HashMap::from([("body", options.mark_comment())]);
-            let req_meth = if comment_url.is_some() {
-                Method::PUT
-            } else {
-                Method::POST
+            let body = serde_json::json!(&payload).to_string();
+            let (method, url) = match comment_url {
+                Some(comment_url) => (Method::PUT, comment_url),
+                None => (Method::POST, url),
             };
-            let request = self.make_api_request(
-                &self.client,
-                comment_url.unwrap_or(url),
-                req_meth,
-                Some(serde_json::json!(&payload).to_string()),
-                None,
-            )?;
-            match self
+            let request = self.make_api_request(&self.client, url, method, Some(body), None)?;
+            let response = self
                 .send_api_request(&self.client, request, &self.rate_limit_headers)
                 .await
-            {
-                Ok(response) => {
-                    self.log_response(response, "Failed to post thread comment")
-                        .await;
-                }
-                Err(e) => {
-                    return Err(e.add_request_context("post thread comment"));
-                }
-            }
+                .map_err(|e| e.add_request_context("post thread comment"))?;
+            self.log_response(response, "Failed to post thread comment")
+                .await;
         }
         Ok(())
     }
@@ -179,15 +180,12 @@ impl GitlabApiClient {
         let mut comment_url = None;
         // Note, the oldest comments are listed first.
         // This way the last comment found is the most recent one.
-        let mut comments_url = Some(Url::parse_with_params(
-            url.as_str(),
-            &[
-                ("sort", "asc"),
-                ("order_by", "created_at"),
-                ("per_page", "100"),
-                ("page", "1"),
-            ],
-        )?);
+        let mut comments_url = url.clone();
+        comments_url
+            .query_pairs_mut()
+            .append_pair("sort", "asc")
+            .append_pair("order_by", "created_at");
+        let mut comments_url = Some(first_page(comments_url));
         while let Some(endpoint) = comments_url.take() {
             let request = self.make_api_request(&self.client, endpoint, Method::GET, None, None)?;
             let response = self
@@ -244,6 +242,16 @@ impl GitlabApiClient {
         }
         Ok(comment_url)
     }
+}
+
+/// Add the query parameters that request the first page (of 100 items) from a list endpoint.
+///
+/// The following pages are found with [`RestApiClient::try_next_page()`].
+pub(super) fn first_page(mut url: Url) -> Url {
+    url.query_pairs_mut()
+        .append_pair("per_page", "100")
+        .append_pair("page", "1");
+    url
 }
 
 /// Sanitize a log group's name into an ID for a collapsible section in GitLab CI logs.

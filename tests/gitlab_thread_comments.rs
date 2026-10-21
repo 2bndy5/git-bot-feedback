@@ -13,6 +13,7 @@ use common::{EventType, logger_init, take_logs};
 
 const MARKER: &str = "<!-- git-bot-feedback -->\n";
 const PROJECT_ID: &str = "42";
+const FORK_PROJECT_ID: &str = "13";
 const SHA: &str = "deadbeef";
 const MR: u64 = 7;
 const TOKEN: &str = "123456";
@@ -31,6 +32,7 @@ struct TestParams {
     fail_get_existing_comments: bool,
     bad_existing_comments: bool,
     fail_posting: bool,
+    rate_limited: bool,
     no_token: bool,
 }
 
@@ -46,6 +48,7 @@ impl Default for TestParams {
             fail_get_existing_comments: false,
             bad_existing_comments: false,
             fail_posting: false,
+            rate_limited: false,
             no_token: false,
         }
     }
@@ -128,8 +131,12 @@ async fn setup(test_params: &TestParams) {
         env::set_var("CI_COMMIT_SHA", SHA);
         if test_params.event_t == EventType::PullRequest {
             env::set_var("CI_MERGE_REQUEST_IID", MR.to_string());
+            env::set_var("CI_MERGE_REQUEST_PROJECT_ID", PROJECT_ID);
+            // the pipeline of a merge request from a fork runs in the fork
+            env::set_var("CI_PROJECT_ID", FORK_PROJECT_ID);
         } else {
             env::remove_var("CI_MERGE_REQUEST_IID");
+            env::remove_var("CI_MERGE_REQUEST_PROJECT_ID");
         }
         if test_params.no_token {
             env::remove_var("GITLAB_TOKEN");
@@ -222,13 +229,27 @@ async fn setup(test_params: &TestParams) {
         } else {
             ("PUT", format!("{notes_path}/{}", BOT_COMMENTS[2]))
         };
-        mocks.push(
+        mocks.push(if test_params.rate_limited {
+            // GitLab's rate limit headers
+            server
+                .mock(
+                    method,
+                    format!("/api/v4/projects/{PROJECT_ID}/{path}").as_str(),
+                )
+                .with_status(429)
+                .with_header(REMAINING_RATE_LIMIT_HEADER, "0")
+                .with_header(
+                    RESET_RATE_LIMIT_HEADER,
+                    (Utc::now().timestamp() + 60).to_string().as_str(),
+                )
+                .create()
+        } else {
             mock_api(&mut server, method, &path)
                 .match_header("Content-Type", "application/json")
                 .match_body(Matcher::Json(json!({"body": format!("{MARKER}{comment}")})))
                 .with_status(if test_params.fail_posting { 403 } else { 200 })
-                .create(),
-        );
+                .create()
+        });
     }
 
     let opts = ThreadCommentOptions {
@@ -251,6 +272,11 @@ async fn setup(test_params: &TestParams) {
         assert!(
             matches!(result, Err(RestClientError::RequestContext { .. })),
             "Expected RequestContext error, got: {result:?}"
+        );
+    } else if test_params.rate_limited {
+        assert!(
+            matches!(result, Err(RestClientError::RateLimitPrimary(_))),
+            "Expected RateLimitPrimary error, got: {result:?}"
         );
     } else if test_params.bad_existing_comments {
         assert!(
@@ -351,6 +377,15 @@ async fn bad_existing_comments() {
 async fn fail_posting() {
     setup(&TestParams {
         fail_posting: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn rate_limited() {
+    setup(&TestParams {
+        rate_limited: true,
         ..Default::default()
     })
     .await;

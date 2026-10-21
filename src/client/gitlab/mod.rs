@@ -22,6 +22,8 @@ use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};
 #[cfg(feature = "file-changes")]
 use reqwest::Method;
 #[cfg(feature = "file-changes")]
+use specific_api::first_page;
+#[cfg(feature = "file-changes")]
 use std::{collections::HashMap, path::Path};
 
 /// The ANSI escape sequence that GitLab CI expects around a collapsible section's markers.
@@ -49,7 +51,8 @@ pub struct GitlabApiClient {
     /// The value of the `CI_API_V4_URL` environment variable.
     api_url: Url,
 
-    /// The value of the `CI_PROJECT_ID` environment variable.
+    /// The value of the `CI_MERGE_REQUEST_PROJECT_ID` environment variable in merge request
+    /// pipelines, otherwise the value of the `CI_PROJECT_ID` environment variable.
     project_id: String,
 
     /// The value of the `CI_COMMIT_SHA` environment variable.
@@ -128,7 +131,7 @@ impl RestApiClient for GitlabApiClient {
         if self.get_merge_request(iid).await?.is_locked() {
             return Ok(()); // cannot comment on locked merge requests
         }
-        let url = self.project_url(format!("merge_requests/{iid}/notes").as_str())?;
+        let url = self.merge_request_url(iid, "/notes")?;
         self.update_comment(url, options).await
     }
 
@@ -197,10 +200,7 @@ impl GitlabApiClient {
     async fn get_commit_diff(&self, file_filter: &FileFilter) -> Result<String, ClientError> {
         const TASK: &str = "get list of changed files";
         let url = self.project_url(format!("repository/commits/{}/diff", self.sha).as_str())?;
-        let mut next_page = Some(Url::parse_with_params(
-            url.as_str(),
-            &[("per_page", "100"), ("page", "1")],
-        )?);
+        let mut next_page = Some(first_page(url));
         let mut diff = String::new();
         while let Some(endpoint) = next_page.take() {
             let request = self.make_api_request(&self.client, endpoint, Method::GET, None, None)?;

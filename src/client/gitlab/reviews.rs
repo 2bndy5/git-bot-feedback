@@ -10,6 +10,7 @@ use super::{
     GitlabApiClient, REVIEW_SUMMARY_TAG,
     diff_positions::parse_positions,
     serde_structs::{DiffRefs, Discussion, DraftNote, DraftNotePosition, ExistingDraftNote},
+    specific_api::first_page,
 };
 use crate::{RestApiClient, ReviewAction, ReviewComment, ReviewOptions, client::ClientError};
 use reqwest::{Method, Url};
@@ -63,11 +64,8 @@ impl GitlabApiClient {
         no_resolved: bool,
     ) -> Result<Vec<Discussion>, ClientError> {
         let mut threads = vec![];
-        let url = self.project_url(format!("merge_requests/{iid}/discussions").as_str())?;
-        let mut next_page = Some(Url::parse_with_params(
-            url.as_str(),
-            &[("per_page", "100"), ("page", "1")],
-        )?);
+        let url = self.merge_request_url(iid, "/discussions")?;
+        let mut next_page = Some(first_page(url));
         while let Some(endpoint) = next_page.take() {
             let request = self.make_api_request(&self.client, endpoint, Method::GET, None, None)?;
             let response = self
@@ -156,9 +154,8 @@ impl GitlabApiClient {
         thread_id: &str,
         note_id: u64,
     ) -> Result<(), ClientError> {
-        let url = self.project_url(
-            format!("merge_requests/{iid}/discussions/{thread_id}/notes/{note_id}").as_str(),
-        )?;
+        let url =
+            self.merge_request_url(iid, &format!("/discussions/{thread_id}/notes/{note_id}"))?;
         let request = self.make_api_request(&self.client, url, Method::DELETE, None, None)?;
         let response = self
             .send_api_request(&self.client, request, &self.rate_limit_headers)
@@ -171,15 +168,9 @@ impl GitlabApiClient {
 
     /// Mark a merge request's thread of discussion as resolved.
     async fn resolve_thread(&self, iid: u64, thread_id: &str) -> Result<(), ClientError> {
-        let url =
-            self.project_url(format!("merge_requests/{iid}/discussions/{thread_id}").as_str())?;
-        let request = self.make_api_request(
-            &self.client,
-            url,
-            Method::PUT,
-            Some(json!({"resolved": true}).to_string()),
-            None,
-        )?;
+        let url = self.merge_request_url(iid, &format!("/discussions/{thread_id}"))?;
+        let body = json!({"resolved": true}).to_string();
+        let request = self.make_api_request(&self.client, url, Method::PUT, Some(body), None)?;
         let response = self
             .send_api_request(&self.client, request, &self.rate_limit_headers)
             .await
@@ -197,7 +188,7 @@ impl GitlabApiClient {
     /// Returns `true` if the user may have other pending draft notes (eg. a review in progress
     /// when `GITLAB_TOKEN` is a personal access token).
     async fn delete_stale_draft_notes(&self, iid: u64, marker: &str) -> Result<bool, ClientError> {
-        let url = self.project_url(format!("merge_requests/{iid}/draft_notes").as_str())?;
+        let url = self.merge_request_url(iid, "/draft_notes")?;
         let request = self.make_api_request(&self.client, url.clone(), Method::GET, None, None)?;
         let response = self
             .send_api_request(&self.client, request, &self.rate_limit_headers)
@@ -239,7 +230,7 @@ impl GitlabApiClient {
             return Ok(created);
         }
         let positions = parse_positions(&self.get_merge_request_raw_diff(iid).await?);
-        let url = self.project_url(format!("merge_requests/{iid}/draft_notes").as_str())?;
+        let url = self.merge_request_url(iid, "/draft_notes")?;
         for comment in &options.comments {
             let Some(file) = positions.get(&comment.path) else {
                 log::warn!(
@@ -260,16 +251,10 @@ impl GitlabApiClient {
                     new_line: comment.line_end,
                 },
             };
-            let request = self.make_api_request(
-                &self.client,
-                url.clone(),
-                Method::POST,
-                Some(
-                    serde_json::to_string(&payload)
-                        .map_err(|e| ClientError::json("serialize review comment", e))?,
-                ),
-                None,
-            )?;
+            let body = serde_json::to_string(&payload)
+                .map_err(|e| ClientError::json("serialize review comment", e))?;
+            let request =
+                self.make_api_request(&self.client, url.clone(), Method::POST, Some(body), None)?;
             let response = self
                 .send_api_request(&self.client, request, &self.rate_limit_headers)
                 .await
@@ -301,10 +286,12 @@ impl GitlabApiClient {
             log::warn!(
                 "Publishing review comments one at a time because the GitLab user has other pending draft notes on this merge request"
             );
+            if request_changes {
+                // Only publishing all draft notes can set the reviewer's state.
+                log::warn!("The merge request is not marked as needing changes");
+            }
             for id in drafts {
-                let url = self.project_url(
-                    format!("merge_requests/{iid}/draft_notes/{id}/publish").as_str(),
-                )?;
+                let url = self.merge_request_url(iid, &format!("/draft_notes/{id}/publish"))?;
                 self.send_and_log(Method::PUT, url, None, "publish review comment")
                     .await?;
             }
@@ -315,8 +302,7 @@ impl GitlabApiClient {
             } else {
                 json!({})
             };
-            let url = self
-                .project_url(format!("merge_requests/{iid}/draft_notes/bulk_publish").as_str())?;
+            let url = self.merge_request_url(iid, "/draft_notes/bulk_publish")?;
             self.send_and_log(Method::POST, url, Some(payload), "publish review")
                 .await?;
         }
@@ -331,7 +317,7 @@ impl GitlabApiClient {
                 .strip_prefix(&options.marker)
                 .unwrap_or(&options.summary)
         );
-        let url = self.project_url(format!("merge_requests/{iid}/notes").as_str())?;
+        let url = self.merge_request_url(iid, "/notes")?;
         self.send_and_log(
             Method::POST,
             url,
@@ -342,13 +328,13 @@ impl GitlabApiClient {
 
         match options.action {
             ReviewAction::Approve => {
-                let url = self.project_url(format!("merge_requests/{iid}/approve").as_str())?;
+                let url = self.merge_request_url(iid, "/approve")?;
                 self.send_and_log(Method::POST, url, None, "approve merge request")
                     .await?;
             }
             ReviewAction::RequestChanges => {
                 // Withdraw a previous approval (if any)
-                let url = self.project_url(format!("merge_requests/{iid}/unapprove").as_str())?;
+                let url = self.merge_request_url(iid, "/unapprove")?;
                 let request = self.make_api_request(&self.client, url, Method::POST, None, None)?;
                 let response = self
                     .send_api_request(&self.client, request, &self.rate_limit_headers)
@@ -374,13 +360,8 @@ impl GitlabApiClient {
         payload: Option<serde_json::Value>,
         task: &str,
     ) -> Result<(), ClientError> {
-        let request = self.make_api_request(
-            &self.client,
-            url,
-            method,
-            payload.map(|p| p.to_string()),
-            None,
-        )?;
+        let body = payload.map(|p| p.to_string());
+        let request = self.make_api_request(&self.client, url, method, body, None)?;
         let response = self
             .send_api_request(&self.client, request, &self.rate_limit_headers)
             .await
