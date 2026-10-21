@@ -31,6 +31,14 @@ The following is just a list of git servers that are planned (in order or priori
 
 - GitHub
 - GitLab
+
+  GitLab support requires GitLab v17.9 or newer and
+  a ``GITLAB_TOKEN`` environment variable (an access token with ``api`` scope).
+  GitLab does not support
+
+  - posting thread comments for commits (push events)
+  - output variables and step summaries (output variables are only logged)
+  - hiding outdated PR review summary comments
 - Gitea
 
   Gitea does not support
@@ -40,7 +48,7 @@ The following is just a list of git servers that are planned (in order or priori
     only resolve them (currently). However, deleting an entire PR review is supported.
 - BitBucket
 
-Currently, only Github and Gitea are supported.
+Currently, only GitHub, GitLab, and Gitea are supported.
 
 LGPL license
 ------------

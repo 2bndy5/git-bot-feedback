@@ -36,7 +36,15 @@ This project is designed to easily add support for various git servers.
 The following is just a list of git servers that are planned (in order or priority).
 
 - [x] GitHub
-- [ ] GitLab
+- [x] GitLab
+
+  GitLab support requires GitLab v17.9 or newer and
+  a `GITLAB_TOKEN` environment variable (an access token with `api` scope).
+  GitLab does not support
+
+  - posting thread comments for commits (push events)
+  - output variables and step summaries (output variables are only logged)
+  - hiding outdated PR review summary comments
 - [x] Gitea
 
   Gitea does not support
@@ -54,6 +62,7 @@ Each supported implementation of the above git servers can be controlled via
 
 - `github` enables support of GitHub implementation
 - `gitea` enables support of Gitea implementation
+- `gitlab` enables support of GitLab implementation
 
 ## LGPL license
 
