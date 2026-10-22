@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback-py/v0.3.0] - 2026-10-22
+
+### <!-- 1 --> 🚀 Added
+
+- Add `workspace_root()` and `nearest_git_root()` helpers by @shenxianpeng in [#148](https://github.com/2bndy5/git-bot-feedback/pull/148)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Match a plain path pattern without checking the file system by @shenxianpeng in [#147](https://github.com/2bndy5/git-bot-feedback/pull/147)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.9.0 by @2bndy5 in [`57686f2`](https://github.com/2bndy5/git-bot-feedback/commit/57686f22f7f8ee3e5f8a1df53974af78d82c5d08)
+
+[git-bot-feedback-py/v0.3.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.2.9...git-bot-feedback-py/v0.3.0
+
+Full commit diff: [`git-bot-feedback-py/v0.2.9...git-bot-feedback-py/v0.3.0`][git-bot-feedback-py/v0.3.0]
+
 ## [git-bot-feedback-py/v0.2.9] - 2026-10-20
 
 ### <!-- 4 --> 🛠️ Fixed
@@ -15,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### <!-- 6 --> 📦 Dependency updates
 
 - Bump version to git-bot-feedback/v0.8.8 by @2bndy5 in [`8c71b01`](https://github.com/2bndy5/git-bot-feedback/commit/8c71b0188cb9106dcd2fdba4d7cadaf99e34463a)
+- Bump version to git-bot-feedback-py/v0.2.9 by @2bndy5 in [`be785a5`](https://github.com/2bndy5/git-bot-feedback/commit/be785a532daa9e6a0fbc7b2d2f31decabe850dfb)
 
 [git-bot-feedback-py/v0.2.9]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.2.8...git-bot-feedback-py/v0.2.9
 
@@ -88,6 +107,7 @@ Full commit diff: [`git-bot-feedback-py/v0.2.4...git-bot-feedback-py/v0.2.5`][gi
 
 ### <!-- 6 --> 📦 Dependency updates
 
+- Bump pyo3 to v0.29.3 and others by @2bndy5 in [#129](https://github.com/2bndy5/git-bot-feedback/pull/129)
 - Bump version to git-bot-feedback/v0.8.4 by @2bndy5 in [`41a9014`](https://github.com/2bndy5/git-bot-feedback/commit/41a90143260cd11d9597ecb09fc1b6dd41b793cd)
 - Bump version to git-bot-feedback-py/v0.2.4 by @2bndy5 in [`fc345db`](https://github.com/2bndy5/git-bot-feedback/commit/fc345dba18ecb0bc7d587542854115b317db2226)
 
@@ -222,12 +242,37 @@ Full commit diff: [`git-bot-feedback-py/v0.0.1...git-bot-feedback-py/v0.1.0`][gi
 
 ### <!-- 6 --> 📦 Dependency updates
 
+- Detect CI context in build-n-release.nu script by @2bndy5 in [`ae77080`](https://github.com/2bndy5/git-bot-feedback/commit/ae77080563f20f0374c4692d79d2096abbe14b66)
+- Bump version to v0.1.2 by @2bndy5 in [`9c6cef4`](https://github.com/2bndy5/git-bot-feedback/commit/9c6cef41be1c2780b95cc18277bb9e180d78886f)
+- Bump version to v0.1.3 by @2bndy5 in [`c5e4d9b`](https://github.com/2bndy5/git-bot-feedback/commit/c5e4d9b9ce474d26e6a92286c1b58207351cd153)
+- Bump the cargo group with 3 updates by @dependabot[bot] in [#2](https://github.com/2bndy5/git-bot-feedback/pull/2)
+- Bump version to v0.1.4 by @2bndy5 in [`19c6330`](https://github.com/2bndy5/git-bot-feedback/commit/19c6330e8c4aa0e4ee18482b761277bd294bb6f3)
+- Bump the cargo group across 1 directory with 9 updates by @dependabot[bot] in [#10](https://github.com/2bndy5/git-bot-feedback/pull/10)
+- Bump the cargo group across 1 directory with 10 updates by @dependabot[bot] in [#28](https://github.com/2bndy5/git-bot-feedback/pull/28)
+- Bump the cargo group across 1 directory with 4 updates by @dependabot[bot] in [#40](https://github.com/2bndy5/git-bot-feedback/pull/40)
+- Bump tokio from 1.50.0 to 1.51.0 in the cargo group by @dependabot[bot] in [#47](https://github.com/2bndy5/git-bot-feedback/pull/47)
+- Bump tokio to v1.52.0 by @2bndy5 in [`b0ef1d5`](https://github.com/2bndy5/git-bot-feedback/commit/b0ef1d5668218c4c445048583e24a78fccf7664a)
+- Bump version to v0.3.0 by @2bndy5 in [`c8e8341`](https://github.com/2bndy5/git-bot-feedback/commit/c8e834160052393dfe626027e5ef997033047f16)
+- Bump version to v0.4.0 by @2bndy5 in [`d4406ff`](https://github.com/2bndy5/git-bot-feedback/commit/d4406ff45f9bc3a83580747e466cd157fe393efe)
+- Bump version to v0.5.0 by @2bndy5 in [`83121f2`](https://github.com/2bndy5/git-bot-feedback/commit/83121f2984388b4013dc3c30b849659d5e2533d9)
+- Bump version to v0.5.1 by @2bndy5 in [`2802dd0`](https://github.com/2bndy5/git-bot-feedback/commit/2802dd081cb7aac84eb5230d26a1c9a89b156b3d)
+- Bump version to v0.5.2 by @2bndy5 in [`737fc35`](https://github.com/2bndy5/git-bot-feedback/commit/737fc35df6b40b8e141efb6b89ad662efaaccb35)
+- Relax dependencies' constraints by @2bndy5 in [#65](https://github.com/2bndy5/git-bot-feedback/pull/65)
+- Bump version to v0.5.3 by @2bndy5 in [`45325de`](https://github.com/2bndy5/git-bot-feedback/commit/45325de25efa0a650243d0b4f01315522f30c7a2)
+- Bump version to v0.5.4 by @2bndy5 in [`fb588c3`](https://github.com/2bndy5/git-bot-feedback/commit/fb588c35243dc0aeffe4c17df3649a761dc50ef0)
+- Bump version to v0.5.5 by @2bndy5 in [`a63f8fa`](https://github.com/2bndy5/git-bot-feedback/commit/a63f8fabfbcee2828992e039803671c81074ee2c)
+- Bump version to v0.5.6 by @2bndy5 in [`de6bf8d`](https://github.com/2bndy5/git-bot-feedback/commit/de6bf8dbe144dbceca90dc00e9ce79b0a774a712)
+- Bump version to v0.6.0 by @2bndy5 in [`13ea76e`](https://github.com/2bndy5/git-bot-feedback/commit/13ea76e7fe0ebbeafea7d49d9adf0cb27db13a21)
+- Bump version to v0.6.1 by @2bndy5 in [`81314f2`](https://github.com/2bndy5/git-bot-feedback/commit/81314f2d71841e312ddccb49681920986ced047d)
 - Bump version to git-bot-feedback/v0.7.0 by @2bndy5 in [`89edac4`](https://github.com/2bndy5/git-bot-feedback/commit/89edac47aa122fcdc67d3dd8b5c83d6228ba613e)
 - Bump version to git-bot-feedback-py/v0.0.1 by @2bndy5 in [`201ceba`](https://github.com/2bndy5/git-bot-feedback/commit/201cebaf09433d557f402d896f0f2a4378d91700)
 
 ### <!-- 9 --> 🗨️ Changed
 
+- Bump serde_json from 1.0.140 to 1.0.141 by @2bndy5 in [`e831cd8`](https://github.com/2bndy5/git-bot-feedback/commit/e831cd8b937620eb804f4efad02f683d0317eeb6)
+- Fix bump-n-release script by @2bndy5 in [`b7c8ee3`](https://github.com/2bndy5/git-bot-feedback/commit/b7c8ee3fd68816c3dc2ba6583a1dd832122a2936)
 - Revise `FileAnnotations` impl by @2bndy5 in [#64](https://github.com/2bndy5/git-bot-feedback/pull/64)
+- Use SPDX identifier for license in crate metadata by @2bndy5 in [`ea8d88a`](https://github.com/2bndy5/git-bot-feedback/commit/ea8d88a5cfe8e655f0456be7b75884fa6347a6e0)
 
 [git-bot-feedback-py/v0.0.1]: https://github.com/2bndy5/git-bot-feedback/compare/4d46f96eddc6f512bb7bf3600d3f9d5490ef004f...git-bot-feedback-py/v0.0.1
 
