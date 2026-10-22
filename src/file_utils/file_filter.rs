@@ -481,12 +481,12 @@ mod tests {
     #[test]
     fn ignore_glob_not_as_plain_path() {
         // A glob is only matched as a glob, not as a plain path prefix.
-        let file_filter = setup_ignore("foo[ab]", &[]);
-        assert!(file_filter.is_file_ignored(&PathBuf::from("fooa/file.cpp")));
-        assert!(file_filter.is_file_ignored(&PathBuf::from("foob")));
-        assert!(!file_filter.is_file_ignored(&PathBuf::from("foo[ab]/file.cpp")));
-        assert!(!file_filter.is_file_ignored(&PathBuf::from("foo[ab]")));
-        assert!(!file_filter.is_file_ignored(&PathBuf::from("fooc/file.cpp")));
+        let file_filter = setup_ignore("ca[rt]", &[]);
+        assert!(file_filter.is_file_ignored(&PathBuf::from("car/file.cpp")));
+        assert!(file_filter.is_file_ignored(&PathBuf::from("cat")));
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("ca[rt]/file.cpp")));
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("ca[rt]")));
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("cab/file.cpp")));
     }
 
     #[test]
