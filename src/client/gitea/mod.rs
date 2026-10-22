@@ -1,10 +1,13 @@
-use std::{env, fs::OpenOptions, io::Write};
+use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
 
 use async_trait::async_trait;
 use reqwest::{Client, Method};
 use url::Url;
 
-use super::{ClientError, RestApiClient, RestApiRateLimitHeaders, common::PullRequestInfo};
+use super::{
+    ClientError, RestApiClient, RestApiRateLimitHeaders, common::PullRequestInfo,
+    local_workspace_root,
+};
 use crate::{
     OutputVariable, ReviewAction, ReviewOptions, ThreadCommentOptions,
     client::common::PullRequestState,
@@ -75,6 +78,15 @@ impl RestApiClient for GiteaApiClient {
 
     fn is_pr_event(&self) -> bool {
         self.pull_request.is_some()
+    }
+
+    fn workspace_root(&self) -> PathBuf {
+        ["GITEA_WORKSPACE", "GITHUB_WORKSPACE"]
+            .iter()
+            .filter_map(env::var_os)
+            .find(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(local_workspace_root)
     }
 
     fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {

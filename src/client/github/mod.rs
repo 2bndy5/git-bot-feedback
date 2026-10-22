@@ -7,6 +7,7 @@ use std::{
     env,
     fs::OpenOptions,
     io::{self, Write},
+    path::PathBuf,
 };
 
 use async_trait::async_trait;
@@ -17,6 +18,7 @@ use crate::{
     client::{
         ClientError, RestApiClient, RestApiRateLimitHeaders,
         common::{PullRequestInfo, PullRequestState},
+        local_workspace_root,
     },
 };
 mod graphql;
@@ -117,6 +119,13 @@ impl RestApiClient for GithubApiClient {
 
     fn event_name(&self) -> Option<String> {
         Some(self.event_name.clone())
+    }
+
+    fn workspace_root(&self) -> PathBuf {
+        env::var_os("GITHUB_WORKSPACE")
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(local_workspace_root)
     }
 
     fn is_debug_enabled(&self) -> bool {

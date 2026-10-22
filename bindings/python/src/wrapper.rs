@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 
 use ::git_bot_feedback::client::{RestApiClient, init_client};
@@ -330,5 +330,15 @@ impl GitClient {
     #[getter]
     pub fn client_kind(&self) -> String {
         self.client.blocking_lock().client_kind()
+    }
+
+    /// The root folder of the workspace, where the repository is checked out.
+    ///
+    /// CI clients return the folder that the CI platform names in its environment
+    /// (for example, ``GITHUB_WORKSPACE`` on GitHub). Otherwise, this is the
+    /// :py:func:`~git_bot_feedback.nearest_git_root()` of the working directory,
+    /// or the working directory itself.
+    pub fn workspace_root(&self) -> PathBuf {
+        self.client.blocking_lock().workspace_root()
     }
 }
