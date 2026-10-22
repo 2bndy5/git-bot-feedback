@@ -183,8 +183,9 @@ impl FileFilter {
                     .any(|character| matches!(character, '*' | '?' | '[' | '{'));
             if pattern.is_empty()
                 || (is_valid_glob && glob_match(pattern, file_name.to_string_lossy().as_ref()))
-                || (pat.is_file() && file_name == pat)
-                || (pat.is_dir() && file_name.starts_with(pat))
+                // a plain path matches itself and anything inside it,
+                // whether or not it exists relative to the working directory
+                || file_name.starts_with(&pat)
                 || (is_glob
                     && file_name.ancestors().any(|a| {
                         !a.as_os_str().is_empty()
@@ -460,6 +461,24 @@ mod tests {
     }
 
     #[test]
+    fn ignore_plain_dir_not_in_cwd() {
+        // The paths do not exist relative to the working directory, as when the
+        // checked files are relative to a sub-folder of it.
+        let file_filter = setup_ignore("src/path/to|build|!lib/file.cpp", &[]);
+        assert!(file_filter.is_file_ignored(&PathBuf::from("src/path/to/file.cpp")));
+        assert!(file_filter.is_file_ignored(&PathBuf::from("src/path/to/another/file.cpp")));
+        assert!(file_filter.is_file_ignored(&PathBuf::from("./build/gen.cpp")));
+        assert!(file_filter.is_file_ignored(&PathBuf::from("build")));
+        assert!(file_filter.is_file_not_ignored(&PathBuf::from("lib/file.cpp")));
+
+        // A plain path only matches whole path components from the start.
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("src/build/gen.cpp")));
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("builder/gen.cpp")));
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("src/path/toolbox.cpp")));
+        assert!(!file_filter.is_file_not_ignored(&PathBuf::from("lib/file.cpp.bak")));
+    }
+
+    #[test]
     fn ignore_glob() {
         let file_filter = setup_ignore("!src/**/*", &[]);
         assert!(file_filter.is_file_not_ignored(&PathBuf::from("./src/lib.rs")));
@@ -497,16 +516,16 @@ mod tests {
         file_filter.parse_submodules(None);
         println!("submodules ignored = {:?}", file_filter.ignored);
 
-        // using Vec::contains() because these files don't actually exist in project files
+        // The submodules' folders don't exist here,
+        // but the files in them are still matched by the submodules' paths.
         for ignored_submodule in ["RF24", "RF24Network", "RF24Mesh"] {
             assert!(file_filter.ignored.contains(ignored_submodule));
             assert!(
-                !file_filter
-                    .is_file_ignored(&PathBuf::from(ignored_submodule).join("some_src.cpp"))
+                file_filter.is_file_ignored(&PathBuf::from(ignored_submodule).join("some_src.cpp"))
             );
         }
         assert!(file_filter.not_ignored.contains("pybind11"));
-        assert!(!file_filter.is_file_not_ignored(&PathBuf::from("pybind11/some_src.cpp")));
+        assert!(file_filter.is_file_not_ignored(&PathBuf::from("pybind11/some_src.cpp")));
     }
 
     // *********************** tests for recursive path search
