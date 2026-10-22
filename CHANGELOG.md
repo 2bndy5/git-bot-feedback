@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback/v0.9.0] - 2026-10-22
+
+### <!-- 1 --> 🚀 Added
+
+- Add `workspace_root()` and `nearest_git_root()` helpers by @shenxianpeng in [#148](https://github.com/2bndy5/git-bot-feedback/pull/148)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Match a plain path pattern without checking the file system by @shenxianpeng in [#147](https://github.com/2bndy5/git-bot-feedback/pull/147)
+
+[git-bot-feedback/v0.9.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.8.8...git-bot-feedback/v0.9.0
+
+Full commit diff: [`git-bot-feedback/v0.8.8...git-bot-feedback/v0.9.0`][git-bot-feedback/v0.9.0]
+
 ## [git-bot-feedback/v0.8.8] - 2026-10-20
 
 ### <!-- 4 --> 🛠️ Fixed
