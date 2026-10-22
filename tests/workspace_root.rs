@@ -110,6 +110,9 @@ mod ci {
         set_gitea_env(None, None);
         let client = init_client().unwrap();
         assert_eq!(client.client_kind(), "gitea");
-        assert_env_var_error(client.workspace_root().unwrap_err(), "GITEA_WORKSPACE");
+        assert_env_var_error(
+            client.workspace_root().unwrap_err(),
+            "GITEA_WORKSPACE or GITHUB_WORKSPACE"
+        );
     }
 }
