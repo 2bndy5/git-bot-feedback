@@ -7,6 +7,7 @@ use std::{
     env,
     fs::OpenOptions,
     io::{self, Write},
+    path::PathBuf,
 };
 
 use async_trait::async_trait;
@@ -117,6 +118,12 @@ impl RestApiClient for GithubApiClient {
 
     fn event_name(&self) -> Option<String> {
         Some(self.event_name.clone())
+    }
+
+    fn workspace_root(&self) -> Result<Option<PathBuf>, ClientError> {
+        env::var("GITHUB_WORKSPACE")
+            .map(|v| Some(PathBuf::from(v)))
+            .map_err(|e| ClientError::env_var("GITHUB_WORKSPACE", e))
     }
 
     fn is_debug_enabled(&self) -> bool {

@@ -4,7 +4,10 @@ mod wrapper;
 #[doc = include_str!("../README.rst")]
 #[pymodule]
 mod git_bot_feedback {
-    use std::collections::HashMap;
+    use std::{
+        collections::HashMap,
+        path::{Path, PathBuf},
+    };
 
     use pyo3::prelude::*;
 
@@ -57,6 +60,18 @@ mod git_bot_feedback {
             &lines_changed_only.unwrap_or_default(),
         )?;
         Ok(result)
+    }
+
+    /// Find the closest folder, starting with ``path`` itself, that has a ``.git``
+    /// folder or file (as in a git submodule).
+    ///
+    /// A relative ``path`` is resolved against the working directory.
+    /// The returned path is absolute, but symbolic links are not resolved.
+    /// Returns ``None`` if no such folder is found. This does not invoke the git CLI.
+    #[pyfunction]
+    #[pyo3(text_signature = "(path: str | Path | os.PathLike[str]) -> Path | None")]
+    pub fn nearest_git_root(path: PathBuf) -> Option<PathBuf> {
+        ::git_bot_feedback::client::nearest_git_root(Path::new(&path))
     }
 
     #[pymodule_export]

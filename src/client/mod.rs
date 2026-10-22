@@ -1,5 +1,10 @@
 //! A module to contain traits and structs that are needed by the rest of the git-bot-feedback crate's API.
-use std::{env, fmt::Debug, time::Duration};
+use std::{
+    env,
+    fmt::Debug,
+    path::{Component, Path, PathBuf},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use chrono::DateTime;
@@ -49,6 +54,41 @@ pub struct RestApiRateLimitHeaders {
     pub remaining: String,
     /// The header key of the rate limit's "backoff" time interval.
     pub retry: String,
+}
+
+/// Find the closest folder, starting with `path` itself, that has a `.git` folder or file.
+///
+/// A git submodule has a `.git` file instead of a folder.
+/// A relative `path` is resolved against the working directory.
+/// The returned path is absolute, with any `.` and `..` components removed,
+/// but symbolic links are not resolved.
+///
+/// Returns [`None`] if no such folder is found.
+/// This does not invoke the git CLI.
+///
+/// ```rust
+/// use git_bot_feedback::client::nearest_git_root;
+/// use std::path::Path;
+///
+/// let root = nearest_git_root(Path::new("src")).unwrap();
+/// assert!(root.join(".git").exists());
+/// ```
+pub fn nearest_git_root(path: &Path) -> Option<PathBuf> {
+    let absolute = std::path::absolute(path).ok()?;
+    let mut normalized = PathBuf::new();
+    for component in absolute.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            _ => normalized.push(component),
+        }
+    }
+    normalized
+        .ancestors()
+        .find(|dir| dir.join(".git").exists())
+        .map(Path::to_path_buf)
 }
 
 /// The [`Result::Err`] type returned for fallible functions in this trait.
@@ -117,6 +157,21 @@ pub trait RestApiClient {
     /// This will return [`None`] if the event name is not known for the CI platform.
     fn event_name(&self) -> Option<String> {
         None
+    }
+
+    /// The root folder of the workspace, as named by the CI platform's environment
+    /// (for example, `GITHUB_WORKSPACE` on GitHub).
+    ///
+    /// Changed file names reported by the git server's REST API are relative to the
+    /// repository's top level, which is this folder unless the repository was checked
+    /// out into a sub-folder of it.
+    ///
+    /// Returns [`Ok(None)`](Option::None) for clients that are not run by a CI platform
+    /// (like [`LocalClient`]), and an error if the CI platform's environment variable
+    /// cannot be read. This does not fall back to the working directory or
+    /// [`nearest_git_root()`]; consumers can choose their own fallback.
+    fn workspace_root(&self) -> Result<Option<PathBuf>, ClientError> {
+        Ok(None)
     }
 
     /// Set the user agent for the underlying HTTP request client.
@@ -356,5 +411,51 @@ pub fn init_client() -> Result<Box<dyn RestApiClient + Send + Sync>, ClientError
         Ok(Box::new(GithubApiClient::new()?))
     } else {
         Ok(Box::new(LocalClient))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::nearest_git_root;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn git_root_of_sub_folder() {
+        let tmp = tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        fs::create_dir_all(repo.join(".git")).unwrap();
+        fs::create_dir_all(repo.join("member/src")).unwrap();
+        let root = nearest_git_root(&repo.join("member/src")).unwrap();
+        assert_eq!(root, repo);
+        assert_eq!(nearest_git_root(&repo).unwrap(), repo);
+        // `.` and `..` are removed before searching
+        let indirect = repo.join("member/./src/../src/..");
+        assert_eq!(nearest_git_root(&indirect).unwrap(), repo);
+    }
+
+    #[test]
+    fn git_root_of_submodule() {
+        let tmp = tempdir().unwrap();
+        let repo = tmp.path().join("repo");
+        fs::create_dir_all(repo.join(".git")).unwrap();
+        let submodule = repo.join("libs/sub");
+        fs::create_dir_all(&submodule).unwrap();
+        // a submodule has a `.git` file
+        fs::write(submodule.join(".git"), "").unwrap();
+        assert_eq!(nearest_git_root(&submodule.join("src")).unwrap(), submodule);
+        assert_eq!(nearest_git_root(&repo.join("libs")).unwrap(), repo);
+    }
+
+    #[test]
+    fn no_git_root() {
+        let tmp = tempdir().unwrap();
+        let folder = tmp.path().join("not/a/repo");
+        fs::create_dir_all(&folder).unwrap();
+        let found = nearest_git_root(&folder);
+        // the temp dir is not expected to be inside a git repository
+        assert!(found.is_none_or(|root| !root.starts_with(tmp.path())));
     }
 }

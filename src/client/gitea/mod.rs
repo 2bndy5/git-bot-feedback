@@ -1,4 +1,4 @@
-use std::{env, fs::OpenOptions, io::Write};
+use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
 
 use async_trait::async_trait;
 use reqwest::{Client, Method};
@@ -75,6 +75,15 @@ impl RestApiClient for GiteaApiClient {
 
     fn is_pr_event(&self) -> bool {
         self.pull_request.is_some()
+    }
+
+    /// Uses `GITEA_WORKSPACE`, or `GITHUB_WORKSPACE` if that cannot be read.
+    /// The error names `GITEA_WORKSPACE` when neither can be read.
+    fn workspace_root(&self) -> Result<Option<PathBuf>, ClientError> {
+        env::var("GITEA_WORKSPACE")
+            .or_else(|e| env::var("GITHUB_WORKSPACE").map_err(|_| e))
+            .map(|v| Some(PathBuf::from(v)))
+            .map_err(|e| ClientError::env_var("GITEA_WORKSPACE or GITHUB_WORKSPACE", e))
     }
 
     fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {
