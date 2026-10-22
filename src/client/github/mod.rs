@@ -18,7 +18,6 @@ use crate::{
     client::{
         ClientError, RestApiClient, RestApiRateLimitHeaders,
         common::{PullRequestInfo, PullRequestState},
-        local_workspace_root,
     },
 };
 mod graphql;
@@ -121,11 +120,10 @@ impl RestApiClient for GithubApiClient {
         Some(self.event_name.clone())
     }
 
-    fn workspace_root(&self) -> PathBuf {
-        env::var_os("GITHUB_WORKSPACE")
-            .filter(|v| !v.is_empty())
-            .map(PathBuf::from)
-            .unwrap_or_else(local_workspace_root)
+    fn workspace_root(&self) -> Result<Option<PathBuf>, ClientError> {
+        env::var("GITHUB_WORKSPACE")
+            .map(|v| Some(PathBuf::from(v)))
+            .map_err(|e| ClientError::env_var("GITHUB_WORKSPACE", e))
     }
 
     fn is_debug_enabled(&self) -> bool {

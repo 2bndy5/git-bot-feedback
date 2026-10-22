@@ -332,13 +332,14 @@ impl GitClient {
         self.client.blocking_lock().client_kind()
     }
 
-    /// The root folder of the workspace, where the repository is checked out.
+    /// The root folder of the workspace, as named by the CI platform's environment
+    /// (for example, ``GITHUB_WORKSPACE`` on GitHub).
     ///
-    /// CI clients return the folder that the CI platform names in its environment
-    /// (for example, ``GITHUB_WORKSPACE`` on GitHub). Otherwise, this is the
-    /// :py:func:`~git_bot_feedback.nearest_git_root()` of the working directory,
-    /// or the working directory itself.
-    pub fn workspace_root(&self) -> PathBuf {
-        self.client.blocking_lock().workspace_root()
+    /// Returns ``None`` when not run by a CI platform.
+    /// Raises a ``ValueError`` if the CI platform's environment variable cannot be read.
+    /// This does not fall back to the working directory or
+    /// :py:func:`~git_bot_feedback.nearest_git_root()`.
+    pub fn workspace_root(&self) -> PyResult<Option<PathBuf>> {
+        Ok(self.client.blocking_lock().workspace_root()?)
     }
 }

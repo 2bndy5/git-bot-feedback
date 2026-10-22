@@ -4,10 +4,7 @@ use async_trait::async_trait;
 use reqwest::{Client, Method};
 use url::Url;
 
-use super::{
-    ClientError, RestApiClient, RestApiRateLimitHeaders, common::PullRequestInfo,
-    local_workspace_root,
-};
+use super::{ClientError, RestApiClient, RestApiRateLimitHeaders, common::PullRequestInfo};
 use crate::{
     OutputVariable, ReviewAction, ReviewOptions, ThreadCommentOptions,
     client::common::PullRequestState,
@@ -80,13 +77,13 @@ impl RestApiClient for GiteaApiClient {
         self.pull_request.is_some()
     }
 
-    fn workspace_root(&self) -> PathBuf {
-        ["GITEA_WORKSPACE", "GITHUB_WORKSPACE"]
-            .iter()
-            .filter_map(env::var_os)
-            .find(|v| !v.is_empty())
-            .map(PathBuf::from)
-            .unwrap_or_else(local_workspace_root)
+    /// Uses `GITEA_WORKSPACE`, or `GITHUB_WORKSPACE` if that cannot be read.
+    /// The error names `GITEA_WORKSPACE` when neither can be read.
+    fn workspace_root(&self) -> Result<Option<PathBuf>, ClientError> {
+        env::var("GITEA_WORKSPACE")
+            .or_else(|e| env::var("GITHUB_WORKSPACE").map_err(|_| e))
+            .map(|v| Some(PathBuf::from(v)))
+            .map_err(|e| ClientError::env_var("GITEA_WORKSPACE", e))
     }
 
     fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {

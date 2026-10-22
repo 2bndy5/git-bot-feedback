@@ -69,7 +69,7 @@ mod git_bot_feedback {
     /// The returned path is absolute, but symbolic links are not resolved.
     /// Returns ``None`` if no such folder is found. This does not invoke the git CLI.
     #[pyfunction]
-    #[pyo3(text_signature = "(path: str | os.PathLike[str]) -> Path | None")]
+    #[pyo3(text_signature = "(path: str | Path | os.PathLike[str]) -> Path | None")]
     pub fn nearest_git_root(path: PathBuf) -> Option<PathBuf> {
         ::git_bot_feedback::client::nearest_git_root(Path::new(&path))
     }

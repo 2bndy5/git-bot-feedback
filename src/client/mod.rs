@@ -91,14 +91,6 @@ pub fn nearest_git_root(path: &Path) -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
-/// The [`nearest_git_root()`] of the working directory, or the working directory itself.
-///
-/// This is the default implementation of [`RestApiClient::workspace_root()`].
-pub(crate) fn local_workspace_root() -> PathBuf {
-    let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    nearest_git_root(&cwd).unwrap_or(cwd)
-}
-
 /// The [`Result::Err`] type returned for fallible functions in this trait.
 pub(crate) type ClientError = RestClientError;
 
@@ -167,18 +159,19 @@ pub trait RestApiClient {
         None
     }
 
-    /// The root folder of the workspace, where the repository is checked out.
+    /// The root folder of the workspace, as named by the CI platform's environment
+    /// (for example, `GITHUB_WORKSPACE` on GitHub).
     ///
-    /// CI clients return the folder that the CI platform names in its environment
-    /// (for example, `GITHUB_WORKSPACE` on GitHub). Changed file names reported by the
-    /// git server's REST API are relative to the repository's top level, which is this
-    /// folder unless the repository was checked out into a sub-folder of it.
+    /// Changed file names reported by the git server's REST API are relative to the
+    /// repository's top level, which is this folder unless the repository was checked
+    /// out into a sub-folder of it.
     ///
-    /// The default implementation (used by [`LocalClient`], and by CI clients if the
-    /// platform's environment variable is not set) returns the [`nearest_git_root()`]
-    /// of the working directory, or the working directory itself.
-    fn workspace_root(&self) -> PathBuf {
-        local_workspace_root()
+    /// Returns [`Ok(None)`](Option::None) for clients that are not run by a CI platform
+    /// (like [`LocalClient`]), and an error if the CI platform's environment variable
+    /// cannot be read. This does not fall back to the working directory or
+    /// [`nearest_git_root()`]; consumers can choose their own fallback.
+    fn workspace_root(&self) -> Result<Option<PathBuf>, ClientError> {
+        Ok(None)
     }
 
     /// Set the user agent for the underlying HTTP request client.
