@@ -112,7 +112,7 @@ mod ci {
         assert_eq!(client.client_kind(), "gitea");
         assert_env_var_error(
             client.workspace_root().unwrap_err(),
-            "GITEA_WORKSPACE or GITHUB_WORKSPACE"
+            "GITEA_WORKSPACE or GITHUB_WORKSPACE",
         );
     }
 }
