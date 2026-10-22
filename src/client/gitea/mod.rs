@@ -83,7 +83,7 @@ impl RestApiClient for GiteaApiClient {
         env::var("GITEA_WORKSPACE")
             .or_else(|e| env::var("GITHUB_WORKSPACE").map_err(|_| e))
             .map(|v| Some(PathBuf::from(v)))
-            .map_err(|e| ClientError::env_var("GITEA_WORKSPACE", e))
+            .map_err(|e| ClientError::env_var("GITEA_WORKSPACE or GITHUB_WORKSPACE", e))
     }
 
     fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {
