@@ -185,7 +185,7 @@ impl FileFilter {
                 || (is_valid_glob && glob_match(pattern, file_name.to_string_lossy().as_ref()))
                 // a plain path matches itself and anything inside it,
                 // whether or not it exists relative to the working directory
-                || file_name.starts_with(&pat)
+                || (!is_glob && file_name.starts_with(&pat))
                 || (is_glob
                     && file_name.ancestors().any(|a| {
                         !a.as_os_str().is_empty()
@@ -476,6 +476,17 @@ mod tests {
         assert!(!file_filter.is_file_ignored(&PathBuf::from("builder/gen.cpp")));
         assert!(!file_filter.is_file_ignored(&PathBuf::from("src/path/toolbox.cpp")));
         assert!(!file_filter.is_file_not_ignored(&PathBuf::from("lib/file.cpp.bak")));
+    }
+
+    #[test]
+    fn ignore_glob_not_as_plain_path() {
+        // A glob is only matched as a glob, not as a plain path prefix.
+        let file_filter = setup_ignore("foo[ab]", &[]);
+        assert!(file_filter.is_file_ignored(&PathBuf::from("fooa/file.cpp")));
+        assert!(file_filter.is_file_ignored(&PathBuf::from("foob")));
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("foo[ab]/file.cpp")));
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("foo[ab]")));
+        assert!(!file_filter.is_file_ignored(&PathBuf::from("fooc/file.cpp")));
     }
 
     #[test]
