@@ -24,9 +24,11 @@ words:
   - musllinux
   - mypy
   - nextest
+  - noteable
   - nurfile
   - nushell
   - orhun
+  - peekable
   - pipx
   - pkgs
   - pybind
@@ -51,6 +53,7 @@ words:
   - timeit
   - toctree
   - topo
+  - unapprove
   - zizmor
 ignorePaths:
   - .gitignore

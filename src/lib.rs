@@ -23,7 +23,7 @@ pub use output_variable::OutputVariable;
 mod file_annotations;
 pub use file_annotations::{AnnotationLevel, FileAnnotation};
 
-#[cfg(feature = "file-changes")]
+#[cfg(any(feature = "file-changes", feature = "gitlab"))]
 mod git_diff;
 #[cfg(feature = "file-changes")]
 pub use git_diff::{DiffHunkHeader, parse_diff};

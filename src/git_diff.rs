@@ -1,10 +1,13 @@
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 
-use regex::Regex;
+use regex::{Captures, Regex};
+#[cfg(feature = "file-changes")]
 use std::{collections::HashMap, ops::Range, path::Path};
 
-use crate::{FileDiffLines, FileFilter, LinesChangedOnly, error::DiffError};
+use crate::error::DiffError;
+#[cfg(feature = "file-changes")]
+use crate::{FileDiffLines, FileFilter, LinesChangedOnly};
 
 /// A struct to represent the header information of a diff hunk.
 #[cfg_attr(
@@ -39,6 +42,22 @@ impl DiffHunkHeader {
     }
 }
 
+impl DiffHunkHeader {
+    /// Create a hunk header from the captures of [`HUNK_INFO_PATTERN`].
+    ///
+    /// A range without a count (eg. `-3` in `@@ -3 +3,2 @@`) implies a count of 1.
+    fn from_captures(captures: Captures) -> Self {
+        let [old_start, old_lines, new_start, new_lines] =
+            captures.extract().1.map(|v| v.parse::<u32>().unwrap_or(1));
+        Self {
+            old_start,
+            old_lines,
+            new_start,
+            new_lines,
+        }
+    }
+}
+
 fn get_filename_from_front_matter(front_matter: &str) -> Result<Option<&str>, DiffError> {
     let diff_file_name = Regex::new(r"(?m)^\+\+\+\sb?/(.*)$")?;
     if let Some(captures) = diff_file_name.captures(front_matter)
@@ -61,59 +80,34 @@ fn get_filename_from_front_matter(front_matter: &str) -> Result<Option<&str>, Di
     Err(DiffError::MalformedDiffError(front_matter.to_string()))
 }
 
-/// A regex pattern used in multiple functions
-static HUNK_INFO_PATTERN: &str = r"(?m)@@\s\-\d+,?\d*\s\+(\d+),?(\d*)\s@@";
-
-/// Parses a single file's patch containing one or more hunks
+/// A regex pattern used in multiple functions.
 ///
-/// Returns a 2-item tuple:
-///
-/// - the line numbers that contain additions
-/// - the ranges of lines that span each hunk
-fn parse_patch(patch: &str) -> Result<(Vec<u32>, Vec<Range<u32>>), DiffError> {
-    let mut diff_hunks = Vec::new();
-    let mut additions = Vec::new();
+/// Captures the old start, old count, new start, and new count (in that order).
+static HUNK_INFO_PATTERN: &str = r"(?m)^@@\s\-(\d+),?(\d*)\s\+(\d+),?(\d*)\s@@";
 
-    let hunk_info = Regex::new(HUNK_INFO_PATTERN)?;
-    let hunk_headers = hunk_info.captures_iter(patch).collect::<Vec<_>>();
-    if !hunk_headers.is_empty() {
-        // skip the first split because it is anything that precedes first hunk header
-        let hunks = hunk_info.split(patch).skip(1);
-        for (hunk, header) in hunks.zip(hunk_headers) {
-            // header.unwrap() is safe because the hunk_headers.iter() is parallel to hunk_info.split()
-            let [start_line, end_range] = header.extract().1.map(|v| v.parse::<u32>().unwrap_or(1));
-            let mut line_numb_in_diff = start_line;
-            diff_hunks.push(start_line..start_line + end_range);
-            for (line_index, line) in hunk.split('\n').enumerate() {
-                if line.starts_with('+') {
-                    additions.push(line_numb_in_diff);
-                }
-                if line_index > 0 && !line.starts_with('-') {
-                    line_numb_in_diff += 1;
-                }
-            }
-        }
-    }
-    Ok((additions, diff_hunks))
+/// A single file's diff.
+pub(crate) struct FileDiff<'a> {
+    /// The file's name (in the new version).
+    pub name: &'a str,
+    /// Everything between the `diff --git` line and the first hunk.
+    #[cfg(feature = "gitlab")]
+    pub front_matter: &'a str,
+    /// Each hunk's header and the text that follows it.
+    ///
+    /// The text starts with the rest of the header's line
+    /// (eg. ` int main() {` in `@@ -3,7 +3,8 @@ int main() {`).
+    pub hunks: Vec<(DiffHunkHeader, &'a str)>,
 }
 
-/// Parses a git `diff` string into a map of file names to their corresponding
-/// [`FileDiffLines`].
+/// Split a git `diff` string into the diff of each file.
 ///
-/// The `file_filter` is used to filter out files that are not of interest.
-/// The `lines_changed_only` parameter determines whether to include files
-/// based on their contents' changes.
-pub fn parse_diff(
-    diff: &str,
-    file_filter: &FileFilter,
-    lines_changed_only: &LinesChangedOnly,
-) -> Result<HashMap<String, FileDiffLines>, DiffError> {
-    let mut results = HashMap::new();
+/// Files without a name (binary files and files with only a mode change) are excluded.
+pub(crate) fn split_diff(diff: &str) -> Result<Vec<FileDiff<'_>>, DiffError> {
+    let mut files = Vec::new();
     let diff_file_delimiter = Regex::new(r"(?m)^diff \-\-git a/.*$")?;
     let hunk_info = Regex::new(HUNK_INFO_PATTERN)?;
 
-    let file_diffs = diff_file_delimiter.split(diff);
-    for file_diff in file_diffs {
+    for file_diff in diff_file_delimiter.split(diff) {
         if file_diff.is_empty() || file_diff.starts_with("deleted file") {
             continue;
         }
@@ -124,16 +118,69 @@ pub fn parse_diff(
         };
         let front_matter = &file_diff[..hunk_start];
         if let Some(file_name) = get_filename_from_front_matter(front_matter.trim_start())? {
-            let file_name = file_name.strip_prefix('/').unwrap_or(file_name);
-            if file_filter.is_qualified(Path::new(file_name)) {
-                let (added_lines, diff_hunks) = parse_patch(&file_diff[hunk_start..])?;
-                if lines_changed_only
-                    .is_change_valid(!added_lines.is_empty(), !diff_hunks.is_empty())
-                {
-                    results
-                        .entry(file_name.to_string())
-                        .or_insert_with(|| FileDiffLines::with_info(added_lines, diff_hunks));
-                }
+            let patch = &file_diff[hunk_start..];
+            // skip the first split because it is anything that precedes first hunk header
+            let hunks = hunk_info
+                .captures_iter(patch)
+                .map(DiffHunkHeader::from_captures)
+                .zip(hunk_info.split(patch).skip(1))
+                .collect();
+            files.push(FileDiff {
+                name: file_name.strip_prefix('/').unwrap_or(file_name),
+                #[cfg(feature = "gitlab")]
+                front_matter,
+                hunks,
+            });
+        }
+    }
+    Ok(files)
+}
+
+/// Parses a single file's hunks.
+///
+/// Returns a 2-item tuple:
+///
+/// - the line numbers that contain additions
+/// - the ranges of lines that span each hunk
+#[cfg(feature = "file-changes")]
+fn parse_patch(hunks: &[(DiffHunkHeader, &str)]) -> (Vec<u32>, Vec<Range<u32>>) {
+    let mut diff_hunks = Vec::new();
+    let mut additions = Vec::new();
+    for (header, hunk) in hunks {
+        let mut line_numb_in_diff = header.new_start;
+        diff_hunks.push(header.new_start..header.new_start + header.new_lines);
+        for (line_index, line) in hunk.split('\n').enumerate() {
+            if line.starts_with('+') {
+                additions.push(line_numb_in_diff);
+            }
+            if line_index > 0 && !line.starts_with('-') {
+                line_numb_in_diff += 1;
+            }
+        }
+    }
+    (additions, diff_hunks)
+}
+
+/// Parses a git `diff` string into a map of file names to their corresponding
+/// [`FileDiffLines`].
+///
+/// The `file_filter` is used to filter out files that are not of interest.
+/// The `lines_changed_only` parameter determines whether to include files
+/// based on their contents' changes.
+#[cfg(feature = "file-changes")]
+pub fn parse_diff(
+    diff: &str,
+    file_filter: &FileFilter,
+    lines_changed_only: &LinesChangedOnly,
+) -> Result<HashMap<String, FileDiffLines>, DiffError> {
+    let mut results = HashMap::new();
+    for file in split_diff(diff)? {
+        if file_filter.is_qualified(Path::new(file.name)) {
+            let (added_lines, diff_hunks) = parse_patch(&file.hunks);
+            if lines_changed_only.is_change_valid(!added_lines.is_empty(), !diff_hunks.is_empty()) {
+                results
+                    .entry(file.name.to_string())
+                    .or_insert_with(|| FileDiffLines::with_info(added_lines, diff_hunks));
             }
         }
     }
@@ -141,7 +188,7 @@ pub fn parse_diff(
 }
 
 // ******************* UNIT TESTS ***********************
-#[cfg(test)]
+#[cfg(all(test, feature = "file-changes"))]
 mod test {
     #![allow(clippy::unwrap_used)]
 
@@ -275,5 +322,20 @@ rename to /tests/demo/some source.c
         let files = parse_diff(TERSE_HEADERS, &file_filter, &LinesChangedOnly::Diff).unwrap();
         let file_diff = files.get("src/demo.cpp").unwrap();
         assert_eq!(file_diff.diff_hunks, vec![3..4, 5..7, 17..19]);
+    }
+
+    #[test]
+    fn hunk_header_in_content() {
+        // A line that looks like a hunk header is not one unless it starts the line.
+        let diff = "diff --git a/a.cpp b/a.cpp\n--- a/a.cpp\n+++ b/a.cpp\n@@ -1 +1,2 @@\n+// @@ -9 +9 @@\n context\n";
+        let files = parse_diff(
+            diff,
+            &FileFilter::new(&[], &["cpp"], None),
+            &LinesChangedOnly::Diff,
+        )
+        .unwrap();
+        let file_diff = files.get("a.cpp").unwrap();
+        assert_eq!(file_diff.diff_hunks, vec![1..3]);
+        assert_eq!(file_diff.added_lines, vec![1]);
     }
 }

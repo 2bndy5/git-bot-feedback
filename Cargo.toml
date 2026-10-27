@@ -61,8 +61,11 @@ github = []
 # Gitea implementation/support
 gitea = []
 
+# GitLab implementation/support
+gitlab = ["dep:regex"]
+
 # features enabled by default
-default = ["github", "gitea"]
+default = ["github", "gitea", "gitlab"]
 
 # optional feature to silence a compiler error if/when
 # no features enable any git server implementations

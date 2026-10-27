@@ -36,7 +36,16 @@ This project is designed to easily add support for various git servers.
 The following is just a list of git servers that are planned (in order or priority).
 
 - [x] GitHub
-- [ ] GitLab
+- [x] GitLab
+
+  GitLab support requires GitLab v17.9 or newer and
+  a `GITLAB_TOKEN` environment variable (an access token).
+  See [GitLab token permissions][gitlab-permissions] for the permissions each feature needs.
+  GitLab does not support
+
+  - posting thread comments for commits (push events)
+  - output variables and step summaries (output variables are only logged)
+  - hiding outdated PR review summary comments
 - [x] Gitea
 
   Gitea does not support
@@ -54,6 +63,7 @@ Each supported implementation of the above git servers can be controlled via
 
 - `github` enables support of GitHub implementation
 - `gitea` enables support of Gitea implementation
+- `gitlab` enables support of GitLab implementation
 
 ## LGPL license
 
@@ -80,6 +90,7 @@ because the following conditions must be met:
 [docs-rs-link]: https://docs.rs/git-bot-feedback
 [dep-features]: https://doc.rust-lang.org/cargo/reference/features.html#dependency-features
 [reqwest-docs]: https://docs.rs/reqwest/latest/reqwest/#optional-features
+[gitlab-permissions]: https://github.com/2bndy5/git-bot-feedback/blob/main/docs/permissions/gitlab.md
 [LGPL-3.0-or-later]: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE
 [license-badge]: https://img.shields.io/github/license/2bndy5/git-bot-feedback
 [license-link]: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE

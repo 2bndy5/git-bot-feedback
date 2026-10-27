@@ -22,6 +22,11 @@ mod github;
 #[cfg(feature = "github")]
 pub use github::GithubApiClient;
 
+#[cfg(feature = "gitlab")]
+mod gitlab;
+#[cfg(feature = "gitlab")]
+pub use gitlab::GitlabApiClient;
+
 mod local;
 pub use local::LocalClient;
 
@@ -30,6 +35,7 @@ mod common;
 #[cfg(not(any(
     feature = "github",
     feature = "gitea",
+    feature = "gitlab",
     feature = "custom-git-server-impl",
 )))]
 compile_error!(
@@ -400,18 +406,22 @@ pub trait RestApiClient {
 /// This will fallback to an instance of [`LocalClient`] if
 ///
 /// - the `GITHUB_ACTIONS` environment variable is not set
+/// - the `GITEA_ACTIONS` environment variable is not set
+/// - the `GITLAB_CI` environment variable is not set
 pub fn init_client() -> Result<Box<dyn RestApiClient + Send + Sync>, ClientError> {
-    if cfg!(feature = "gitea")
-        && env::var("GITEA_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true")
-    {
-        Ok(Box::new(GiteaApiClient::new()?))
-    } else if cfg!(feature = "github")
-        && env::var("GITHUB_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true")
-    {
-        Ok(Box::new(GithubApiClient::new()?))
-    } else {
-        Ok(Box::new(LocalClient))
+    #[cfg(feature = "gitea")]
+    if env::var("GITEA_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true") {
+        return Ok(Box::new(GiteaApiClient::new()?));
     }
+    #[cfg(feature = "gitlab")]
+    if env::var("GITLAB_CI").is_ok_and(|v| v.to_lowercase() == "true") {
+        return Ok(Box::new(GitlabApiClient::new()?));
+    }
+    #[cfg(feature = "github")]
+    if env::var("GITHUB_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true") {
+        return Ok(Box::new(GithubApiClient::new()?));
+    }
+    Ok(Box::new(LocalClient))
 }
 
 #[cfg(test)]

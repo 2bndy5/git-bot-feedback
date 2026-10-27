@@ -15,8 +15,8 @@ use crate::client::MAX_RETRIES;
 
 /// The possible errors emitted when parsing git diffs.
 #[derive(Debug, thiserror::Error)]
-#[cfg(feature = "file-changes")]
-#[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+#[cfg(any(feature = "file-changes", feature = "gitlab"))]
+#[cfg_attr(docsrs, doc(cfg(any(feature = "file-changes", feature = "gitlab"))))]
 pub enum DiffError {
     /// An error emitted when failing to compile a Regular expression pattern.
     #[error("Failed to compile regex pattern: {0}")]
@@ -52,8 +52,8 @@ pub enum OutputVariableError {
 pub enum RestClientError {
     /// Errors related to parsing git diffs.
     #[error(transparent)]
-    #[cfg(feature = "file-changes")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "file-changes")))]
+    #[cfg(any(feature = "file-changes", feature = "gitlab"))]
+    #[cfg_attr(docsrs, doc(cfg(any(feature = "file-changes", feature = "gitlab"))))]
     DiffError(#[from] DiffError),
 
     /// Error emitted when encountering malformed event information.
@@ -248,7 +248,7 @@ impl From<DirWalkError> for PyErr {
 impl From<RestClientError> for PyErr {
     fn from(err: RestClientError) -> Self {
         match err {
-            #[cfg(feature = "file-changes")]
+            #[cfg(any(feature = "file-changes", feature = "gitlab"))]
             RestClientError::DiffError(e) => e.into(),
             RestClientError::MalformedEventInfo(_) => PyRuntimeError::new_err(format!("{err:?}")),
             RestClientError::Request(e) => PyOSError::new_err(format!("{e:?}")),
