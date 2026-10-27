@@ -159,7 +159,7 @@ impl RestApiClient for GiteaApiClient {
                             log::info!(
                                 "Using existing review comment: path='{}', line_end={}",
                                 existing_comment.path,
-                                existing_comment.new_position
+                                existing_comment.position
                             );
                             reused_comments.insert(proposed_comment.clone());
                             keep_comment = true;
@@ -310,7 +310,8 @@ impl RestApiClient for GiteaApiClient {
     ) -> Result<HashMap<String, FileDiffLines>, ClientError> {
         let url_path = match &self.pull_request {
             Some(pr_info) => format!("repos/{}/pulls/{}.diff", self.repo, pr_info.number),
-            None => format!("repos/{}/commits/{}.diff", self.repo, self.sha),
+            // The documented path (`repos/{repo}/commits/{sha}.diff` is not served by Forgejo).
+            None => format!("repos/{}/git/commits/{}.diff", self.repo, self.sha),
         };
         let url = self.api_url.join(&url_path)?;
         let mut headers = HeaderMap::new();

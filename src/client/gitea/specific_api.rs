@@ -370,9 +370,8 @@ impl GiteaApiClient {
 
         // Path must match
         existing.path == proposed.path
-        // Check line position: proposed line_end maps to new_position
-        // If proposed has line_start, it should map to the line range
-        && existing.new_position == proposed.line_end as i64
+        // Check line position: proposed line_end maps to the new side's line
+        && existing.position == proposed.line_end as i64
         // existing comment body must start with the marker
         && existing.body.starts_with(marker)
         // compare comment bodies

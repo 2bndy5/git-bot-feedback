@@ -97,12 +97,16 @@ pub struct GiteaReviewComment {
     pub id: i64,
     /// The file path this comment is on.
     pub path: String,
-    /// The position in the old file (for deleted/modified lines).
+    /// The line number in the old file (for comments on deleted lines).
+    ///
+    /// This is `0` for comments on the new side of the diff.
     #[serde(default)]
-    pub old_position: i64,
-    /// The position in the new file (for added/modified lines).
+    pub original_position: i64,
+    /// The line number in the new file (for comments on added or unchanged lines).
+    ///
+    /// When creating a comment, this is called `new_position` (see [`ReviewDiffComment`]).
     #[serde(default)]
-    pub new_position: i64,
+    pub position: i64,
     /// The comment body text.
     pub body: String,
 }

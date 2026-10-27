@@ -99,10 +99,8 @@ impl TestControlVars {
             if body.ends_with("reused bot comment") {
                 self.new_review_comments.push(ReviewComment {
                     comment: body.strip_prefix(MARKER).unwrap().to_string(),
-                    line_start: comment["old_position"]
-                        .as_i64()
-                        .and_then(|pos| (pos > 0).then_some(pos as u32)),
-                    line_end: comment["new_position"].as_i64().unwrap() as u32,
+                    line_start: None,
+                    line_end: comment["position"].as_i64().unwrap() as u32,
                     path: comment["path"].as_str().unwrap().to_string(),
                 });
                 keep_review = true;

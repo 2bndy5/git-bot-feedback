@@ -98,7 +98,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
         if EventType::PullRequest == test_params.event_t {
             format!("pulls/{PR}")
         } else {
-            format!("commits/{SHA}")
+            format!("git/commits/{SHA}")
         }
     );
     let mut mock = server
