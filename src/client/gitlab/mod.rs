@@ -3,7 +3,7 @@
 //! In the root module, we just implement the RestApiClient trait.
 //! In other (private) submodules we implement behavior specific to GitLab's REST API.
 
-use std::env;
+use std::{env, path::PathBuf};
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -109,6 +109,17 @@ impl RestApiClient for GitlabApiClient {
 
     fn event_name(&self) -> Option<String> {
         Some(self.event_name.clone())
+    }
+
+    /// Return the value of `CI_PROJECT_DIR` environment variable.
+    ///
+    /// The value returned here is subject to the runner's git checkout or
+    /// the configured `build_dir` (which may not be the same as the git
+    /// checkout path).
+    fn workspace_root(&self) -> Result<Option<PathBuf>, ClientError> {
+        env::var("CI_PROJECT_DIR")
+            .map(|v| Some(PathBuf::from(v)))
+            .map_err(|e| ClientError::env_var("CI_PROJECT_DIR", e))
     }
 
     fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {

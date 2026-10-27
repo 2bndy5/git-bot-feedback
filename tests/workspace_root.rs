@@ -5,7 +5,7 @@ fn local_is_none() {
     assert_eq!(LocalClient.workspace_root().unwrap(), None);
 }
 
-#[cfg(any(feature = "github", feature = "gitea"))]
+#[cfg(any(feature = "github", feature = "gitea", feature = "gitlab"))]
 mod ci {
     use git_bot_feedback::{RestClientError, client::init_client};
     use std::{env, path::PathBuf};
@@ -29,6 +29,7 @@ mod ci {
         unsafe {
             env::set_var("GITHUB_ACTIONS", "true");
             env::remove_var("GITEA_ACTIONS");
+            env::remove_var("GITLAB_CI");
             env::set_var("GITHUB_REPOSITORY", "2bndy5/git-bot-feedback");
             env::set_var("GITHUB_SHA", "DEADBEEF");
             env::set_var("GITHUB_EVENT_NAME", "push");
@@ -64,6 +65,8 @@ mod ci {
     fn set_gitea_env(gitea_workspace: Option<&str>, github_workspace: Option<&str>) {
         unsafe {
             env::set_var("GITEA_ACTIONS", "true");
+            env::remove_var("GITHUB_ACTIONS");
+            env::remove_var("GITLAB_CI");
             env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
             env::set_var("GITEA_SHA", "DEADBEEF");
             env::set_var("GITEA_EVENT_NAME", "push");
@@ -114,5 +117,42 @@ mod ci {
             client.workspace_root().unwrap_err(),
             "GITEA_WORKSPACE or GITHUB_WORKSPACE",
         );
+    }
+
+    #[cfg(feature = "gitlab")]
+    fn set_gitlab_env(workspace: Option<&str>) {
+        unsafe {
+            env::set_var("GITLAB_CI", "true");
+            env::remove_var("GITHUB_ACTIONS");
+            env::remove_var("GITEA_ACTIONS");
+            env::set_var("CI_API_V4_URL", "https://gitlab.com/api/v4");
+            env::set_var("CI_PROJECT_ID", "42");
+            env::set_var("CI_COMMIT_SHA", "DEADBEEF");
+            match workspace {
+                Some(path) => env::set_var("CI_PROJECT_DIR", path),
+                None => env::remove_var("CI_PROJECT_DIR"),
+            }
+        }
+    }
+
+    #[cfg(feature = "gitlab")]
+    #[test]
+    fn gitlab_workspace() {
+        set_gitlab_env(Some(WORKSPACE));
+        let client = init_client().unwrap();
+        assert_eq!(client.client_kind(), "gitlab");
+        assert_eq!(
+            client.workspace_root().unwrap(),
+            Some(PathBuf::from(WORKSPACE))
+        );
+    }
+
+    #[cfg(feature = "gitlab")]
+    #[test]
+    fn gitlab_without_workspace() {
+        set_gitlab_env(None);
+        let client = init_client().unwrap();
+        assert_eq!(client.client_kind(), "gitlab");
+        assert_env_var_error(client.workspace_root().unwrap_err(), "CI_PROJECT_DIR");
     }
 }
