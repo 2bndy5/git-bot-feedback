@@ -1,4 +1,4 @@
-use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
+use std::{fs::OpenOptions, io::Write, path::PathBuf};
 
 use async_trait::async_trait;
 use reqwest::{Client, Method};
@@ -12,6 +12,7 @@ use crate::{
 mod serde_structs;
 use serde_structs::{FullReview, ReviewDiffComment};
 mod specific_api;
+use specific_api::{ci_env_var, token};
 
 #[cfg(feature = "file-changes")]
 use crate::{FileDiffLines, FileFilter, LinesChangedOnly, parse_diff};
@@ -43,20 +44,17 @@ pub struct GiteaApiClient {
     /// The value of the `ACTIONS_STEP_DEBUG` environment variable.
     pub debug_enabled: bool,
 
+    /// Is the CI workflow run by Forgejo's runner (`FORGEJO_ACTIONS` is `true`)?
+    is_forgejo: bool,
+
     /// The response header names that describe the rate limit status.
     rate_limit_headers: RestApiRateLimitHeaders,
 }
 
 fn step_summary_url() -> Option<String> {
-    let server_url = env::var("GITEA_SERVER_URL")
-        .or_else(|_| env::var("GITHUB_SERVER_URL"))
-        .ok()?;
-    let repo = env::var("GITEA_REPOSITORY")
-        .or_else(|_| env::var("GITHUB_REPOSITORY"))
-        .ok()?;
-    let run_id = env::var("GITEA_RUN_ID")
-        .or_else(|_| env::var("GITHUB_RUN_ID"))
-        .ok()?;
+    let server_url = ci_env_var("SERVER_URL").ok()?;
+    let repo = ci_env_var("REPOSITORY").ok()?;
+    let run_id = ci_env_var("RUN_ID").ok()?;
     Some(format!(
         "{}/{repo}/actions/runs/{run_id}",
         server_url.trim_end_matches('/')
@@ -77,13 +75,9 @@ impl RestApiClient for GiteaApiClient {
         self.pull_request.is_some()
     }
 
-    /// Uses `GITEA_WORKSPACE`, or `GITHUB_WORKSPACE` if that cannot be read.
-    /// The error names `GITEA_WORKSPACE` when neither can be read.
+    /// Uses the first of `GITEA_WORKSPACE`, `FORGEJO_WORKSPACE`, or `GITHUB_WORKSPACE` that is set.
     fn workspace_root(&self) -> Result<Option<PathBuf>, ClientError> {
-        env::var("GITEA_WORKSPACE")
-            .or_else(|e| env::var("GITHUB_WORKSPACE").map_err(|_| e))
-            .map(|v| Some(PathBuf::from(v)))
-            .map_err(|e| ClientError::env_var("GITEA_WORKSPACE or GITHUB_WORKSPACE", e))
+        ci_env_var("WORKSPACE").map(|v| Some(PathBuf::from(v)))
     }
 
     fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {
@@ -101,7 +95,7 @@ impl RestApiClient for GiteaApiClient {
                 if pr_info.locked {
                     return Ok(()); // cannot comment on locked PRs
                 }
-                env::var("GITEA_TOKEN").map_err(|e| ClientError::env_var("GITEA_TOKEN", e))?;
+                token()?;
                 self.api_url.join(
                     format!("repos/{}/issues/{}/comments", self.repo, pr_info.number).as_str(),
                 )?
@@ -205,7 +199,7 @@ impl RestApiClient for GiteaApiClient {
             {
                 return Ok(());
             }
-            env::var("GITEA_TOKEN").map_err(|e| ClientError::env_var("GITEA_TOKEN", e))?;
+            token()?;
             let url = self
                 .api_url
                 .join(format!("repos/{}/pulls/{}/reviews", self.repo, pr_info.number).as_str())?;
@@ -265,7 +259,7 @@ impl RestApiClient for GiteaApiClient {
             // fetching the env var GITEA_OUTPUT value and opening the referenced file.
             return Ok(());
         }
-        if let Ok(gh_out) = env::var("GITEA_OUTPUT") {
+        if let Ok(gh_out) = ci_env_var("OUTPUT") {
             return match OpenOptions::new().append(true).open(gh_out) {
                 Ok(mut gh_out_file) => {
                     for out_var in vars {
@@ -282,7 +276,7 @@ impl RestApiClient for GiteaApiClient {
     }
 
     fn append_step_summary(&self, comment: &str) -> Result<(), ClientError> {
-        if let Ok(gh_out) = env::var("GITEA_STEP_SUMMARY") {
+        if let Ok(gh_out) = ci_env_var("STEP_SUMMARY") {
             // step summary MD file can be overwritten/removed in CI runners
             return match OpenOptions::new().append(true).open(gh_out) {
                 Ok(mut gh_out_file) => {

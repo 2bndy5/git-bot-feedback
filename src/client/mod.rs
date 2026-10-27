@@ -407,10 +407,17 @@ pub trait RestApiClient {
 ///
 /// - the `GITHUB_ACTIONS` environment variable is not set
 /// - the `GITEA_ACTIONS` environment variable is not set
+/// - the `FORGEJO_ACTIONS` environment variable is not set
 /// - the `GITLAB_CI` environment variable is not set
+///
+/// Forgejo uses the [`GiteaApiClient`].
+/// Forgejo's runner also sets `GITHUB_ACTIONS`, so `FORGEJO_ACTIONS` is checked first.
 pub fn init_client() -> Result<Box<dyn RestApiClient + Send + Sync>, ClientError> {
     #[cfg(feature = "gitea")]
-    if env::var("GITEA_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true") {
+    if ["GITEA_ACTIONS", "FORGEJO_ACTIONS"]
+        .iter()
+        .any(|name| env::var(name).is_ok_and(|v| v.to_lowercase() == "true"))
+    {
         return Ok(Box::new(GiteaApiClient::new()?));
     }
     #[cfg(feature = "gitlab")]

@@ -15,19 +15,60 @@ use reqwest::{
 };
 use std::{collections::HashMap, env, fs};
 
+/// The prefixes of the environment variables set by Gitea and Forgejo runners,
+/// in order of precedence.
+///
+/// - Gitea's act_runner sets all `GITHUB_*` variables, but only some `GITEA_*` variables.
+/// - Forgejo's runner (v7.0.0 or newer) sets `FORGEJO_*` and `GITHUB_*` variables,
+///   but no `GITEA_*` variables.
+///
+/// `GITEA_*` variables come first because the `GITHUB_*` variables cannot be
+/// overwritten in CI runners on GitHub (eg. for tests).
+const ENV_PREFIXES: [&str; 3] = ["GITEA", "FORGEJO", "GITHUB"];
+
+/// Get the value of the first environment variable that is set from the given `names`.
+///
+/// The returned error names all the given `names`.
+fn first_env_var(names: &[String]) -> Result<String, ClientError> {
+    let mut error = env::VarError::NotPresent;
+    for name in names {
+        match env::var(name) {
+            Ok(value) => return Ok(value),
+            Err(e) => error = e,
+        }
+    }
+    Err(ClientError::env_var(&names.join(" or "), error))
+}
+
+/// Get the value of a CI environment variable that ends with the given `suffix`.
+///
+/// For example, `ci_env_var("SHA")` reads `GITEA_SHA`, `FORGEJO_SHA`, or `GITHUB_SHA`
+/// (see [`ENV_PREFIXES`]).
+pub(super) fn ci_env_var(suffix: &str) -> Result<String, ClientError> {
+    first_env_var(&ENV_PREFIXES.map(|prefix| format!("{prefix}_{suffix}")))
+}
+
+/// Get the token used to authenticate REST API requests.
+///
+/// This is the `GITEA_TOKEN` environment variable, or `FORGEJO_TOKEN`
+/// (set automatically by Forgejo's runner) if `GITEA_TOKEN` is not set.
+pub(super) fn token() -> Result<String, ClientError> {
+    first_env_var(&["GITEA_TOKEN".to_string(), "FORGEJO_TOKEN".to_string()])
+}
+
+/// Is the CI workflow run by Forgejo's runner?
+pub(super) fn is_forgejo() -> bool {
+    env::var("FORGEJO_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true")
+}
+
 impl GiteaApiClient {
     /// Instantiate a [`GiteaApiClient`] object.
     pub fn new() -> Result<Self, ClientError> {
-        let event_name = env::var("GITEA_EVENT_NAME")
-            .or_else(|_| env::var("GITHUB_EVENT_NAME"))
-            .unwrap_or(String::from("unknown"));
+        let event_name = ci_env_var("EVENT_NAME").unwrap_or(String::from("unknown"));
         let pull_request = {
             match event_name.as_str() {
                 "pull_request" => {
-                    // GITEA_*** env vars cannot be overwritten in CI runners on GitHub.
-                    let event_payload_path = env::var("GITEA_EVENT_PATH")
-                        .or_else(|_| env::var("GITHUB_EVENT_PATH"))
-                        .map_err(|e| ClientError::env_var("GITEA_EVENT_PATH", e))?;
+                    let event_payload_path = ci_env_var("EVENT_PATH")?;
                     // event payload JSON file can be overwritten/removed in CI runners
                     let file_buf = fs::read_to_string(event_payload_path.clone())
                         .map_err(|e| ClientError::io("read event payload", e))?;
@@ -39,14 +80,13 @@ impl GiteaApiClient {
                 _ => None,
             }
         };
-        // GITEA_*** env vars cannot be overwritten in CI runners on GitHub.
-        // The runner sets GITHUB_API_URL to the full API root (eg. `<server>/api/v1`).
+        // `GITEA_API_URL` is the server's URL, but the runners set `FORGEJO_API_URL` and
+        // `GITHUB_API_URL` to the full API root (eg. `<server>/api/v1`).
         let gh_api_url = match env::var("GITEA_API_URL") {
             Ok(server) => format!("{}/api/v1/", server.trim_end_matches('/')),
             Err(_) => format!(
                 "{}/",
-                env::var("GITHUB_API_URL")
-                    .map_err(|e| ClientError::env_var("GITHUB_API_URL", e))?
+                first_env_var(&["FORGEJO_API_URL".to_string(), "GITHUB_API_URL".to_string()])?
                     .trim_end_matches('/')
             ),
         };
@@ -60,12 +100,9 @@ impl GiteaApiClient {
             pull_request,
             event_name,
             api_url,
-            repo: env::var("GITEA_REPOSITORY")
-                .or_else(|_| env::var("GITHUB_REPOSITORY"))
-                .map_err(|e| ClientError::env_var("GITEA_REPOSITORY", e))?,
-            sha: env::var("GITEA_SHA")
-                .or_else(|_| env::var("GITHUB_SHA"))
-                .map_err(|e| ClientError::env_var("GITEA_SHA", e))?,
+            repo: ci_env_var("REPOSITORY")?,
+            sha: ci_env_var("SHA")?,
+            is_forgejo: is_forgejo(),
             debug_enabled: env::var("ACTIONS_STEP_DEBUG").is_ok_and(|val| &val == "true"),
             rate_limit_headers: RestApiRateLimitHeaders {
                 reset: "x-ratelimit-reset".to_string(),
@@ -79,14 +116,14 @@ impl GiteaApiClient {
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_str("application/json")?);
         headers.insert("Content-Type", HeaderValue::from_str("application/json")?);
-        if let Ok(token) = env::var("GITEA_TOKEN") {
-            log::debug!("Using auth token from GITEA_TOKEN environment variable");
+        if let Ok(token) = token() {
+            log::debug!("Using auth token from GITEA_TOKEN or FORGEJO_TOKEN environment variable");
             let mut val = HeaderValue::from_str(format!("token {token}").as_str())?;
             val.set_sensitive(true);
             headers.insert(AUTHORIZATION, val);
         } else {
             log::warn!(
-                "No GITEA_TOKEN environment variable found! Permission to post comments may be unsatisfied."
+                "No GITEA_TOKEN or FORGEJO_TOKEN environment variable found! Permission to post comments may be unsatisfied."
             );
         }
         Ok(headers)
@@ -388,27 +425,37 @@ impl GiteaApiClient {
     ) -> Result<(), ClientError> {
         let base_url = format!("{}repos/{}/pulls/{pr_number}", self.api_url, self.repo);
         // resolve individual comments first
-        for comment_id in comment_ids {
-            // This endpoint is not scoped to a PR number.
-            let comment_url = Url::parse(
-                format!(
-                    "{}repos/{}/pulls/comments/{comment_id}/resolve",
-                    self.api_url, self.repo
-                )
-                .as_str(),
-            )?;
-            let request =
-                self.make_api_request(&self.client, comment_url, Method::POST, None, None)?;
-            match self
-                .send_api_request(&self.client, request, &self.rate_limit_headers)
-                .await
-            {
-                Ok(result) => {
-                    self.log_response(result, "Failed to resolve outdated review comment")
-                        .await;
-                }
-                Err(e) => {
-                    return Err(e.add_request_context("resolve outdated review comment"));
+        if self.is_forgejo {
+            // Forgejo has no endpoint to resolve a review comment.
+            if !comment_ids.is_empty() {
+                log::info!(
+                    "Forgejo does not support resolving review comments; {} outdated comment(s) left unresolved",
+                    comment_ids.len()
+                );
+            }
+        } else {
+            for comment_id in comment_ids {
+                // This endpoint is not scoped to a PR number.
+                let comment_url = Url::parse(
+                    format!(
+                        "{}repos/{}/pulls/comments/{comment_id}/resolve",
+                        self.api_url, self.repo
+                    )
+                    .as_str(),
+                )?;
+                let request =
+                    self.make_api_request(&self.client, comment_url, Method::POST, None, None)?;
+                match self
+                    .send_api_request(&self.client, request, &self.rate_limit_headers)
+                    .await
+                {
+                    Ok(result) => {
+                        self.log_response(result, "Failed to resolve outdated review comment")
+                            .await;
+                    }
+                    Err(e) => {
+                        return Err(e.add_request_context("resolve outdated review comment"));
+                    }
                 }
             }
         }
