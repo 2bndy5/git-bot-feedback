@@ -57,9 +57,25 @@ This project uses [nur](https://crates.io/crates/nur) (a task runner using Nushe
 
 ### Fallback Commands (if `nur` is unavailable)
 - **Run tests**:
+  Without coverage measurements:
+  ```shell
+  cargo nextest run --features "test-skip-wait-for-rate-limit,file-changes" --profile default
+  ```
+
+  With coverage measurements:
   ```shell
   cargo llvm-cov --no-report --features "test-skip-wait-for-rate-limit,file-changes" nextest --profile default
   ```
+
+  To generate a coverage report:
+  ```shell
+  cargo llvm-cov report --lcov --output-path lcov.info
+  # or for json output
+  cargo llvm-cov report --json --output-path coverage.json
+  ```
+  Git ignores both lcov.info and coverage.json files.
+
+  Use `cargo llvm-cov clean` to flush previous coverage measurements, if fresh coverage report is needed. This will invoke a fresh compile when running the test suite.
 - **Lint check**:
   ```shell
   cargo clippy --workspace --features file-changes --all-targets -- -D warnings
