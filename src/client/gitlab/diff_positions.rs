@@ -7,13 +7,15 @@
 
 use std::collections::HashMap;
 
+use crate::{
+    error::DiffError,
+    git_diff::{DiffHunkHeader, split_diff},
+};
+
 /// A hunk of a file's diff.
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 struct Hunk {
-    old_start: u32,
-    old_count: u32,
-    new_start: u32,
-    new_count: u32,
+    header: DiffHunkHeader,
     /// Maps each line number (in the new version) to the line number in the old version.
     ///
     /// The old line number is [`None`] for added lines.
@@ -21,42 +23,56 @@ struct Hunk {
 }
 
 impl Hunk {
-    /// Parse a hunk header like `@@ -3,7 +3,8 @@`.
-    fn from_header(header: &str) -> Option<Self> {
-        let mut parts = header.split_whitespace().skip(1);
-        let (old_start, old_count) = parse_range(parts.next()?.strip_prefix('-')?)?;
-        let (new_start, new_count) = parse_range(parts.next()?.strip_prefix('+')?)?;
-        Some(Self {
-            old_start,
-            old_count,
-            new_start,
-            new_count,
-            lines: HashMap::new(),
-        })
+    /// Map the lines of a hunk.
+    ///
+    /// The `text` is everything after the hunk's header, starting with the rest of the header's line.
+    fn new(header: DiffHunkHeader, text: &str) -> Self {
+        let mut lines = HashMap::new();
+        let (mut old_line, mut new_line) = (header.old_start, header.new_start);
+        let (mut old_left, mut new_left) = (header.old_lines, header.new_lines);
+        // The text ends with the line break of the hunk's last line.
+        let text = text.strip_suffix('\n').unwrap_or(text);
+        for line in text.split('\n').skip(1) {
+            if old_left == 0 && new_left == 0 {
+                break; // the header's line counts were wrong
+            }
+            match line.chars().next() {
+                Some('+') => {
+                    lines.insert(new_line, None);
+                    new_line += 1;
+                    new_left = new_left.saturating_sub(1);
+                }
+                Some('-') => {
+                    old_line += 1;
+                    old_left = old_left.saturating_sub(1);
+                }
+                Some('\\') => {} // "\ No newline at end of file"
+                _ => {
+                    lines.insert(new_line, Some(old_line));
+                    new_line += 1;
+                    old_line += 1;
+                    old_left = old_left.saturating_sub(1);
+                    new_left = new_left.saturating_sub(1);
+                }
+            }
+        }
+        Self { header, lines }
     }
 
     /// The first line number (in the new version) of this hunk.
     fn new_first(&self) -> u32 {
         // An empty range (count is 0) refers to the line *before* the change.
-        self.new_start + u32::from(self.new_count == 0)
+        self.header.new_start + u32::from(self.header.new_lines == 0)
     }
 
     /// The first line number (in the new version) after this hunk.
     fn new_end(&self) -> u32 {
-        self.new_first() + self.new_count
+        self.new_first() + self.header.new_lines
     }
 
     /// The first line number (in the old version) after this hunk.
     fn old_end(&self) -> u32 {
-        self.old_start + u32::from(self.old_count == 0) + self.old_count
-    }
-}
-
-/// Parse a hunk header's range like `3,7` or `3` (implies a count of 1).
-fn parse_range(range: &str) -> Option<(u32, u32)> {
-    match range.split_once(',') {
-        Some((start, count)) => Some((start.parse().ok()?, count.parse().ok()?)),
-        None => Some((range.parse().ok()?, 1)),
+        self.header.old_start + u32::from(self.header.old_lines == 0) + self.header.old_lines
     }
 }
 
@@ -92,88 +108,35 @@ impl FilePositions {
 /// Parse a unified diff (as output by `git diff`) into a map of file names to their [`FilePositions`].
 ///
 /// Deleted files are excluded because there are no lines to comment on.
-pub fn parse_positions(diff: &str) -> HashMap<String, FilePositions> {
+pub fn parse_positions(diff: &str) -> Result<HashMap<String, FilePositions>, DiffError> {
     let mut files = HashMap::new();
-    let mut new_path: Option<String> = None;
-    let mut file = FilePositions::default();
-    // the current hunk and the number of its lines yet to be read (old, new)
-    let mut hunk: Option<(Hunk, u32, u32)> = None;
-    let (mut old_line, mut new_line) = (0u32, 0u32);
-
-    for line in diff.lines() {
-        if line.starts_with("diff --git ")
-            && let Some((done, _, _)) = hunk.take()
-        {
-            // the previous hunk ended early (its header's line counts were wrong)
-            file.hunks.push(done);
-        }
-        if let Some((current, old_left, new_left)) = hunk.as_mut() {
-            match line.chars().next() {
-                Some('+') => {
-                    current.lines.insert(new_line, None);
-                    new_line += 1;
-                    *new_left = new_left.saturating_sub(1);
-                }
-                Some('-') => {
-                    old_line += 1;
-                    *old_left = old_left.saturating_sub(1);
-                }
-                Some('\\') => {} // "\ No newline at end of file"
-                _ => {
-                    current.lines.insert(new_line, Some(old_line));
-                    new_line += 1;
-                    old_line += 1;
-                    *old_left = old_left.saturating_sub(1);
-                    *new_left = new_left.saturating_sub(1);
-                }
-            }
-            if *old_left == 0
-                && *new_left == 0
-                && let Some((done, _, _)) = hunk.take()
+    for file in split_diff(diff)? {
+        let mut old_path = None;
+        let mut deleted = false;
+        for line in file.front_matter.lines() {
+            if line == "+++ /dev/null" {
+                deleted = true;
+            } else if let Some(path) = line
+                .strip_prefix("--- a/")
+                .or_else(|| line.strip_prefix("rename from "))
             {
-                file.hunks.push(done);
+                old_path = Some(path.strip_prefix('/').unwrap_or(path));
             }
+        }
+        if deleted {
             continue;
         }
-        if line.starts_with("diff --git ") {
-            if let Some(name) = new_path.take() {
-                files.insert(name, std::mem::take(&mut file));
-            }
-            file = FilePositions::default();
-        } else if let Some(path) = line
-            .strip_prefix("--- a/")
-            .or_else(|| line.strip_prefix("rename from "))
-        {
-            file.old_path = path.to_string();
-        } else if let Some(path) = line
-            .strip_prefix("+++ b/")
-            .or_else(|| line.strip_prefix("rename to "))
-        {
-            new_path = Some(path.to_string());
-        } else if line.starts_with("+++ /dev/null") {
-            new_path = None; // deleted file
-        } else if line.starts_with("@@ ")
-            && let Some(header) = Hunk::from_header(line)
-        {
-            old_line = header.old_start;
-            new_line = header.new_start;
-            let (old_left, new_left) = (header.old_count, header.new_count);
-            hunk = Some((header, old_left, new_left));
-        }
+        let positions = FilePositions {
+            old_path: old_path.unwrap_or(file.name).to_string(),
+            hunks: file
+                .hunks
+                .into_iter()
+                .map(|(header, text)| Hunk::new(header, text))
+                .collect(),
+        };
+        files.entry(file.name.to_string()).or_insert(positions);
     }
-    if let Some((done, _, _)) = hunk.take() {
-        file.hunks.push(done);
-    }
-    if let Some(name) = new_path {
-        files.insert(name, file);
-    }
-    for (name, positions) in files.iter_mut() {
-        if positions.old_path.is_empty() {
-            // a new file
-            positions.old_path = name.clone();
-        }
-    }
-    files
+    Ok(files)
 }
 
 #[cfg(test)]
@@ -220,7 +183,7 @@ rename to src/after.h
 
     #[test]
     fn modified_file() {
-        let files = parse_positions(DIFF);
+        let files = parse_positions(DIFF).unwrap();
         let file = files.get("src/demo.cpp").unwrap();
         assert_eq!(file.old_path, "src/demo.cpp");
         // unchanged line before the first hunk
@@ -242,7 +205,7 @@ rename to src/after.h
 
     #[test]
     fn new_file() {
-        let files = parse_positions(DIFF);
+        let files = parse_positions(DIFF).unwrap();
         let file = files.get("src/new.cpp").unwrap();
         assert_eq!(file.old_path, "src/new.cpp");
         assert_eq!(file.old_line(1), None);
@@ -251,14 +214,14 @@ rename to src/after.h
 
     #[test]
     fn deleted_file() {
-        let files = parse_positions(DIFF);
+        let files = parse_positions(DIFF).unwrap();
         assert!(!files.contains_key("src/old.cpp"));
         assert!(!files.contains_key("dev/null"));
     }
 
     #[test]
     fn renamed_file() {
-        let files = parse_positions(DIFF);
+        let files = parse_positions(DIFF).unwrap();
         let file = files.get("src/after.h").unwrap();
         assert_eq!(file.old_path, "src/before.h");
         assert_eq!(file.old_line(10), Some(10));
@@ -267,7 +230,7 @@ rename to src/after.h
     #[test]
     fn pure_addition_hunk() {
         let diff = "diff --git a/a.c b/a.c\n--- a/a.c\n+++ b/a.c\n@@ -4,0 +5,2 @@\n+one\n+two\n";
-        let files = parse_positions(diff);
+        let files = parse_positions(diff).unwrap();
         let file = files.get("a.c").unwrap();
         assert_eq!(file.old_line(4), Some(4));
         assert_eq!(file.old_line(5), None);
@@ -278,7 +241,7 @@ rename to src/after.h
     #[test]
     fn no_newline_at_end_of_file() {
         let diff = "diff --git a/a.c b/a.c\n--- a/a.c\n+++ b/a.c\n@@ -1 +1 @@\n-old\n\\ No newline at end of file\n+new\n";
-        let files = parse_positions(diff);
+        let files = parse_positions(diff).unwrap();
         let file = files.get("a.c").unwrap();
         assert_eq!(file.old_line(1), None);
         assert_eq!(file.old_line(2), Some(2));
@@ -288,7 +251,7 @@ rename to src/after.h
     fn hunk_with_wrong_line_counts() {
         // The first hunk claims more lines than it has.
         let diff = "diff --git a/a.c b/a.c\n--- a/a.c\n+++ b/a.c\n@@ -1,5 +1,6 @@\n+new\n context\ndiff --git a/b.c b/b.c\n--- a/b.c\n+++ b/b.c\n@@ -0,0 +1 @@\n+new\n";
-        let files = parse_positions(diff);
+        let files = parse_positions(diff).unwrap();
         assert_eq!(files.get("a.c").unwrap().old_line(1), None);
         assert_eq!(files.get("a.c").unwrap().old_line(2), Some(1));
         assert_eq!(files.get("b.c").unwrap().old_line(1), None);
@@ -299,7 +262,7 @@ rename to src/after.h
         // The last hunk claims more lines than the diff has.
         let diff =
             "diff --git a/a.c b/a.c\n--- a/a.c\n+++ b/a.c\n@@ -1,3 +1,4 @@\n context\n+new\n";
-        let files = parse_positions(diff);
+        let files = parse_positions(diff).unwrap();
         let file = files.get("a.c").unwrap();
         assert_eq!(file.old_line(1), Some(1));
         assert_eq!(file.old_line(2), None);
@@ -308,9 +271,27 @@ rename to src/after.h
     #[test]
     fn malformed_hunk_header() {
         let diff = "diff --git a/a.c b/a.c\n--- a/a.c\n+++ b/a.c\n@@ -x +y @@\n+one\n";
-        let files = parse_positions(diff);
+        let files = parse_positions(diff).unwrap();
         let file = files.get("a.c").unwrap();
         // no hunks were parsed, so all lines are considered unchanged
         assert_eq!(file.old_line(1), Some(1));
+    }
+
+    #[test]
+    fn hunk_header_in_content() {
+        let diff = "diff --git a/a.c b/a.c\n--- a/a.c\n+++ b/a.c\n@@ -1,2 +1,3 @@\n+// @@ -9 +9 @@\n one\n two\n";
+        let files = parse_positions(diff).unwrap();
+        let file = files.get("a.c").unwrap();
+        assert_eq!(file.old_line(1), None);
+        assert_eq!(file.old_line(2), Some(1));
+        assert_eq!(file.old_line(3), Some(2));
+        assert_eq!(file.old_line(4), Some(3));
+    }
+
+    #[test]
+    fn malformed_diff() {
+        assert!(parse_positions("").is_ok_and(|files| files.is_empty()));
+        assert!(parse_positions("not a diff").is_err());
+        assert!(parse_positions("diff --git a/a.c b/a.c\nnonsense\n").is_err());
     }
 }

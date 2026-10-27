@@ -229,7 +229,7 @@ impl GitlabApiClient {
         if options.comments.is_empty() {
             return Ok(created);
         }
-        let positions = parse_positions(&self.get_merge_request_raw_diff(iid).await?);
+        let positions = parse_positions(&self.get_merge_request_raw_diff(iid).await?)?;
         let url = self.merge_request_url(iid, "/draft_notes")?;
         for comment in &options.comments {
             let Some(file) = positions.get(&comment.path) else {

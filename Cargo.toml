@@ -62,7 +62,7 @@ github = []
 gitea = []
 
 # GitLab implementation/support
-gitlab = []
+gitlab = ["dep:regex"]
 
 # features enabled by default
 default = ["github", "gitea", "gitlab"]
