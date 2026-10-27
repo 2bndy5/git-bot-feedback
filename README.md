@@ -39,7 +39,8 @@ The following is just a list of git servers that are planned (in order or priori
 - [x] GitLab
 
   GitLab support requires GitLab v17.9 or newer and
-  a `GITLAB_TOKEN` environment variable (an access token with `api` scope).
+  a `GITLAB_TOKEN` environment variable (an access token).
+  See [GitLab token permissions][gitlab-permissions] for the permissions each feature needs.
   GitLab does not support
 
   - posting thread comments for commits (push events)
@@ -89,6 +90,7 @@ because the following conditions must be met:
 [docs-rs-link]: https://docs.rs/git-bot-feedback
 [dep-features]: https://doc.rust-lang.org/cargo/reference/features.html#dependency-features
 [reqwest-docs]: https://docs.rs/reqwest/latest/reqwest/#optional-features
+[gitlab-permissions]: https://github.com/2bndy5/git-bot-feedback/blob/main/docs/permissions/gitlab.md
 [LGPL-3.0-or-later]: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE
 [license-badge]: https://img.shields.io/github/license/2bndy5/git-bot-feedback
 [license-link]: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE

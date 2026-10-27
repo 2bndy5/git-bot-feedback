@@ -33,7 +33,8 @@ The following is just a list of git servers that are planned (in order or priori
 - GitLab
 
   GitLab support requires GitLab v17.9 or newer and
-  a ``GITLAB_TOKEN`` environment variable (an access token with ``api`` scope).
+  a ``GITLAB_TOKEN`` environment variable (an access token).
+  See `GitLab token permissions`_ for the permissions each feature needs.
   GitLab does not support
 
   - posting thread comments for commits (push events)
@@ -49,6 +50,8 @@ The following is just a list of git servers that are planned (in order or priori
 - BitBucket
 
 Currently, only GitHub, GitLab, and Gitea are supported.
+
+.. _GitLab token permissions: https://github.com/2bndy5/git-bot-feedback/blob/main/docs/permissions/gitlab.md
 
 LGPL license
 ------------

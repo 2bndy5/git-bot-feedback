@@ -24,6 +24,7 @@ words:
   - musllinux
   - mypy
   - nextest
+  - noteable
   - nurfile
   - nushell
   - orhun
