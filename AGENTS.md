@@ -5,7 +5,7 @@ This document provides conventions, architectural context, and workflow commands
 ## Project Overview
 
 `git-bot-feedback` is a Rust library designed for CI workflows and automation tools to provide feedback on git hosting platforms:
-- **Supported git servers**: GitHub, GitLab (>= v17.9), Gitea (BitBucket planned).
+- **Supported git servers**: GitHub, GitLab (>= v17.9), Gitea, Forgejo (BitBucket planned).
 - **Core capabilities**: Thread comments (PR and commit), CI step summaries, output variables, log grouping, file annotations, Pull Request reviews, and changed file analysis.
 - **Multi-language project**: Rust crate at workspace root (`git-bot-feedback`) and Python bindings in `bindings/python` (`git-bot-feedback-py` built with PyO3/Maturin).
 - **License**: LGPL-3.0-or-later.
@@ -44,7 +44,7 @@ This project uses [nur](https://crates.io/crates/nur) (a task runner using Nushe
 
 | Task | Command | Description |
 | :--- | :--- | :--- |
-| **Run Tests** | `nur test` | Runs tests with `cargo-nextest` under the `default` profile (skips tests > 10s). |
+| **Run Tests** | `nur test` | Runs tests with `cargo-nextest` under the `default` profile (marks tests > 10s as "SLOW"). |
 | **Run CI Tests** | `nur test -p ci` | Runs all tests including slow tests with verbose output. |
 | **Run Doc Tests** | `nur test docs` | Runs doc tests (`cargo test --doc --features file-changes`). |
 | **Generate Coverage** | `nur test lcov` / `nur test html` | Generates LCOV or HTML coverage via `cargo-llvm-cov`. |
@@ -58,7 +58,7 @@ This project uses [nur](https://crates.io/crates/nur) (a task runner using Nushe
 ### Fallback Commands (if `nur` is unavailable)
 - **Run tests**:
   ```shell
-  cargo llvm-cov --no-report --features "test-skip-wait-for-rate-limit,file-changes" nextest run --profile default
+  cargo llvm-cov --no-report --features "test-skip-wait-for-rate-limit,file-changes" nextest --profile default
   ```
 - **Lint check**:
   ```shell
