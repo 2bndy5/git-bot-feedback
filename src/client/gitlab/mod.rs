@@ -147,6 +147,31 @@ impl RestApiClient for GitlabApiClient {
         Ok(())
     }
 
+    /// Post a merge request review based on the given options.
+    ///
+    /// This is expected to be used after calling [`Self::cull_pr_reviews()`] to
+    /// avoid posting duplicates of existing comments. Once the duplicates are filtered out,
+    /// the [`ReviewOptions::summary`] can be made to reflect the actual review being posted.
+    ///
+    /// This function does nothing for non-merge request events.
+    ///
+    /// # Comment length
+    ///
+    /// GitLab limits a comment to 1,000,000 characters.
+    /// Some text is added to the given comments, which counts toward that limit:
+    ///
+    /// - A review on GitLab has no summary, so the [`ReviewOptions::summary`] is posted as a
+    ///   separate comment. To tell it apart from a thread comment,
+    ///   `<!-- review summary -->` and a line break (24 characters) are inserted after the
+    ///   [`ReviewOptions::marker`].
+    /// - The [`ReviewOptions::marker`] is prepended to each of the [`ReviewOptions::comments`]
+    ///   (and the summary) if it is not already there.
+    /// - In a [`ReviewComment`](crate::ReviewComment) that spans multiple lines,
+    ///   line offsets (eg. `:-2+0`) are appended to the code fence of each suggestion
+    ///   that has none. Otherwise, GitLab would only replace the comment's last line.
+    ///
+    /// Like GitLab does when saving a comment, carriage returns and trailing whitespace are
+    /// removed from each of the [`ReviewOptions::comments`].
     async fn post_pr_review(&mut self, options: &ReviewOptions) -> Result<(), ClientError> {
         if let Some(iid) = self.merge_request_iid {
             env::var("GITLAB_TOKEN").map_err(|e| ClientError::env_var("GITLAB_TOKEN", e))?;

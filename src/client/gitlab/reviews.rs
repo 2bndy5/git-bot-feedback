@@ -23,6 +23,8 @@ use serde_json::json;
 /// A suggestion that spans multiple lines (`line_start` to `line_end`) is anchored on the `line_end`.
 /// GitLab expects the number of preceding lines to be specified in the suggestion's code fence
 /// (eg. ```` ```suggestion:-2+0 ````); otherwise only the `line_end` would be replaced.
+/// So, the offsets are appended to each suggestion's code fence that has none.
+/// A code fence that already has offsets (eg. ```` ```suggestion:-1+1 ````) is not changed.
 ///
 /// Like GitLab, carriage returns and trailing whitespace are removed.
 /// This way the result can be compared with the body of an existing comment.
@@ -31,13 +33,13 @@ pub(super) fn review_comment_body(comment: &ReviewComment, marker: &str) -> Stri
     let body = comment.comment.replace('\r', "");
     let body = match comment.line_start {
         Some(start) if start < comment.line_end => {
-            let fence = format!("```suggestion:-{}+0", comment.line_end - start);
+            let offsets = format!(":-{}+0", comment.line_end - start);
             body.split('\n')
                 .map(|line| {
-                    if line == "```suggestion" {
-                        fence.as_str()
+                    if is_suggestion_fence_without_offsets(line) {
+                        format!("{}{offsets}", line.trim_end())
                     } else {
-                        line
+                        line.to_string()
                     }
                 })
                 .collect::<Vec<_>>()
@@ -50,6 +52,15 @@ pub(super) fn review_comment_body(comment: &ReviewComment, marker: &str) -> Stri
     } else {
         format!("{marker}{body}").trim_end().to_string()
     }
+}
+
+/// Is the given `line` the opening code fence of a suggestion without line offsets?
+///
+/// For example, ```` ```suggestion ```` or ````` ````suggestion `````,
+/// but not ```` ```suggestion:-1+1 ````.
+fn is_suggestion_fence_without_offsets(line: &str) -> bool {
+    let info = line.trim_start_matches('`');
+    line.len() - info.len() >= 3 && info.trim_end() == "suggestion"
 }
 
 impl GitlabApiClient {
@@ -403,6 +414,26 @@ mod tests {
         assert_eq!(
             review_comment_body(&comment(Some(10), body), MARKER),
             format!("{MARKER}Use braces\n```suggestion:-2+0\nif (x) {{\n  y();\n}}\n```")
+        );
+    }
+
+    #[test]
+    fn multi_line_suggestion_with_offsets() {
+        // The given offsets are kept, even if they differ from `line_start` and `line_end`.
+        let body = "Use braces\n```suggestion:-1+1\nif (x) {\n```\n";
+        assert_eq!(
+            review_comment_body(&comment(Some(10), body), MARKER),
+            format!("{MARKER}{body}").trim_end()
+        );
+    }
+
+    #[test]
+    fn multiple_suggestions() {
+        // Only the code fence without offsets gets them.
+        let body = "Either\n```suggestion:-1+0\na\n```\nor\n````suggestion \nb\n````";
+        assert_eq!(
+            review_comment_body(&comment(Some(10), body), MARKER),
+            format!("{MARKER}Either\n```suggestion:-1+0\na\n```\nor\n````suggestion:-2+0\nb\n````")
         );
     }
 
