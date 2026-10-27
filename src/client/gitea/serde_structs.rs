@@ -22,7 +22,8 @@ pub struct ThreadComment {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct User {
     pub login: String,
-    pub id: u64,
+    /// Negative for built-in users, such as `gitea-actions` (-2).
+    pub id: i64,
 }
 
 #[derive(Debug, Serialize, PartialEq, Clone)]
@@ -46,7 +47,9 @@ impl From<&crate::ReviewComment> for ReviewDiffComment {
         Self {
             body: comment.comment.clone(),
             new_position: comment.line_end as i64,
-            old_position: comment.line_start.map(|i| i as i64).unwrap_or_default(),
+            // Gitea has no multi-line comments; a non-zero old_position puts
+            // the comment on the old side of the diff.
+            old_position: 0,
             path: comment.path.clone(),
         }
     }
@@ -94,12 +97,16 @@ pub struct GiteaReviewComment {
     pub id: i64,
     /// The file path this comment is on.
     pub path: String,
-    /// The position in the old file (for deleted/modified lines).
+    /// The line number in the old file (for comments on deleted lines).
+    ///
+    /// This is `0` for comments on the new side of the diff.
     #[serde(default)]
-    pub old_position: i64,
-    /// The position in the new file (for added/modified lines).
+    pub original_position: i64,
+    /// The line number in the new file (for comments on added or unchanged lines).
+    ///
+    /// When creating a comment, this is called `new_position` (see [`ReviewDiffComment`]).
     #[serde(default)]
-    pub new_position: i64,
+    pub position: i64,
     /// The comment body text.
     pub body: String,
 }

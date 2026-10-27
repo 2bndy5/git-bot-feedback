@@ -54,6 +54,18 @@ The following is just a list of git servers that are planned (in order or priori
   - programmatically deleting a PR reviews' individual comments,
     rather we can only resolve them (currently).
     However, deleting an entire PR review is supported.
+
+  Only a repository admin can dismiss a PR review.
+  If the token's user is not an admin, outdated reviews can only be deleted
+  (see `ReviewOptions::delete_review_comments`).
+- [x] Forgejo
+
+  Forgejo uses the Gitea implementation, so the same limitations apply.
+  Forgejo support requires [Forgejo Runner][forgejo-runner] v7.0.0 or newer,
+  which sets the `FORGEJO_ACTIONS` environment variable.
+  The token is read from the `GITEA_TOKEN` environment variable, or
+  the `FORGEJO_TOKEN` environment variable that the runner sets automatically.
+  Forgejo also does not support resolving a PR review's individual comments.
 - [ ] BitBucket
 
 ### Optional support
@@ -90,6 +102,7 @@ because the following conditions must be met:
 [docs-rs-link]: https://docs.rs/git-bot-feedback
 [dep-features]: https://doc.rust-lang.org/cargo/reference/features.html#dependency-features
 [reqwest-docs]: https://docs.rs/reqwest/latest/reqwest/#optional-features
+[forgejo-runner]: https://forgejo.org/docs/latest/admin/actions/
 [gitlab-permissions]: https://github.com/2bndy5/git-bot-feedback/blob/main/docs/permissions/gitlab.md
 [LGPL-3.0-or-later]: https://github.com/2bndy5/git-bot-feedback/blob/main/LICENSE
 [license-badge]: https://img.shields.io/github/license/2bndy5/git-bot-feedback

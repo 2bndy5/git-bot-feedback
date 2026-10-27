@@ -18,6 +18,8 @@ struct TestParams {
     fail_serde_event_payload: bool,
     no_event_payload: bool,
     fail_request: bool,
+    /// Only set the env vars that Gitea's act_runner sets (`GITHUB_*`).
+    runner_env: bool,
 }
 
 const REPO: &str = "2bndy5/git-bot-feedback";
@@ -45,28 +47,36 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
     }
     let mut server = Server::new_async().await;
 
+    let event_name = if test_params.event_t == EventType::Push {
+        "push"
+    } else {
+        "pull_request"
+    };
+    let event_path = if test_params.no_event_payload {
+        Path::new("not_a_file.txt")
+    } else {
+        event_payload.path()
+    };
     unsafe {
-        env::set_var("GITEA_REPOSITORY", REPO);
-        env::set_var("GITEA_SHA", SHA);
         env::set_var("GITEA_TOKEN", TOKEN);
         env::set_var("CI", "true");
-        env::set_var(
-            "GITEA_EVENT_NAME",
-            if test_params.event_t == EventType::Push {
-                "push"
-            } else {
-                "pull_request"
-            },
-        );
-        env::set_var(
-            "GITEA_EVENT_PATH",
-            if test_params.no_event_payload {
-                Path::new("not_a_file.txt")
-            } else {
-                event_payload.path()
-            },
-        );
-        env::set_var("GITEA_API_URL", server.url());
+        if test_params.runner_env {
+            for name in ["REPOSITORY", "SHA", "EVENT_NAME", "EVENT_PATH", "API_URL"] {
+                env::remove_var(format!("GITEA_{name}"));
+            }
+            env::set_var("GITHUB_REPOSITORY", REPO);
+            env::set_var("GITHUB_SHA", SHA);
+            env::set_var("GITHUB_EVENT_NAME", event_name);
+            env::set_var("GITHUB_EVENT_PATH", event_path);
+            // act_runner's value includes the API path.
+            env::set_var("GITHUB_API_URL", format!("{}/api/v1", server.url()));
+        } else {
+            env::set_var("GITEA_REPOSITORY", REPO);
+            env::set_var("GITEA_SHA", SHA);
+            env::set_var("GITEA_EVENT_NAME", event_name);
+            env::set_var("GITEA_EVENT_PATH", event_path);
+            env::set_var("GITEA_API_URL", server.url());
+        }
     }
 
     let reset_timestamp = (Utc::now().timestamp() + 60).to_string();
@@ -88,7 +98,7 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
         if EventType::PullRequest == test_params.event_t {
             format!("pulls/{PR}")
         } else {
-            format!("commits/{SHA}")
+            format!("git/commits/{SHA}")
         }
     );
     let mut mock = server
@@ -189,6 +199,25 @@ async fn get_push_files_paginated() {
 async fn get_pr_files_paginated() {
     test_get_changes(&TestParams {
         event_t: EventType::PullRequest,
+        ..Default::default()
+    })
+    .await
+}
+
+#[tokio::test]
+async fn get_pr_files_from_runner_env() {
+    test_get_changes(&TestParams {
+        event_t: EventType::PullRequest,
+        runner_env: true,
+        ..Default::default()
+    })
+    .await
+}
+
+#[tokio::test]
+async fn get_push_files_from_runner_env() {
+    test_get_changes(&TestParams {
+        runner_env: true,
         ..Default::default()
     })
     .await

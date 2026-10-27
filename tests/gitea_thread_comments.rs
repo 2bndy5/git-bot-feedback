@@ -77,7 +77,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
             serde_json::json!({
                 "pull_request": {
                     "state": "open",
-                    "locked": test_params.locked_pr,
+                    "is_locked": test_params.locked_pr,
                     "draft": false,
                     "number": PR
                 }
@@ -207,6 +207,7 @@ async fn setup(lib_root: &Path, test_params: &TestParams) {
                     format!("/api/v1/repos/{REPO}/issues/{PR}/comments").as_str(),
                 )
                 .match_body(new_comment_match)
+                .match_header("Content-Type", "application/json")
                 .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
                 .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
                 .match_header("Authorization", format!("token {TOKEN}").as_str())

@@ -109,7 +109,8 @@ async fn fail_gh_out() {
 #[tokio::test]
 async fn pass_gh_out() {
     let out = append_output_vars(TestParams::default()).await;
-    assert!(out.contains(format!("{VAR_NAME}={VAR_VALUE}\n").as_str()));
+    // act_runner rejects blank lines in this file.
+    assert_eq!(out, format!("{VAR_NAME}={VAR_VALUE}\n"));
 }
 
 #[tokio::test]

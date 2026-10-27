@@ -2,15 +2,15 @@
   {
     "id": 76453653,
     "path": "src/lib.rs",
-    "old_position": 40,
-    "new_position": 42,
-    "body": "<!-- git-bot-feedback -->\nreused bot comment"
+    "body": "<!-- git-bot-feedback -->\nreused bot comment",
+    "position": 42,
+    "original_position": 0
   },
   {
     "id": 76453655,
     "path": "src/lib.rs",
-    "old_position": 10,
-    "new_position": 12,
-    "body": "human discussion comment"
+    "body": "human discussion comment",
+    "position": 12,
+    "original_position": 0
   }
 ]

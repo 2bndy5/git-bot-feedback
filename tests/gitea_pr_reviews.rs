@@ -54,6 +54,8 @@ struct TestParams {
     paginate_review_comments: bool,
     no_token: bool,
     summary_marker_exists: bool,
+    /// Use the environment variables set by Forgejo's runner (no `GITEA_*` variables).
+    forgejo: bool,
 }
 
 impl Default for TestParams {
@@ -72,6 +74,7 @@ impl Default for TestParams {
             paginate_review_comments: false,
             no_token: false,
             summary_marker_exists: false,
+            forgejo: false,
         }
     }
 }
@@ -99,10 +102,8 @@ impl TestControlVars {
             if body.ends_with("reused bot comment") {
                 self.new_review_comments.push(ReviewComment {
                     comment: body.strip_prefix(MARKER).unwrap().to_string(),
-                    line_start: comment["old_position"]
-                        .as_i64()
-                        .and_then(|pos| (pos > 0).then_some(pos as u32)),
-                    line_end: comment["new_position"].as_i64().unwrap() as u32,
+                    line_start: None,
+                    line_end: comment["position"].as_i64().unwrap() as u32,
                     path: comment["path"].as_str().unwrap().to_string(),
                 });
                 keep_review = true;
@@ -131,14 +132,26 @@ fn load_json_array(lib_root: &Path, file_name: &str) -> Vec<serde_json::Value> {
 }
 
 async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
+    // Forgejo's runner sets `FORGEJO_*` variables instead of `GITEA_*` variables.
+    let prefix = if test_params.forgejo {
+        "FORGEJO"
+    } else {
+        "GITEA"
+    };
     unsafe {
-        env::set_var("GITEA_EVENT_NAME", test_params.event_t.to_string().as_str());
-        env::set_var("GITEA_REPOSITORY", REPO);
-        env::set_var("GITEA_SHA", SHA);
+        env::set_var(
+            format!("{prefix}_EVENT_NAME"),
+            test_params.event_t.to_string().as_str(),
+        );
+        env::set_var(format!("{prefix}_REPOSITORY"), REPO);
+        env::set_var(format!("{prefix}_SHA"), SHA);
         if test_params.no_token {
-            env::remove_var("GITEA_TOKEN");
+            env::remove_var(format!("{prefix}_TOKEN"));
         } else {
-            env::set_var("GITEA_TOKEN", TOKEN);
+            env::set_var(format!("{prefix}_TOKEN"), TOKEN);
+        }
+        if test_params.forgejo {
+            env::set_var("FORGEJO_ACTIONS", "true");
         }
         env::set_var("CI", "true");
         if env::var("ACTIONS_STEP_DEBUG").is_err() {
@@ -154,7 +167,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                 "draft": test_params.is_draft,
                 "state": "open",
                 "number": PR,
-                "locked": test_params.is_locked,
+                "is_locked": test_params.is_locked,
             }
         })
         .to_string();
@@ -162,19 +175,24 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
             .write_all(event_payload.as_bytes())
             .expect("Failed to create mock event payload.");
         unsafe {
-            env::set_var("GITEA_EVENT_PATH", event_payload_file.path());
+            env::set_var(format!("{prefix}_EVENT_PATH"), event_payload_file.path());
         }
         event_payload_path = Some(event_payload_file);
     } else {
         unsafe {
-            env::remove_var("GITEA_EVENT_PATH");
+            env::remove_var(format!("{prefix}_EVENT_PATH"));
         }
     }
 
     let reset_timestamp = (Utc::now().timestamp() + 60).to_string();
     let mut server = Server::new_async().await;
     unsafe {
-        env::set_var("GITEA_API_URL", server.url());
+        if test_params.forgejo {
+            // Unlike `GITEA_API_URL`, this is the full API root.
+            env::set_var("FORGEJO_API_URL", format!("{}/api/v1", server.url()));
+        } else {
+            env::set_var("GITEA_API_URL", server.url());
+        }
     }
 
     logger_init();
@@ -392,17 +410,31 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                     );
                 }
 
-                for comment_id in &test_control_vars.outdated_comment_ids {
+                if test_params.forgejo {
+                    // Forgejo has no endpoint to resolve a review comment.
+                    mocks.push(
+                        server
+                            .mock(
+                                "POST",
+                                Matcher::Regex(format!("^/api/v1/repos/{REPO}/pulls/comments/")),
+                            )
+                            .expect(0)
+                            .create(),
+                    );
+                }
+                for comment_id in test_control_vars
+                    .outdated_comment_ids
+                    .iter()
+                    .filter(|_| !test_params.forgejo)
+                {
                     let fail_resolve_comment =
                         *comment_id == 76453654 && test_params.fail_resolve_comment;
                     mocks.push(
                         server
                             .mock(
                                 "POST",
-                                format!(
-                                    "/api/v1/repos/{REPO}/pulls/{PR}/comments/{comment_id}/resolve"
-                                )
-                                .as_str(),
+                                format!("/api/v1/repos/{REPO}/pulls/comments/{comment_id}/resolve")
+                                    .as_str(),
                             )
                             .match_header("Authorization", format!("token {TOKEN}").as_str())
                             .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
@@ -490,7 +522,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                 {
                     "body": format!("{MARKER}A new comment (with prepended marker)"),
                     "new_position": 42,
-                    "old_position": 40,
+                    "old_position": 0,
                     "path": "src/lib.rs",
                 },
             ]
@@ -499,6 +531,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
             server
                 .mock("POST", review_url_path.as_str())
                 .match_body(Matcher::PartialJson(expected_review_body))
+                .match_header("Content-Type", "application/json")
                 .match_header("Authorization", format!("token {TOKEN}").as_str())
                 .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
                 .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
@@ -700,6 +733,35 @@ async fn paginated_review_comments() {
 async fn review_summary_marker() {
     test_reviews(TestParams {
         summary_marker_exists: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn forgejo() {
+    test_reviews(TestParams {
+        forgejo: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn forgejo_delete_outdated_review() {
+    test_reviews(TestParams {
+        forgejo: true,
+        delete_reviews: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn forgejo_no_token_is_error() {
+    test_reviews(TestParams {
+        forgejo: true,
+        no_token: true,
         ..Default::default()
     })
     .await;
