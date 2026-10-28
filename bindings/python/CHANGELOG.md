@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### <!-- 6 --> 📦 Dependency updates
 
 - Bump version to git-bot-feedback/v0.11.0 by @2bndy5 in [`b6d5b08`](https://github.com/2bndy5/git-bot-feedback/commit/b6d5b085a1a43268818b1c4ded00e62fc649b15a)
+- Bump version to git-bot-feedback-py/v0.5.0 by @2bndy5 in [`cb29715`](https://github.com/2bndy5/git-bot-feedback/commit/cb29715f0b00cf8c2d3c4653ede9e2a807f3a377)
 
 [git-bot-feedback-py/v0.5.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.4.0...git-bot-feedback-py/v0.5.0
 
