@@ -21,7 +21,7 @@ jobs:
           python-version: '3.x'
       - uses: actions/setup-node@v7
         with:
-          node-version: latest
+          node-version: 'lts/*'
       - name: Cache pre-commit environments
         uses: actions/cache@v6.1.0
         with:
@@ -82,7 +82,7 @@ jobs:
         run: echo "${PR_TITLE}" | committed --config .config/committed.toml --commit-file -
       - uses: actions/setup-node@v7
         with:
-          node-version: latest
+          node-version: 'lts/*'
       - name: spell check
         env:
           PR_TITLE: "${{ steps.get-title.outputs.title }}"
