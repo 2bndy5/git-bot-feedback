@@ -161,6 +161,13 @@ impl RestApiClient for GithubApiClient {
         self.pull_request.is_some()
     }
 
+    #[inline]
+    fn is_pr_same_remote(&self) -> bool {
+        self.pull_request
+            .as_ref()
+            .is_some_and(|pr| pr.is_same_remote())
+    }
+
     fn append_step_summary(&self, comment: &str) -> Result<(), ClientError> {
         let gh_out = env::var("GITHUB_STEP_SUMMARY")
             .map_err(|e| ClientError::env_var("GITHUB_STEP_SUMMARY", e))?;

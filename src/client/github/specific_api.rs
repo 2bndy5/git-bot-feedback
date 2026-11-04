@@ -445,4 +445,60 @@ mod tests {
         let endpoint = client.api_url.join("repos/").unwrap();
         assert_eq!(endpoint.as_str(), "https://api.github.com/v3/repos/");
     }
+
+    #[test]
+    fn is_pr_same_remote() {
+        use crate::RestApiClient;
+        use tempfile::NamedTempFile;
+
+        // Push event -> false
+        unsafe {
+            env::set_var("GITHUB_REPOSITORY", "2bndy5/git-bot-feedback");
+            env::set_var("GITHUB_SHA", "abc123");
+            env::set_var("GITHUB_EVENT_NAME", "push");
+        }
+        let client = GithubApiClient::new().unwrap();
+        assert!(!client.is_pr_same_remote());
+
+        // PR event from same remote -> true
+        let mut event_file = NamedTempFile::new().unwrap();
+        let payload = serde_json::json!({
+            "pull_request": {
+                "draft": false,
+                "state": "open",
+                "number": 42,
+                "locked": false,
+                "head": {"repo": {"id": 100, "full_name": "owner/repo"}},
+                "base": {"repo": {"id": 100, "full_name": "owner/repo"}}
+            }
+        });
+        std::io::Write::write_all(&mut event_file, payload.to_string().as_bytes()).unwrap();
+        unsafe {
+            env::set_var("GITHUB_EVENT_NAME", "pull_request");
+            env::set_var("GITHUB_EVENT_PATH", event_file.path());
+        }
+        let client = GithubApiClient::new().unwrap();
+        assert!(client.is_pr_same_remote());
+
+        // PR event from fork -> false
+        let mut fork_event_file = NamedTempFile::new().unwrap();
+        let fork_payload = serde_json::json!({
+            "pull_request": {
+                "draft": false,
+                "state": "open",
+                "number": 42,
+                "locked": false,
+                "head": {"repo": {"id": 200, "full_name": "fork/repo"}},
+                "base": {"repo": {"id": 100, "full_name": "owner/repo"}}
+            }
+        });
+        std::io::Write::write_all(&mut fork_event_file, fork_payload.to_string().as_bytes())
+            .unwrap();
+        unsafe {
+            env::set_var("GITHUB_EVENT_NAME", "pull_request");
+            env::set_var("GITHUB_EVENT_PATH", fork_event_file.path());
+        }
+        let client = GithubApiClient::new().unwrap();
+        assert!(!client.is_pr_same_remote());
+    }
 }

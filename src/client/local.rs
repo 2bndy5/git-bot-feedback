@@ -151,6 +151,10 @@ impl RestApiClient for LocalClient {
         false
     }
 
+    fn is_pr_same_remote(&self) -> bool {
+        false
+    }
+
     fn set_user_agent(&mut self, _user_agent: &str) -> Result<(), ClientError> {
         Ok(())
     }

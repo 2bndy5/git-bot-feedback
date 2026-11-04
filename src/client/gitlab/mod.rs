@@ -55,6 +55,9 @@ pub struct GitlabApiClient {
     /// pipelines, otherwise the value of the `CI_PROJECT_ID` environment variable.
     project_id: String,
 
+    /// The project ID of the source repository for a merge request.
+    source_project_id: Option<String>,
+
     /// The value of the `CI_COMMIT_SHA` environment variable.
     #[cfg_attr(
         not(feature = "file-changes"),
@@ -101,6 +104,22 @@ impl RestApiClient for GitlabApiClient {
 
     fn is_pr_event(&self) -> bool {
         self.merge_request_iid.is_some()
+    }
+
+    fn is_pr_same_remote(&self) -> bool {
+        if !self.is_pr_event() {
+            return false;
+        }
+        if let Some(source_id) = &self.source_project_id {
+            return source_id == &self.project_id;
+        }
+        if let (Ok(source_path), Ok(target_path)) = (
+            env::var("CI_MERGE_REQUEST_SOURCE_PROJECT_PATH"),
+            env::var("CI_MERGE_REQUEST_TARGET_PROJECT_PATH"),
+        ) {
+            return source_path == target_path;
+        }
+        false
     }
 
     fn is_debug_enabled(&self) -> bool {

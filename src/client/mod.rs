@@ -150,6 +150,14 @@ pub trait RestApiClient {
     /// This **will not** check if a push event's instigating commit is part of any PR.
     fn is_pr_event(&self) -> bool;
 
+    /// Is the Pull Request event originating from the same remote repository?
+    ///
+    /// Returns `false` if the event is not a Pull Request event, or if the
+    /// Pull Request originates from a fork repository.
+    fn is_pr_same_remote(&self) -> bool {
+        false
+    }
+
     /// Is debug mode enabled?
     ///
     /// Typically, A CI platform will have a way to enable debug level logs for a job or workflow.
@@ -474,5 +482,87 @@ mod tests {
         let found = nearest_git_root(&folder);
         // the temp dir is not expected to be inside a git repository
         assert!(found.is_none_or(|root| !root.starts_with(tmp.path())));
+    }
+
+    #[test]
+    fn local_client_is_pr_same_remote() {
+        use super::RestApiClient;
+
+        let client = super::LocalClient;
+        assert!(!client.is_pr_same_remote());
+    }
+
+    #[cfg(any(feature = "gitea", feature = "github"))]
+    #[test]
+    fn pull_request_info_is_same_remote() {
+        use super::common::PullRequestInfo;
+
+        // Missing head and base
+        let json = r#"{"draft": false, "state": "open", "number": 1, "locked": false}"#;
+        let pr: PullRequestInfo = serde_json::from_str(json).unwrap();
+        assert!(!pr.is_same_remote());
+
+        // Same repo id
+        let json = r#"{
+            "draft": false, "state": "open", "number": 1, "locked": false,
+            "head": {"repo": {"id": 100, "full_name": "owner/repo"}},
+            "base": {"repo": {"id": 100, "full_name": "owner/repo"}}
+        }"#;
+        let pr: PullRequestInfo = serde_json::from_str(json).unwrap();
+        assert!(pr.is_same_remote());
+
+        // Different repo id (fork)
+        let json = r#"{
+            "draft": false, "state": "open", "number": 1, "locked": false,
+            "head": {"repo": {"id": 200, "full_name": "fork/repo"}},
+            "base": {"repo": {"id": 100, "full_name": "owner/repo"}}
+        }"#;
+        let pr: PullRequestInfo = serde_json::from_str(json).unwrap();
+        assert!(!pr.is_same_remote());
+
+        // Gitea repo_id directly on branch object
+        let json = r#"{
+            "draft": false, "state": "open", "number": 1, "locked": false,
+            "head": {"repo_id": 100},
+            "base": {"repo_id": 100}
+        }"#;
+        let pr: PullRequestInfo = serde_json::from_str(json).unwrap();
+        assert!(pr.is_same_remote());
+
+        // Gitea repo_id different
+        let json = r#"{
+            "draft": false, "state": "open", "number": 1, "locked": false,
+            "head": {"repo_id": 200},
+            "base": {"repo_id": 100}
+        }"#;
+        let pr: PullRequestInfo = serde_json::from_str(json).unwrap();
+        assert!(!pr.is_same_remote());
+
+        // Matching full_name without id
+        let json = r#"{
+            "draft": false, "state": "open", "number": 1, "locked": false,
+            "head": {"repo": {"full_name": "owner/repo"}},
+            "base": {"repo": {"full_name": "owner/repo"}}
+        }"#;
+        let pr: PullRequestInfo = serde_json::from_str(json).unwrap();
+        assert!(pr.is_same_remote());
+
+        // Different full_name without id
+        let json = r#"{
+            "draft": false, "state": "open", "number": 1, "locked": false,
+            "head": {"repo": {"full_name": "fork/repo"}},
+            "base": {"repo": {"full_name": "owner/repo"}}
+        }"#;
+        let pr: PullRequestInfo = serde_json::from_str(json).unwrap();
+        assert!(!pr.is_same_remote());
+
+        // Head repo is null (e.g. deleted fork)
+        let json = r#"{
+            "draft": false, "state": "open", "number": 1, "locked": false,
+            "head": {"repo": null},
+            "base": {"repo": {"id": 100, "full_name": "owner/repo"}}
+        }"#;
+        let pr: PullRequestInfo = serde_json::from_str(json).unwrap();
+        assert!(!pr.is_same_remote());
     }
 }
