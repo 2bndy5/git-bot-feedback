@@ -23,15 +23,25 @@ impl GitClient {
     }
 }
 
+/// Build the HTTP client with the git server's default headers.
+fn build_http(
+    client: &(dyn RestApiClient + Send + Sync),
+    user_agent: &str,
+) -> PyResult<reqwest::Client> {
+    let headers = client.default_headers().map_err(to_py_err)?;
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .user_agent(user_agent)
+        .build()
+        .map_err(|e| to_py_err(RestClientError::Request(e)))
+}
+
 #[pymethods]
 impl GitClient {
     #[new]
     pub fn new() -> PyResult<Self> {
         let client = init_client().map_err(to_py_err)?;
-        let http = reqwest::Client::builder()
-            .user_agent(USER_AGENT)
-            .build()
-            .map_err(|e| to_py_err(RestClientError::Request(e)))?;
+        let http = build_http(client.as_ref(), USER_AGENT)?;
         Ok(GitClient {
             client: Arc::new(Mutex::new(client)),
             http: std::sync::Mutex::new(http),
@@ -74,14 +84,9 @@ impl GitClient {
     /// By default the user agent is set to this lib's name and version.
     /// See [`USER_AGENT`] for the default value.
     pub fn set_user_agent(&self, user_agent: &str) -> PyResult<()> {
-        self.client
-            .blocking_lock()
-            .set_user_agent(user_agent)
-            .map_err(to_py_err)?;
-        let http = reqwest::Client::builder()
-            .user_agent(user_agent)
-            .build()
-            .map_err(|e| to_py_err(RestClientError::Request(e)))?;
+        let mut client = self.client.blocking_lock();
+        client.set_user_agent(user_agent).map_err(to_py_err)?;
+        let http = build_http(client.as_ref(), user_agent)?;
         *self.http.lock().unwrap_or_else(|e| e.into_inner()) = http;
         Ok(())
     }
@@ -297,6 +302,8 @@ impl GitClient {
     /// In the event where a secondary rate limit is reached, this will wait for the
     /// time interval (if specified by the server) and retry afterward.
     /// Raises ``RateLimitError`` or ``RequestError`` on failure.
+    /// This can also throw ``ValueError`` if the request's URL, method, or headers
+    /// values are invalid.
     #[pyo3(
         signature = (request),
         text_signature = "(request: Request) -> Response"
@@ -372,7 +379,8 @@ impl GitClient {
     /// (for example, ``GITHUB_WORKSPACE`` on GitHub).
     ///
     /// Returns ``None`` when not run by a CI platform.
-    /// Raises a ``ValueError`` if the CI platform's environment variable cannot be read.
+    /// Raises a :py:class:`~git_bot_feedback.EnvironmentError` if the CI platform's environment
+    /// variable cannot be read.
     /// This does not fall back to the working directory or
     /// :py:func:`~git_bot_feedback.nearest_git_root()`.
     pub fn workspace_root(&self) -> PyResult<Option<PathBuf>> {

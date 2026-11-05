@@ -82,6 +82,10 @@ impl RestApiClient for GitlabApiClient {
         Some(self.api_url.clone())
     }
 
+    fn default_headers(&self) -> Result<reqwest::header::HeaderMap, ClientError> {
+        Self::make_headers()
+    }
+
     /// This starts a collapsible section in the CI job's log.
     ///
     /// See [GitLab's docs about custom collapsible sections](https://docs.gitlab.com/ci/jobs/job_logs/#custom-collapsible-sections).

@@ -114,8 +114,6 @@ pub struct PyRequest {
 #[pymethods]
 impl PyRequest {
     /// Create a request.
-    ///
-    /// Raises ``ValueError`` when the request is sent if the URL, method, or headers are invalid.
     #[new]
     #[pyo3(
         signature = (url, method=String::from("GET"), headers=None, body=None),
@@ -149,7 +147,8 @@ impl PyRequest {
         for (k, v) in &self.headers {
             let name = HeaderName::from_str(k)
                 .map_err(|e| PyValueError::new_err(format!("Invalid header name '{k}': {e}")))?;
-            let value = HeaderValue::from_str(v).map_err(|e| ParseError::new_err(e.to_string()))?;
+            let value =
+                HeaderValue::from_str(v).map_err(|e| PyValueError::new_err(e.to_string()))?;
             headers.insert(name, value);
         }
         Ok(RequestParts {

@@ -337,4 +337,8 @@ impl RestApiClient for GiteaApiClient {
     fn api_url(&self) -> Option<Url> {
         Some(self.api_url.clone())
     }
+
+    fn default_headers(&self) -> Result<reqwest::header::HeaderMap, ClientError> {
+        Self::make_headers()
+    }
 }

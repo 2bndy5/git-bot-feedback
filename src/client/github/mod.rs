@@ -81,6 +81,10 @@ impl RestApiClient for GithubApiClient {
         Some(self.api_url.clone())
     }
 
+    fn default_headers(&self) -> Result<reqwest::header::HeaderMap, ClientError> {
+        Self::make_headers()
+    }
+
     /// This prints a line to indicate the beginning of a related group of [`log`] statements.
     ///
     /// For apps' [`log`] implementations, this function's [`log::info`] output needs to have

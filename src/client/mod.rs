@@ -414,6 +414,14 @@ pub trait RestApiClient {
     fn api_url(&self) -> Option<Url> {
         None
     }
+
+    /// The headers (authentication, `Accept`, etc.) that the git server's REST API expects
+    /// on every request.
+    ///
+    /// Returns an empty map for clients that do not use a REST API (like [`LocalClient`]).
+    fn default_headers(&self) -> Result<HeaderMap, ClientError> {
+        Ok(HeaderMap::new())
+    }
 }
 
 /// Instantiate an implementation of [`RestApiClient`] based on the environment.
