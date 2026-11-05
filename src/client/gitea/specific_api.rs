@@ -512,8 +512,7 @@ mod tests {
     use crate::RestApiClient;
 
     #[test]
-    fn is_pr_same_remote() {
-        // Push event -> false
+    fn is_pr_same_remote_push() {
         unsafe {
             env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
             env::set_var("GITEA_SHA", "abc123");
@@ -522,8 +521,10 @@ mod tests {
         }
         let client = GiteaApiClient::new().unwrap();
         assert!(!client.is_pr_same_remote());
+    }
 
-        // PR event from same remote -> true
+    #[test]
+    fn is_pr_same_remote_same() {
         let mut event_file = NamedTempFile::new().unwrap();
         let payload = serde_json::json!({
             "pull_request": {
@@ -539,13 +540,18 @@ mod tests {
             .write_all(payload.to_string().as_bytes())
             .unwrap();
         unsafe {
+            env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
+            env::set_var("GITEA_SHA", "abc123");
+            env::set_var("GITEA_API_URL", "https://gitea.example.com");
             env::set_var("GITEA_EVENT_NAME", "pull_request");
             env::set_var("GITEA_EVENT_PATH", event_file.path());
         }
         let client = GiteaApiClient::new().unwrap();
         assert!(client.is_pr_same_remote());
+    }
 
-        // PR event from fork -> false
+    #[test]
+    fn is_pr_same_remote_fork() {
         let mut fork_event_file = NamedTempFile::new().unwrap();
         let fork_payload = serde_json::json!({
             "pull_request": {
@@ -561,6 +567,9 @@ mod tests {
             .write_all(fork_payload.to_string().as_bytes())
             .unwrap();
         unsafe {
+            env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
+            env::set_var("GITEA_SHA", "abc123");
+            env::set_var("GITEA_API_URL", "https://gitea.example.com");
             env::set_var("GITEA_EVENT_NAME", "pull_request");
             env::set_var("GITEA_EVENT_PATH", fork_event_file.path());
         }

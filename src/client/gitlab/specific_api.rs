@@ -313,81 +313,119 @@ mod tests {
     }
 
     #[test]
-    fn is_pr_same_remote() {
+    fn is_pr_same_remote_push() {
         use crate::RestApiClient;
 
-        // Push event -> false
         unsafe {
             env::set_var("CI_API_V4_URL", "https://gitlab.example.com/api/v4");
             env::set_var("CI_PROJECT_ID", "42");
             env::set_var("CI_COMMIT_SHA", "abc123");
-            env::remove_var("CI_MERGE_REQUEST_IID");
-            env::remove_var("CI_MERGE_REQUEST_PROJECT_ID");
-            env::remove_var("CI_MERGE_REQUEST_SOURCE_PROJECT_ID");
-            env::remove_var("CI_MERGE_REQUEST_SOURCE_PROJECT_PATH");
-            env::remove_var("CI_MERGE_REQUEST_TARGET_PROJECT_PATH");
         }
         let client = GitlabApiClient::new().unwrap();
         assert!(!client.is_pr_same_remote());
+    }
 
-        // MR event from same remote (CI_MERGE_REQUEST_SOURCE_PROJECT_ID == CI_MERGE_REQUEST_PROJECT_ID) -> true
+    #[test]
+    fn is_pr_same_remote_same_project_id() {
+        use crate::RestApiClient;
+
         unsafe {
+            env::set_var("CI_API_V4_URL", "https://gitlab.example.com/api/v4");
+            env::set_var("CI_COMMIT_SHA", "abc123");
             env::set_var("CI_MERGE_REQUEST_IID", "7");
             env::set_var("CI_MERGE_REQUEST_PROJECT_ID", "42");
             env::set_var("CI_MERGE_REQUEST_SOURCE_PROJECT_ID", "42");
         }
         let client = GitlabApiClient::new().unwrap();
         assert!(client.is_pr_same_remote());
+    }
 
-        // MR event from fork (CI_MERGE_REQUEST_SOURCE_PROJECT_ID != CI_MERGE_REQUEST_PROJECT_ID) -> false
+    #[test]
+    fn is_pr_same_remote_fork_project_id() {
+        use crate::RestApiClient;
+
         unsafe {
+            env::set_var("CI_API_V4_URL", "https://gitlab.example.com/api/v4");
+            env::set_var("CI_COMMIT_SHA", "abc123");
             env::set_var("CI_MERGE_REQUEST_IID", "7");
             env::set_var("CI_MERGE_REQUEST_PROJECT_ID", "42");
             env::set_var("CI_MERGE_REQUEST_SOURCE_PROJECT_ID", "99");
         }
         let client = GitlabApiClient::new().unwrap();
         assert!(!client.is_pr_same_remote());
+    }
 
-        // MR event fallback to CI_PROJECT_ID (same remote) -> true
+    #[test]
+    fn is_pr_same_remote_fallback_project_id() {
+        use crate::RestApiClient;
+
         unsafe {
+            env::set_var("CI_API_V4_URL", "https://gitlab.example.com/api/v4");
+            env::set_var("CI_COMMIT_SHA", "abc123");
             env::set_var("CI_MERGE_REQUEST_IID", "7");
             env::set_var("CI_MERGE_REQUEST_PROJECT_ID", "42");
-            env::remove_var("CI_MERGE_REQUEST_SOURCE_PROJECT_ID");
             env::set_var("CI_PROJECT_ID", "42");
         }
         let client = GitlabApiClient::new().unwrap();
         assert!(client.is_pr_same_remote());
+    }
 
-        // MR event fallback to CI_PROJECT_ID (fork runner) -> false
+    #[test]
+    fn is_pr_same_remote_fallback_fork_runner() {
+        use crate::RestApiClient;
+
         unsafe {
+            env::set_var("CI_API_V4_URL", "https://gitlab.example.com/api/v4");
+            env::set_var("CI_COMMIT_SHA", "abc123");
             env::set_var("CI_MERGE_REQUEST_IID", "7");
             env::set_var("CI_MERGE_REQUEST_PROJECT_ID", "42");
-            env::remove_var("CI_MERGE_REQUEST_SOURCE_PROJECT_ID");
             env::set_var("CI_PROJECT_ID", "99");
         }
         let client = GitlabApiClient::new().unwrap();
         assert!(!client.is_pr_same_remote());
+    }
 
-        // MR event fallback to matching paths -> true
+    #[test]
+    fn is_pr_same_remote_paths() {
+        use crate::RestApiClient;
+
         unsafe {
+            env::set_var("CI_API_V4_URL", "https://gitlab.example.com/api/v4");
+            env::set_var("CI_COMMIT_SHA", "abc123");
             env::set_var("CI_MERGE_REQUEST_IID", "7");
             env::set_var("CI_MERGE_REQUEST_PROJECT_ID", "42");
-            env::remove_var("CI_MERGE_REQUEST_SOURCE_PROJECT_ID");
-            env::remove_var("CI_PROJECT_ID");
             env::set_var("CI_MERGE_REQUEST_SOURCE_PROJECT_PATH", "group/repo");
             env::set_var("CI_MERGE_REQUEST_TARGET_PROJECT_PATH", "group/repo");
         }
         let client = GitlabApiClient::new().unwrap();
         assert!(client.is_pr_same_remote());
+    }
 
-        // MR event fallback to different paths -> false
+    #[test]
+    fn is_pr_same_remote_different_paths() {
+        use crate::RestApiClient;
+
         unsafe {
+            env::set_var("CI_API_V4_URL", "https://gitlab.example.com/api/v4");
+            env::set_var("CI_COMMIT_SHA", "abc123");
             env::set_var("CI_MERGE_REQUEST_IID", "7");
             env::set_var("CI_MERGE_REQUEST_PROJECT_ID", "42");
-            env::remove_var("CI_MERGE_REQUEST_SOURCE_PROJECT_ID");
-            env::remove_var("CI_PROJECT_ID");
             env::set_var("CI_MERGE_REQUEST_SOURCE_PROJECT_PATH", "fork/repo");
             env::set_var("CI_MERGE_REQUEST_TARGET_PROJECT_PATH", "group/repo");
+        }
+        let client = GitlabApiClient::new().unwrap();
+        assert!(!client.is_pr_same_remote());
+    }
+
+    #[test]
+    fn is_pr_same_remote_no_source_info() {
+        use crate::RestApiClient;
+
+        unsafe {
+            env::set_var("CI_API_V4_URL", "https://gitlab.example.com/api/v4");
+            env::set_var("CI_COMMIT_SHA", "abc123");
+            env::set_var("CI_MERGE_REQUEST_IID", "7");
+            env::set_var("CI_MERGE_REQUEST_PROJECT_ID", "42");
         }
         let client = GitlabApiClient::new().unwrap();
         assert!(!client.is_pr_same_remote());
