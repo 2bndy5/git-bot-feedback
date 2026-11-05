@@ -4,6 +4,8 @@ API
 .. toctree::
 
    client
+   http
+   errors
    thread-comments
    pr-reviews
    file-annotations

@@ -407,6 +407,13 @@ pub trait RestApiClient {
 
     /// The name of git server implementation is being used.
     fn client_kind(&self) -> String;
+
+    /// The root URL of the git server's REST API.
+    ///
+    /// Returns [`None`] for clients that do not use a REST API (like [`LocalClient`]).
+    fn api_url(&self) -> Option<Url> {
+        None
+    }
 }
 
 /// Instantiate an implementation of [`RestApiClient`] based on the environment.

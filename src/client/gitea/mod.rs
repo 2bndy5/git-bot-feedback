@@ -333,4 +333,8 @@ impl RestApiClient for GiteaApiClient {
     fn client_kind(&self) -> String {
         "gitea".to_string()
     }
+
+    fn api_url(&self) -> Option<Url> {
+        Some(self.api_url.clone())
+    }
 }

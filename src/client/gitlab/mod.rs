@@ -78,6 +78,10 @@ impl RestApiClient for GitlabApiClient {
         "gitlab".to_string()
     }
 
+    fn api_url(&self) -> Option<Url> {
+        Some(self.api_url.clone())
+    }
+
     /// This starts a collapsible section in the CI job's log.
     ///
     /// See [GitLab's docs about custom collapsible sections](https://docs.gitlab.com/ci/jobs/job_logs/#custom-collapsible-sections).

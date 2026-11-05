@@ -77,6 +77,10 @@ impl RestApiClient for GithubApiClient {
         "github".to_string()
     }
 
+    fn api_url(&self) -> Option<Url> {
+        Some(self.api_url.clone())
+    }
+
     /// This prints a line to indicate the beginning of a related group of [`log`] statements.
     ///
     /// For apps' [`log`] implementations, this function's [`log::info`] output needs to have
