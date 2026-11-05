@@ -86,10 +86,9 @@ nur lint
 ## Testing
 
 > [!WARNING]
-> Do not use `cargo test` to run this project's tests. This project's tests
-> heavy rely on manipulating environment variables. Instead, this project
-> leverages [cargo-nextest] to isolate each test with it's own environment
-> context. See
+> Do not use `cargo test` to run Rust unit or integration tests. These tests
+> heavily rely on manipulating environment variables, so use [cargo-nextest] to
+> isolate each test in its own environment context. See
 > [cargo-nextest documentation about altering environment variables][cargo-nextest-env-docs].
 
 [cargo-nextest-env-docs]: https://nexte.st/docs/configuration/env-vars/#altering-the-environment-within-tests
@@ -101,8 +100,11 @@ various test options (applicable to this project) into tasks.
 
 ### Running tests
 
-Unit tests are performed using [cargo-nextest] while coverage is measured by
-[cargo-llvm-cov].
+Rust unit and integration tests are written in Rust and run using
+[cargo-nextest]. Rust coverage is measured by [cargo-llvm-cov].
+
+The Python binding code does not get measured for code coverage.
+See [running python tests below](#running-python-tests).
 
 #### Run the tests
 
@@ -149,6 +151,24 @@ nur test lcov
 ```
 
 </details>
+
+### Running Python tests
+
+Python binding tests are written in Python under
+`bindings/python/tests` and run using [uv] and pytest:
+
+```shell
+uv run --group test pytest bindings/python/tests
+```
+
+The equivalent [nur] task is:
+
+```shell
+nur test py
+```
+
+> [!TIP]
+> Use `--clean`/`-c` arg to `nur test py` to rebuild the binding from scratch.
 
 ## API documentation
 

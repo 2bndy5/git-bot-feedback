@@ -41,6 +41,7 @@ words:
   - pypa
   - pypi
   - pyproject
+  - pytest
   - reqwest
   - rustc
   - rustdoc

@@ -338,6 +338,10 @@ impl RestApiClient for GiteaApiClient {
         Some(self.api_url.clone())
     }
 
+    fn token_env_vars(&self) -> &'static [&'static str] {
+        &["GITEA_TOKEN", "FORGEJO_TOKEN"]
+    }
+
     fn default_headers(&self) -> Result<reqwest::header::HeaderMap, ClientError> {
         Self::make_headers(false)
     }

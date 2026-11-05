@@ -10,6 +10,11 @@ fn local_has_no_default_headers() {
     assert!(LocalClient.default_headers().unwrap().is_empty());
 }
 
+#[test]
+fn local_has_no_token_env_vars() {
+    assert!(LocalClient.token_env_vars().is_empty());
+}
+
 #[cfg(any(feature = "github", feature = "gitea", feature = "gitlab"))]
 mod ci {
     use git_bot_feedback::client::init_client;
@@ -38,6 +43,7 @@ mod ci {
         let headers = client.default_headers().unwrap();
         assert_eq!(headers["accept"], "application/vnd.github.raw+json");
         assert!(!headers.contains_key("authorization"));
+        assert_eq!(client.token_env_vars(), ["GITHUB_TOKEN"]);
     }
 
     #[cfg(feature = "gitea")]
@@ -63,6 +69,7 @@ mod ci {
         let headers = client.default_headers().unwrap();
         assert_eq!(headers["accept"], "application/json");
         assert!(!headers.contains_key("authorization"));
+        assert_eq!(client.token_env_vars(), ["GITEA_TOKEN", "FORGEJO_TOKEN"]);
     }
 
     #[cfg(feature = "gitlab")]
@@ -88,5 +95,6 @@ mod ci {
         assert_eq!(headers["accept"], "application/json");
         assert!(!headers.contains_key("private-token"));
         assert!(!headers.contains_key("authorization"));
+        assert_eq!(client.token_env_vars(), ["GITLAB_TOKEN"]);
     }
 }

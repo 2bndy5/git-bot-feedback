@@ -81,6 +81,10 @@ impl RestApiClient for GithubApiClient {
         Some(self.api_url.clone())
     }
 
+    fn token_env_vars(&self) -> &'static [&'static str] {
+        &["GITHUB_TOKEN"]
+    }
+
     fn default_headers(&self) -> Result<reqwest::header::HeaderMap, ClientError> {
         Self::make_headers(false)
     }

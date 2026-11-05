@@ -82,6 +82,10 @@ impl RestApiClient for GitlabApiClient {
         Some(self.api_url.clone())
     }
 
+    fn token_env_vars(&self) -> &'static [&'static str] {
+        &["GITLAB_TOKEN"]
+    }
+
     fn default_headers(&self) -> Result<reqwest::header::HeaderMap, ClientError> {
         Self::make_headers(false)
     }

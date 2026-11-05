@@ -5,7 +5,7 @@ use ::git_bot_feedback::{RestClientError, client::RestApiRateLimitHeaders};
 use pyo3::{create_exception, exceptions::PyException, exceptions::PyValueError, prelude::*};
 use reqwest::{
     Method, Url,
-    header::{HeaderMap, HeaderName, HeaderValue},
+    header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue},
 };
 
 create_exception!(
@@ -87,6 +87,19 @@ pub fn rate_limit_headers(client_kind: &str) -> RestApiRateLimitHeaders {
     }
 }
 
+/// The sensitive authentication header for the given client kind and token.
+fn auth_header(client_kind: &str, token: &str) -> PyResult<Option<(HeaderName, HeaderValue)>> {
+    let (name, value) = match client_kind {
+        "gitlab" => (HeaderName::from_static("private-token"), token.to_string()),
+        "github" | "gitea" => (AUTHORIZATION, format!("token {token}")),
+        _ => return Ok(None),
+    };
+    let mut value =
+        HeaderValue::from_str(&value).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    value.set_sensitive(true);
+    Ok(Some((name, value)))
+}
+
 /// The resolved pieces needed to build a native HTTP request.
 pub struct RequestParts {
     pub url: Url,
@@ -98,17 +111,23 @@ pub struct RequestParts {
 /// An HTTP request to send using the client's connection.
 ///
 /// Use :py:attr:`~git_bot_feedback.GitClient.api_url` to assemble the ``url``.
-#[pyclass(module = "git_bot_feedback", name = "Request", get_all, set_all)]
-#[derive(Clone, Debug)]
+#[pyclass(module = "git_bot_feedback", name = "Request")]
+#[derive(Clone)]
 pub struct PyRequest {
     /// The full URL to send the request to.
+    #[pyo3(get, set)]
     pub url: String,
     /// The HTTP method (case-insensitive).
+    #[pyo3(get, set)]
     pub method: String,
     /// The request headers. These override the client's default headers.
+    #[pyo3(get, set)]
     pub headers: HashMap<String, String>,
     /// The request body as text.
+    #[pyo3(get, set)]
     pub body: Option<String>,
+    /// The authentication token; never exposed to Python.
+    token: Option<String>,
 }
 
 #[pymethods]
@@ -130,13 +149,26 @@ impl PyRequest {
             method,
             headers: headers.unwrap_or_default(),
             body,
+            token: None,
         }
+    }
+
+    /// Set the authentication token to send with this request.
+    ///
+    /// The client adds the token as a sensitive header with the name its git server expects,
+    /// replacing any header of the same name in ``headers``.
+    /// Use :py:attr:`~git_bot_feedback.GitClient.token_env_vars` to find the token's variable.
+    #[pyo3(signature = (token), text_signature = "(token: str) -> None")]
+    pub fn set_token(&mut self, token: String) {
+        self.token = Some(token);
     }
 }
 
 impl PyRequest {
     /// Validate and resolve this request.
-    pub fn resolve(&self) -> PyResult<RequestParts> {
+    ///
+    /// The token (if set) is added as a sensitive header for the given `client_kind`.
+    pub fn resolve(&self, client_kind: &str) -> PyResult<RequestParts> {
         let url = Url::parse(&self.url)
             .map_err(|e| PyValueError::new_err(format!("Invalid URL '{}': {e}", self.url)))?;
 
@@ -149,6 +181,11 @@ impl PyRequest {
                 .map_err(|e| PyValueError::new_err(format!("Invalid header name '{k}': {e}")))?;
             let value =
                 HeaderValue::from_str(v).map_err(|e| PyValueError::new_err(e.to_string()))?;
+            headers.insert(name, value);
+        }
+        if let Some(token) = &self.token
+            && let Some((name, value)) = auth_header(client_kind, token)?
+        {
             headers.insert(name, value);
         }
         Ok(RequestParts {

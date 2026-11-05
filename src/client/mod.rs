@@ -415,6 +415,14 @@ pub trait RestApiClient {
         None
     }
 
+    /// The names of the environment variables that may hold the authentication token
+    /// for the git server's REST API, in order of precedence.
+    ///
+    /// Returns an empty slice for clients that do not use a REST API (like [`LocalClient`]).
+    fn token_env_vars(&self) -> &'static [&'static str] {
+        &[]
+    }
+
     /// The headers (authentication, `Accept`, etc.) that the git server's REST API expects
     /// on every request.
     ///

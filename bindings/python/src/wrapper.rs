@@ -319,7 +319,7 @@ impl GitClient {
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let client = client_clone.lock().await;
             let kind = client.client_kind();
-            let parts = request.resolve()?;
+            let parts = request.resolve(&kind)?;
             let req = client
                 .make_api_request(
                     &http,
@@ -373,6 +373,20 @@ impl GitClient {
     #[getter]
     pub fn api_url(&self) -> Option<String> {
         self.client.blocking_lock().api_url().map(|u| u.to_string())
+    }
+
+    /// The names of the environment variables that may hold the REST API's
+    /// authentication token, in order of precedence.
+    ///
+    /// It is empty when not run by a CI platform.
+    #[getter]
+    pub fn token_env_vars(&self) -> Vec<String> {
+        self.client
+            .blocking_lock()
+            .token_env_vars()
+            .iter()
+            .map(|n| n.to_string())
+            .collect()
     }
 
     /// The root folder of the workspace, as named by the CI platform's environment

@@ -12,11 +12,11 @@ This document provides conventions, architectural context, and workflow commands
 
 ## Critical Invariants & Rules
 
-### 1. Test Execution Rule: Never Run `cargo test` Directly
+### 1. Test Execution Rules
 > [!IMPORTANT]
-> Do **not** run raw `cargo test` for unit or integration tests!
-> The test suite relies heavily on manipulating environment variables. `cargo test` executes tests concurrently within the same process space, causing severe cross-test pollution and intermittent failures.
-> Always execute tests through `cargo-nextest` (or `nur test`), which provides process isolation for each individual test.
+> Do **not** run raw `cargo test` for Rust unit or integration tests!
+> The Rust test suite relies heavily on manipulating environment variables. `cargo test` executes tests concurrently within the same process space, causing severe cross-test pollution and intermittent failures.
+> Always execute Rust tests through `cargo-nextest` (or `nur test`), which provides process isolation for each individual test. Python binding tests must be written in Python under `bindings/python/tests` and run with `uv run --group test pytest bindings/python/tests` or `nur test py [--clean]`.
 
 Note, this project is primarily hosted on GitHub; any mirrors on other platforms are considered unofficial. Therefore, the CI workflows and tests all are designed for GitHub Actions.
 
@@ -46,6 +46,7 @@ This project uses [nur](https://crates.io/crates/nur) (a task runner using Nushe
 | :--- | :--- | :--- |
 | **Run Tests** | `nur test` | Runs tests with `cargo-nextest` under the `default` profile (marks tests > 10s as "SLOW"). |
 | **Run CI Tests** | `nur test -p ci` | Runs all tests including slow tests with verbose output. |
+| **Run Python Tests** | `nur test py` | Runs the Python binding's pytest suite under `bindings/python/tests`. |
 | **Run Doc Tests** | `nur test docs` | Runs doc tests (`cargo test --doc --features file-changes`). |
 | **Generate Coverage** | `nur test lcov` / `nur test html` | Generates LCOV or HTML coverage via `cargo-llvm-cov`. |
 | **Lint & Format Check** | `nur lint --check` | Runs `cargo clippy --workspace --features file-changes --all-targets -- -D warnings` and `cargo fmt -- --check`. |
