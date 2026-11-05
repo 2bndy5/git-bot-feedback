@@ -47,7 +47,8 @@ struct TestParams {
     is_locked: bool,
     delete_reviews: bool,
     fail_dismissal: bool,
-    fail_resolve_comment: bool,
+    /// Fail the request that resolves (or deletes) an outdated review comment.
+    fail_outdated_comment: bool,
     fail_get_review_comments: bool,
     bad_json_review_comments: bool,
     review_with_no_comments: bool,
@@ -56,6 +57,9 @@ struct TestParams {
     summary_marker_exists: bool,
     /// Use the environment variables set by Forgejo's runner (no `GITEA_*` variables).
     forgejo: bool,
+    /// Use the values set by Gitea's runner: `GITEA_API_URL` is the API root
+    /// (`<server>/api/v1`), and `RUNNER_DEBUG` is set instead of `ACTIONS_STEP_DEBUG`.
+    gitea_runner_env: bool,
 }
 
 impl Default for TestParams {
@@ -67,7 +71,7 @@ impl Default for TestParams {
             is_locked: false,
             delete_reviews: false,
             fail_dismissal: false,
-            fail_resolve_comment: false,
+            fail_outdated_comment: false,
             fail_get_review_comments: false,
             bad_json_review_comments: false,
             review_with_no_comments: false,
@@ -75,12 +79,15 @@ impl Default for TestParams {
             no_token: false,
             summary_marker_exists: false,
             forgejo: false,
+            gitea_runner_env: false,
         }
     }
 }
 
 #[derive(Default)]
 struct TestControlVars {
+    /// Are outdated reviews deleted (instead of dismissed)?
+    delete_reviews: bool,
     new_review_comments: Vec<ReviewComment>,
     outdated_comment_ids: Vec<i64>,
     outdated_review_ids: Vec<i64>,
@@ -94,6 +101,7 @@ impl TestControlVars {
     /// Aggregate review comments returned by the review-specific endpoint.
     fn aggregate_review_comments(&mut self, review_id: i64, comments: &[serde_json::Value]) {
         let mut keep_review = false;
+        let mut outdated_comment_ids = vec![];
         for comment in comments {
             let body = comment["body"].as_str().unwrap();
             if !body.starts_with(MARKER) {
@@ -108,11 +116,14 @@ impl TestControlVars {
                 });
                 keep_review = true;
             } else {
-                self.outdated_comment_ids
-                    .push(comment["id"].as_i64().unwrap());
+                outdated_comment_ids.push(comment["id"].as_i64().unwrap());
             }
         }
 
+        // A deleted review's comments are deleted with it.
+        if keep_review || !self.delete_reviews {
+            self.outdated_comment_ids.extend(outdated_comment_ids);
+        }
         if !keep_review {
             self.outdated_review_ids.push(review_id);
         }
@@ -154,7 +165,11 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
             env::set_var("FORGEJO_ACTIONS", "true");
         }
         env::set_var("CI", "true");
-        if env::var("ACTIONS_STEP_DEBUG").is_err() {
+        if test_params.gitea_runner_env {
+            env::remove_var("ACTIONS_STEP_DEBUG");
+            env::set_var("RUNNER_DEBUG", "1");
+        } else {
+            env::remove_var("RUNNER_DEBUG");
             env::set_var("ACTIONS_STEP_DEBUG", "true");
         }
     }
@@ -190,6 +205,8 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
         if test_params.forgejo {
             // Unlike `GITEA_API_URL`, this is the full API root.
             env::set_var("FORGEJO_API_URL", format!("{}/api/v1", server.url()));
+        } else if test_params.gitea_runner_env {
+            env::set_var("GITEA_API_URL", format!("{}/api/v1", server.url()));
         } else {
             env::set_var("GITEA_API_URL", server.url());
         }
@@ -200,6 +217,8 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
     let _event_payload_path = event_payload_path;
     let mut client = GiteaApiClient::new().unwrap();
     assert!(client.debug_enabled);
+    assert!(client.is_debug_enabled());
+    assert_eq!(client.event_name(), Some(test_params.event_t.to_string()));
     assert_eq!(
         client.is_pr_event(),
         test_params.event_t == EventType::PullRequest
@@ -210,6 +229,7 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
     let review_url_path = format!("/api/v1/repos/{REPO}/pulls/{PR}/reviews");
 
     let mut test_control_vars = TestControlVars {
+        delete_reviews: test_params.delete_reviews,
         new_review_comments: vec![
             ReviewComment {
                 line_start: None,
@@ -410,36 +430,45 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                     );
                 }
 
-                if test_params.forgejo {
-                    // Forgejo has no endpoint to resolve a review comment.
-                    mocks.push(
-                        server
-                            .mock(
-                                "POST",
-                                Matcher::Regex(format!("^/api/v1/repos/{REPO}/pulls/comments/")),
-                            )
-                            .expect(0)
-                            .create(),
-                    );
+                // Outdated review comments are resolved, or deleted like issue comments.
+                let (comment_method, comment_url_path) = if test_params.delete_reviews {
+                    ("DELETE", format!("/api/v1/repos/{REPO}/issues/comments/"))
+                } else {
+                    ("POST", format!("/api/v1/repos/{REPO}/pulls/comments/"))
+                };
+                // The other way of handling an outdated comment is never used.
+                for (method, url_path) in [
+                    ("DELETE", format!("/api/v1/repos/{REPO}/issues/comments/")),
+                    ("POST", format!("/api/v1/repos/{REPO}/pulls/comments/")),
+                ] {
+                    if test_params.forgejo || method != comment_method {
+                        // Forgejo has no endpoint to resolve or delete a review comment.
+                        mocks.push(
+                            server
+                                .mock(method, Matcher::Regex(format!("^{url_path}")))
+                                .expect(0)
+                                .create(),
+                        );
+                    }
                 }
                 for comment_id in test_control_vars
                     .outdated_comment_ids
                     .iter()
                     .filter(|_| !test_params.forgejo)
                 {
-                    let fail_resolve_comment =
-                        *comment_id == 76453654 && test_params.fail_resolve_comment;
+                    let fail = *comment_id == 76453654 && test_params.fail_outdated_comment;
+                    let url_path = if test_params.delete_reviews {
+                        format!("{comment_url_path}{comment_id}")
+                    } else {
+                        format!("{comment_url_path}{comment_id}/resolve")
+                    };
                     mocks.push(
                         server
-                            .mock(
-                                "POST",
-                                format!("/api/v1/repos/{REPO}/pulls/comments/{comment_id}/resolve")
-                                    .as_str(),
-                            )
+                            .mock(comment_method, url_path.as_str())
                             .match_header("Authorization", format!("token {TOKEN}").as_str())
                             .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
                             .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
-                            .with_status(if fail_resolve_comment { 500 } else { 200 })
+                            .with_status(if fail { 500 } else { 200 })
                             .create(),
                     );
                 }
@@ -684,10 +713,28 @@ async fn delete_outdated_review() {
 }
 
 #[tokio::test]
+async fn resolve_outdated_review_comment_500() {
+    test_reviews(TestParams {
+        fail_outdated_comment: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
 async fn delete_outdated_review_comment_500() {
     test_reviews(TestParams {
         delete_reviews: true,
-        fail_resolve_comment: true,
+        fail_outdated_comment: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn gitea_runner_env() {
+    test_reviews(TestParams {
+        gitea_runner_env: true,
         ..Default::default()
     })
     .await;

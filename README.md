@@ -51,9 +51,10 @@ The following is just a list of git servers that are planned (in order or priori
   Gitea does not support
 
   - posting thread comments for commits (push events)
-  - programmatically deleting a PR reviews' individual comments,
-    rather we can only resolve them (currently).
-    However, deleting an entire PR review is supported.
+
+  Deleting a PR review's individual comments
+  (see `ReviewOptions::delete_review_comments`) requires Gitea v1.25 or newer;
+  older versions ignore the request.
 
   Only a repository admin can dismiss a PR review.
   If the token's user is not an admin, outdated reviews can only be deleted
@@ -65,7 +66,7 @@ The following is just a list of git servers that are planned (in order or priori
   which sets the `FORGEJO_ACTIONS` environment variable.
   The token is read from the `GITEA_TOKEN` environment variable, or
   the `FORGEJO_TOKEN` environment variable that the runner sets automatically.
-  Forgejo also does not support resolving a PR review's individual comments.
+  Forgejo also does not support resolving or deleting a PR review's individual comments.
 - [ ] BitBucket
 
 ### Optional support
