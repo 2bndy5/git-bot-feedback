@@ -82,7 +82,7 @@ impl RestApiClient for GithubApiClient {
     }
 
     fn default_headers(&self) -> Result<reqwest::header::HeaderMap, ClientError> {
-        Self::make_headers()
+        Self::make_headers(false)
     }
 
     /// This prints a line to indicate the beginning of a related group of [`log`] statements.
@@ -140,7 +140,7 @@ impl RestApiClient for GithubApiClient {
 
     fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {
         self.client = Client::builder()
-            .default_headers(Self::make_headers()?)
+            .default_headers(Self::make_headers(true)?)
             .user_agent(user_agent)
             .build()?;
         Ok(())

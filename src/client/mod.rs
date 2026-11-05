@@ -418,6 +418,8 @@ pub trait RestApiClient {
     /// The headers (authentication, `Accept`, etc.) that the git server's REST API expects
     /// on every request.
     ///
+    /// This does not include any security-sensitive values (such as authentication tokens).
+    ///
     /// Returns an empty map for clients that do not use a REST API (like [`LocalClient`]).
     fn default_headers(&self) -> Result<HeaderMap, ClientError> {
         Ok(HeaderMap::new())

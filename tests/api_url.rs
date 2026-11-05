@@ -37,7 +37,7 @@ mod ci {
         );
         let headers = client.default_headers().unwrap();
         assert_eq!(headers["accept"], "application/vnd.github.raw+json");
-        assert_eq!(headers["authorization"], "token secret");
+        assert!(!headers.contains_key("authorization"));
     }
 
     #[cfg(feature = "gitea")]
@@ -62,7 +62,7 @@ mod ci {
         );
         let headers = client.default_headers().unwrap();
         assert_eq!(headers["accept"], "application/json");
-        assert_eq!(headers["authorization"], "token secret");
+        assert!(!headers.contains_key("authorization"));
     }
 
     #[cfg(feature = "gitlab")]
@@ -86,6 +86,7 @@ mod ci {
         );
         let headers = client.default_headers().unwrap();
         assert_eq!(headers["accept"], "application/json");
-        assert_eq!(headers["private-token"], "secret");
+        assert!(!headers.contains_key("private-token"));
+        assert!(!headers.contains_key("authorization"));
     }
 }

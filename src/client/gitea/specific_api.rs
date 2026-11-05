@@ -94,7 +94,7 @@ impl GiteaApiClient {
 
         Ok(Self {
             client: Client::builder()
-                .default_headers(Self::make_headers()?)
+                .default_headers(Self::make_headers(true)?)
                 .user_agent(USER_AGENT)
                 .build()?,
             pull_request,
@@ -112,19 +112,23 @@ impl GiteaApiClient {
         })
     }
 
-    pub(super) fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
+    pub(super) fn make_headers(sensitive: bool) -> Result<HeaderMap<HeaderValue>, ClientError> {
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_str("application/json")?);
         headers.insert("Content-Type", HeaderValue::from_str("application/json")?);
-        if let Ok(token) = token() {
-            log::debug!("Using auth token from GITEA_TOKEN or FORGEJO_TOKEN environment variable");
-            let mut val = HeaderValue::from_str(format!("token {token}").as_str())?;
-            val.set_sensitive(true);
-            headers.insert(AUTHORIZATION, val);
-        } else {
-            log::warn!(
-                "No GITEA_TOKEN or FORGEJO_TOKEN environment variable found! Permission to post comments may be unsatisfied."
-            );
+        if sensitive {
+            if let Ok(token) = token() {
+                log::debug!(
+                    "Using auth token from GITEA_TOKEN or FORGEJO_TOKEN environment variable"
+                );
+                let mut val = HeaderValue::from_str(format!("token {token}").as_str())?;
+                val.set_sensitive(true);
+                headers.insert(AUTHORIZATION, val);
+            } else {
+                log::warn!(
+                    "No GITEA_TOKEN or FORGEJO_TOKEN environment variable found! Permission to post comments may be unsatisfied."
+                );
+            }
         }
         Ok(headers)
     }

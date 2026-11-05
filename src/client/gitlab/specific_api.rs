@@ -50,7 +50,7 @@ impl GitlabApiClient {
 
         Ok(Self {
             client: Client::builder()
-                .default_headers(Self::make_headers()?)
+                .default_headers(Self::make_headers(true)?)
                 .user_agent(USER_AGENT)
                 .build()?,
             merge_request_iid,
@@ -68,20 +68,22 @@ impl GitlabApiClient {
         })
     }
 
-    pub(super) fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
+    pub(super) fn make_headers(sensitive: bool) -> Result<HeaderMap<HeaderValue>, ClientError> {
         let mut headers = HeaderMap::new();
         headers.insert("Accept", HeaderValue::from_str("application/json")?);
         // GitLab ignores a JSON payload if the request does not declare it.
         headers.insert(CONTENT_TYPE, HeaderValue::from_str("application/json")?);
-        if let Ok(token) = env::var("GITLAB_TOKEN") {
-            log::debug!("Using auth token from GITLAB_TOKEN environment variable");
-            let mut val = HeaderValue::from_str(token.as_str())?;
-            val.set_sensitive(true);
-            headers.insert("PRIVATE-TOKEN", val);
-        } else {
-            log::warn!(
-                "No GITLAB_TOKEN environment variable found! Permission to post comments may be unsatisfied."
-            );
+        if sensitive {
+            if let Ok(token) = env::var("GITLAB_TOKEN") {
+                log::debug!("Using auth token from GITLAB_TOKEN environment variable");
+                let mut val = HeaderValue::from_str(token.as_str())?;
+                val.set_sensitive(true);
+                headers.insert("PRIVATE-TOKEN", val);
+            } else {
+                log::warn!(
+                    "No GITLAB_TOKEN environment variable found! Permission to post comments may be unsatisfied."
+                );
+            }
         }
         Ok(headers)
     }

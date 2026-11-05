@@ -49,7 +49,7 @@ impl GithubApiClient {
 
         Ok(Self {
             client: Client::builder()
-                .default_headers(Self::make_headers()?)
+                .default_headers(Self::make_headers(true)?)
                 .user_agent(USER_AGENT)
                 .build()?,
             pull_request,
@@ -68,21 +68,23 @@ impl GithubApiClient {
         })
     }
 
-    pub(super) fn make_headers() -> Result<HeaderMap<HeaderValue>, ClientError> {
+    pub(super) fn make_headers(sensitive: bool) -> Result<HeaderMap<HeaderValue>, ClientError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             "Accept",
             HeaderValue::from_str("application/vnd.github.raw+json")?,
         );
-        if let Ok(token) = env::var("GITHUB_TOKEN") {
-            log::debug!("Using auth token from GITHUB_TOKEN environment variable");
-            let mut val = HeaderValue::from_str(format!("token {token}").as_str())?;
-            val.set_sensitive(true);
-            headers.insert(AUTHORIZATION, val);
-        } else {
-            log::warn!(
-                "No GITHUB_TOKEN environment variable found! Permission to post comments may be unsatisfied."
-            );
+        if sensitive {
+            if let Ok(token) = env::var("GITHUB_TOKEN") {
+                log::debug!("Using auth token from GITHUB_TOKEN environment variable");
+                let mut val = HeaderValue::from_str(format!("token {token}").as_str())?;
+                val.set_sensitive(true);
+                headers.insert(AUTHORIZATION, val);
+            } else {
+                log::warn!(
+                    "No GITHUB_TOKEN environment variable found! Permission to post comments may be unsatisfied."
+                );
+            }
         }
         Ok(headers)
     }
