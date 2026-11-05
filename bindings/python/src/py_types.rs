@@ -43,7 +43,7 @@ fn request_error(msg: String, status: Option<u16>) -> PyErr {
     let err = RequestError::new_err(msg);
     Python::attach(|py| {
         // Setting an attribute on a fresh exception instance cannot reasonably fail.
-        let _ = err.value(py).setattr("status", status);
+        let _ = err.value(py).setattr("status", status); // spell-checker: disable-line
     });
     err
 }
