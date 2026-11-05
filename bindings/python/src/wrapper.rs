@@ -26,6 +26,14 @@ impl GitClient {
         self.client.blocking_lock().is_pr_event()
     }
 
+    /// Is the Pull Request event originating from the same remote repository?
+    ///
+    /// Returns `false` if the event is not a Pull Request event, or if the
+    /// Pull Request originates from a fork repository.
+    pub fn is_pr_same_remote(&self) -> bool {
+        self.client.blocking_lock().is_pr_same_remote()
+    }
+
     /// Is debug mode enabled?
     ///
     /// Typically, A CI platform will have a way to enable debug level logs for a job or workflow.

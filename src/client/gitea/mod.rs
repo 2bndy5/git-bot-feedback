@@ -75,6 +75,12 @@ impl RestApiClient for GiteaApiClient {
         self.pull_request.is_some()
     }
 
+    fn is_pr_same_remote(&self) -> bool {
+        self.pull_request
+            .as_ref()
+            .is_some_and(|pr| pr.is_same_remote())
+    }
+
     /// Uses the first of `GITEA_WORKSPACE`, `FORGEJO_WORKSPACE`, or `GITHUB_WORKSPACE` that is set.
     fn workspace_root(&self) -> Result<Option<PathBuf>, ClientError> {
         ci_env_var("WORKSPACE").map(|v| Some(PathBuf::from(v)))
