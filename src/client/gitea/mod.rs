@@ -29,8 +29,8 @@ pub struct GiteaApiClient {
     /// The CI run's event payload from the webhook that triggered the workflow.
     pull_request: Option<PullRequestInfo>,
 
-    /// The name of the event that was triggered when running cpp_linter.
-    pub event_name: String,
+    /// The name of the CI event, if the runner set it.
+    event_name: Option<String>,
 
     /// The value of the `GITHUB_API_URL` environment variable.
     api_url: Url,
@@ -80,7 +80,7 @@ impl RestApiClient for GiteaApiClient {
     }
 
     fn event_name(&self) -> Option<String> {
-        Some(self.event_name.clone())
+        self.event_name.clone()
     }
 
     fn is_pr_same_remote(&self) -> bool {

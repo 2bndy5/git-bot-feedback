@@ -54,7 +54,7 @@ The following is just a list of git servers that are planned (in order or priori
 
   Deleting a PR review's individual comments
   (see `ReviewOptions::delete_review_comments`) requires Gitea v1.25 or newer;
-  older versions ignore the request.
+  older versions only resolve them.
 
   Only a repository admin can dismiss a PR review.
   If the token's user is not an admin, outdated reviews can only be deleted

@@ -77,10 +77,10 @@ pub(super) fn is_forgejo() -> bool {
 impl GiteaApiClient {
     /// Instantiate a [`GiteaApiClient`] object.
     pub fn new() -> Result<Self, ClientError> {
-        let event_name = ci_env_var("EVENT_NAME").unwrap_or(String::from("unknown"));
+        let event_name = ci_env_var("EVENT_NAME").ok();
         let pull_request = {
-            match event_name.as_str() {
-                "pull_request" => {
+            match event_name.as_deref() {
+                Some("pull_request") => {
                     let event_payload_path = ci_env_var("EVENT_PATH")?;
                     // event payload JSON file can be overwritten/removed in CI runners
                     let file_buf = fs::read_to_string(event_payload_path.clone())
@@ -429,7 +429,7 @@ impl GiteaApiClient {
         delete: bool,
     ) -> Result<(), ClientError> {
         let base_url = format!("{}repos/{}/pulls/{pr_number}", self.api_url, self.repo);
-        // resolve (or delete) individual comments first
+        // resolve (and delete) individual comments first
         if self.is_forgejo {
             // Forgejo has no endpoint to resolve or delete a review comment.
             if !comment_ids.is_empty() {
@@ -441,32 +441,43 @@ impl GiteaApiClient {
         } else {
             for comment_id in comment_ids {
                 // These endpoints are not scoped to a PR number.
-                let (request, log_prompt) = if delete {
-                    // Review comments are deleted like issue comments (since Gitea v1.25).
-                    let url = self.api_url.join(
+                let resolve_url = self.api_url.join(
+                    format!("repos/{}/pulls/comments/{comment_id}/resolve", self.repo).as_str(),
+                )?;
+                let mut requests = vec![(
+                    self.make_api_request(&self.client, resolve_url, Method::POST, None, None)?,
+                    "resolve outdated review comment",
+                )];
+                if delete {
+                    // Review comments are deleted like issue comments since Gitea v1.25.
+                    // Older versions answer 204 without deleting it,
+                    // so the comment is resolved first.
+                    let delete_url = self.api_url.join(
                         format!("repos/{}/issues/comments/{comment_id}", self.repo).as_str(),
                     )?;
-                    let request =
-                        self.make_api_request(&self.client, url, Method::DELETE, None, None)?;
-                    (request, "delete outdated review comment")
-                } else {
-                    let url = self.api_url.join(
-                        format!("repos/{}/pulls/comments/{comment_id}/resolve", self.repo).as_str(),
-                    )?;
-                    let request =
-                        self.make_api_request(&self.client, url, Method::POST, None, None)?;
-                    (request, "resolve outdated review comment")
-                };
-                match self
-                    .send_api_request(&self.client, request, &self.rate_limit_headers)
-                    .await
-                {
-                    Ok(result) => {
-                        self.log_response(result, &format!("Failed to {log_prompt}"))
-                            .await;
-                    }
-                    Err(e) => {
-                        return Err(e.add_request_context(log_prompt));
+                    requests.push((
+                        self.make_api_request(
+                            &self.client,
+                            delete_url,
+                            Method::DELETE,
+                            None,
+                            None,
+                        )?,
+                        "delete outdated review comment",
+                    ));
+                }
+                for (request, log_prompt) in requests {
+                    match self
+                        .send_api_request(&self.client, request, &self.rate_limit_headers)
+                        .await
+                    {
+                        Ok(result) => {
+                            self.log_response(result, &format!("Failed to {log_prompt}"))
+                                .await;
+                        }
+                        Err(e) => {
+                            return Err(e.add_request_context(log_prompt));
+                        }
                     }
                 }
             }
@@ -544,6 +555,21 @@ mod tests {
         ] {
             assert_eq!(api_root(url), "https://gitea.example.com/api/v1/");
         }
+    }
+
+    #[test]
+    fn unknown_event_name() {
+        unsafe {
+            env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
+            env::set_var("GITEA_SHA", "abc123");
+            env::set_var("GITEA_API_URL", "https://gitea.example.com");
+            for prefix in ["GITEA", "FORGEJO", "GITHUB"] {
+                env::remove_var(format!("{prefix}_EVENT_NAME"));
+            }
+        }
+        let client = GiteaApiClient::new().unwrap();
+        assert_eq!(client.event_name(), None);
+        assert!(!client.is_pr_event());
     }
 
     #[test]

@@ -60,6 +60,8 @@ struct TestParams {
     /// Use the values set by Gitea's runner: `GITEA_API_URL` is the API root
     /// (`<server>/api/v1`), and `RUNNER_DEBUG` is set instead of `ACTIONS_STEP_DEBUG`.
     gitea_runner_env: bool,
+    /// Set neither `RUNNER_DEBUG` nor `ACTIONS_STEP_DEBUG`.
+    debug_disabled: bool,
 }
 
 impl Default for TestParams {
@@ -80,6 +82,7 @@ impl Default for TestParams {
             summary_marker_exists: false,
             forgejo: false,
             gitea_runner_env: false,
+            debug_disabled: false,
         }
     }
 }
@@ -90,6 +93,8 @@ struct TestControlVars {
     delete_reviews: bool,
     new_review_comments: Vec<ReviewComment>,
     outdated_comment_ids: Vec<i64>,
+    /// Outdated comments of deleted reviews, which are never requested on their own.
+    deleted_comment_ids: Vec<i64>,
     outdated_review_ids: Vec<i64>,
 }
 
@@ -123,6 +128,8 @@ impl TestControlVars {
         // A deleted review's comments are deleted with it.
         if keep_review || !self.delete_reviews {
             self.outdated_comment_ids.extend(outdated_comment_ids);
+        } else {
+            self.deleted_comment_ids.extend(outdated_comment_ids);
         }
         if !keep_review {
             self.outdated_review_ids.push(review_id);
@@ -165,7 +172,10 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
             env::set_var("FORGEJO_ACTIONS", "true");
         }
         env::set_var("CI", "true");
-        if test_params.gitea_runner_env {
+        if test_params.debug_disabled {
+            env::remove_var("ACTIONS_STEP_DEBUG");
+            env::remove_var("RUNNER_DEBUG");
+        } else if test_params.gitea_runner_env {
             env::remove_var("ACTIONS_STEP_DEBUG");
             env::set_var("RUNNER_DEBUG", "1");
         } else {
@@ -216,8 +226,8 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
     log::set_max_level(log::LevelFilter::Debug);
     let _event_payload_path = event_payload_path;
     let mut client = GiteaApiClient::new().unwrap();
-    assert!(client.debug_enabled);
-    assert!(client.is_debug_enabled());
+    assert_eq!(client.debug_enabled, !test_params.debug_disabled);
+    assert_eq!(client.is_debug_enabled(), !test_params.debug_disabled);
     assert_eq!(client.event_name(), Some(test_params.event_t.to_string()));
     assert_eq!(
         client.is_pr_event(),
@@ -430,19 +440,13 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                     );
                 }
 
-                // Outdated review comments are resolved, or deleted like issue comments.
-                let (comment_method, comment_url_path) = if test_params.delete_reviews {
-                    ("DELETE", format!("/api/v1/repos/{REPO}/issues/comments/"))
-                } else {
-                    ("POST", format!("/api/v1/repos/{REPO}/pulls/comments/"))
-                };
-                // The other way of handling an outdated comment is never used.
-                for (method, url_path) in [
-                    ("DELETE", format!("/api/v1/repos/{REPO}/issues/comments/")),
-                    ("POST", format!("/api/v1/repos/{REPO}/pulls/comments/")),
-                ] {
-                    if test_params.forgejo || method != comment_method {
-                        // Forgejo has no endpoint to resolve or delete a review comment.
+                let resolve_url_path = format!("/api/v1/repos/{REPO}/pulls/comments/");
+                let delete_url_path = format!("/api/v1/repos/{REPO}/issues/comments/");
+                if test_params.forgejo {
+                    // Forgejo has no endpoint to resolve or delete a review comment.
+                    for (method, url_path) in
+                        [("POST", &resolve_url_path), ("DELETE", &delete_url_path)]
+                    {
                         mocks.push(
                             server
                                 .mock(method, Matcher::Regex(format!("^{url_path}")))
@@ -450,27 +454,47 @@ async fn setup_and_run(lib_root: &Path, test_params: &TestParams) {
                                 .create(),
                         );
                     }
-                }
-                for comment_id in test_control_vars
-                    .outdated_comment_ids
-                    .iter()
-                    .filter(|_| !test_params.forgejo)
-                {
-                    let fail = *comment_id == 76453654 && test_params.fail_outdated_comment;
-                    let url_path = if test_params.delete_reviews {
-                        format!("{comment_url_path}{comment_id}")
-                    } else {
-                        format!("{comment_url_path}{comment_id}/resolve")
-                    };
-                    mocks.push(
-                        server
-                            .mock(comment_method, url_path.as_str())
-                            .match_header("Authorization", format!("token {TOKEN}").as_str())
-                            .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
-                            .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
-                            .with_status(if fail { 500 } else { 200 })
-                            .create(),
-                    );
+                } else {
+                    // Outdated comments are resolved, and also deleted if asked.
+                    for comment_id in &test_control_vars.outdated_comment_ids {
+                        let fail = *comment_id == 76453654 && test_params.fail_outdated_comment;
+                        let mut requests =
+                            vec![("POST", format!("{resolve_url_path}{comment_id}/resolve"))];
+                        if test_params.delete_reviews {
+                            requests.push(("DELETE", format!("{delete_url_path}{comment_id}")));
+                        }
+                        for (method, url_path) in requests {
+                            mocks.push(
+                                server
+                                    .mock(method, url_path.as_str())
+                                    .match_header(
+                                        "Authorization",
+                                        format!("token {TOKEN}").as_str(),
+                                    )
+                                    .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+                                    .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+                                    .with_status(if fail { 500 } else { 200 })
+                                    .create(),
+                            );
+                        }
+                    }
+                    if !test_params.delete_reviews {
+                        mocks.push(
+                            server
+                                .mock("DELETE", Matcher::Regex(format!("^{delete_url_path}")))
+                                .expect(0)
+                                .create(),
+                        );
+                    }
+                    // A deleted review's comments are deleted with it.
+                    for comment_id in &test_control_vars.deleted_comment_ids {
+                        for (method, url_path) in [
+                            ("POST", format!("{resolve_url_path}{comment_id}/resolve")),
+                            ("DELETE", format!("{delete_url_path}{comment_id}")),
+                        ] {
+                            mocks.push(server.mock(method, url_path.as_str()).expect(0).create());
+                        }
+                    }
                 }
 
                 for review_id in &test_control_vars.outdated_review_ids {
@@ -726,6 +750,15 @@ async fn delete_outdated_review_comment_500() {
     test_reviews(TestParams {
         delete_reviews: true,
         fail_outdated_comment: true,
+        ..Default::default()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn debug_disabled() {
+    test_reviews(TestParams {
+        debug_disabled: true,
         ..Default::default()
     })
     .await;
