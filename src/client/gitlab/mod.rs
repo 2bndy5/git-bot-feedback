@@ -46,7 +46,7 @@ pub struct GitlabApiClient {
     merge_request_iid: Option<u64>,
 
     /// The value of the `CI_PIPELINE_SOURCE` environment variable.
-    pub event_name: String,
+    event_name: Option<String>,
 
     /// The value of the `CI_API_V4_URL` environment variable.
     api_url: Url,
@@ -139,7 +139,7 @@ impl RestApiClient for GitlabApiClient {
     }
 
     fn event_name(&self) -> Option<String> {
-        Some(self.event_name.clone())
+        self.event_name.clone()
     }
 
     /// Return the value of `CI_PROJECT_DIR` environment variable.
