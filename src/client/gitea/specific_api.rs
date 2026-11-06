@@ -56,6 +56,19 @@ pub(super) fn token() -> Result<String, ClientError> {
     first_env_var(&["GITEA_TOKEN".to_string(), "FORGEJO_TOKEN".to_string()])
 }
 
+/// Get the REST API's root URL (with a trailing `/`) from the value of an `*_API_URL` variable.
+///
+/// The runners set this to the API root (eg. `<server>/api/v1`),
+/// but a server's URL is also accepted (`/api/v1` is then appended).
+fn api_root(api_url: &str) -> String {
+    let api_url = api_url.trim_end_matches('/');
+    if api_url.ends_with("/api/v1") {
+        format!("{api_url}/")
+    } else {
+        format!("{api_url}/api/v1/")
+    }
+}
+
 /// Is the CI workflow run by Forgejo's runner?
 pub(super) fn is_forgejo() -> bool {
     env::var("FORGEJO_ACTIONS").is_ok_and(|v| v.to_lowercase() == "true")
@@ -64,10 +77,10 @@ pub(super) fn is_forgejo() -> bool {
 impl GiteaApiClient {
     /// Instantiate a [`GiteaApiClient`] object.
     pub fn new() -> Result<Self, ClientError> {
-        let event_name = ci_env_var("EVENT_NAME").unwrap_or(String::from("unknown"));
+        let event_name = ci_env_var("EVENT_NAME").ok();
         let pull_request = {
-            match event_name.as_str() {
-                "pull_request" => {
+            match event_name.as_deref() {
+                Some("pull_request") => {
                     let event_payload_path = ci_env_var("EVENT_PATH")?;
                     // event payload JSON file can be overwritten/removed in CI runners
                     let file_buf = fs::read_to_string(event_payload_path.clone())
@@ -80,17 +93,7 @@ impl GiteaApiClient {
                 _ => None,
             }
         };
-        // `GITEA_API_URL` is the server's URL, but the runners set `FORGEJO_API_URL` and
-        // `GITHUB_API_URL` to the full API root (eg. `<server>/api/v1`).
-        let gh_api_url = match env::var("GITEA_API_URL") {
-            Ok(server) => format!("{}/api/v1/", server.trim_end_matches('/')),
-            Err(_) => format!(
-                "{}/",
-                first_env_var(&["FORGEJO_API_URL".to_string(), "GITHUB_API_URL".to_string()])?
-                    .trim_end_matches('/')
-            ),
-        };
-        let api_url = Url::parse(gh_api_url.as_str())?;
+        let api_url = Url::parse(&api_root(&ci_env_var("API_URL")?))?;
 
         Ok(Self {
             client: Client::builder()
@@ -103,7 +106,9 @@ impl GiteaApiClient {
             repo: ci_env_var("REPOSITORY")?,
             sha: ci_env_var("SHA")?,
             is_forgejo: is_forgejo(),
-            debug_enabled: env::var("ACTIONS_STEP_DEBUG").is_ok_and(|val| &val == "true"),
+            // The runners set `RUNNER_DEBUG` when the `ACTIONS_STEP_DEBUG` secret is `true`.
+            debug_enabled: env::var("RUNNER_DEBUG").is_ok_and(|val| &val == "1")
+                || env::var("ACTIONS_STEP_DEBUG").is_ok_and(|val| &val == "true"),
             rate_limit_headers: RestApiRateLimitHeaders {
                 reset: "x-ratelimit-reset".to_string(),
                 remaining: "x-ratelimit-remaining".to_string(),
@@ -428,37 +433,55 @@ impl GiteaApiClient {
         delete: bool,
     ) -> Result<(), ClientError> {
         let base_url = format!("{}repos/{}/pulls/{pr_number}", self.api_url, self.repo);
-        // resolve individual comments first
+        // resolve (and delete) individual comments first
         if self.is_forgejo {
-            // Forgejo has no endpoint to resolve a review comment.
+            // Forgejo has no endpoint to resolve or delete a review comment.
             if !comment_ids.is_empty() {
                 log::info!(
-                    "Forgejo does not support resolving review comments; {} outdated comment(s) left unresolved",
+                    "Forgejo does not support resolving or deleting review comments; {} outdated comment(s) left as is",
                     comment_ids.len()
                 );
             }
         } else {
             for comment_id in comment_ids {
-                // This endpoint is not scoped to a PR number.
-                let comment_url = Url::parse(
-                    format!(
-                        "{}repos/{}/pulls/comments/{comment_id}/resolve",
-                        self.api_url, self.repo
-                    )
-                    .as_str(),
+                // These endpoints are not scoped to a PR number.
+                let resolve_url = self.api_url.join(
+                    format!("repos/{}/pulls/comments/{comment_id}/resolve", self.repo).as_str(),
                 )?;
-                let request =
-                    self.make_api_request(&self.client, comment_url, Method::POST, None, None)?;
-                match self
-                    .send_api_request(&self.client, request, &self.rate_limit_headers)
-                    .await
-                {
-                    Ok(result) => {
-                        self.log_response(result, "Failed to resolve outdated review comment")
-                            .await;
-                    }
-                    Err(e) => {
-                        return Err(e.add_request_context("resolve outdated review comment"));
+                let mut requests = vec![(
+                    self.make_api_request(&self.client, resolve_url, Method::POST, None, None)?,
+                    "resolve outdated review comment",
+                )];
+                if delete {
+                    // Review comments are deleted like issue comments since Gitea v1.25.
+                    // Older versions answer 204 without deleting it,
+                    // so the comment is resolved first.
+                    let delete_url = self.api_url.join(
+                        format!("repos/{}/issues/comments/{comment_id}", self.repo).as_str(),
+                    )?;
+                    requests.push((
+                        self.make_api_request(
+                            &self.client,
+                            delete_url,
+                            Method::DELETE,
+                            None,
+                            None,
+                        )?,
+                        "delete outdated review comment",
+                    ));
+                }
+                for (request, log_prompt) in requests {
+                    match self
+                        .send_api_request(&self.client, request, &self.rate_limit_headers)
+                        .await
+                    {
+                        Ok(result) => {
+                            self.log_response(result, &format!("Failed to {log_prompt}"))
+                                .await;
+                        }
+                        Err(e) => {
+                            return Err(e.add_request_context(log_prompt));
+                        }
                     }
                 }
             }
@@ -512,8 +535,46 @@ mod tests {
     use std::{env, io::Write};
     use tempfile::NamedTempFile;
 
-    use super::GiteaApiClient;
+    use super::{GiteaApiClient, api_root};
     use crate::RestApiClient;
+
+    #[test]
+    fn api_root_from_server_url() {
+        for url in ["https://gitea.example.com", "https://gitea.example.com/"] {
+            assert_eq!(api_root(url), "https://gitea.example.com/api/v1/");
+        }
+        // a server hosted in a sub-path
+        assert_eq!(
+            api_root("https://example.com/gitea"),
+            "https://example.com/gitea/api/v1/"
+        );
+    }
+
+    #[test]
+    fn api_root_from_api_url() {
+        // Gitea's runner sets `GITEA_API_URL` (and `GITHUB_API_URL`) to the API root.
+        for url in [
+            "https://gitea.example.com/api/v1",
+            "https://gitea.example.com/api/v1/",
+        ] {
+            assert_eq!(api_root(url), "https://gitea.example.com/api/v1/");
+        }
+    }
+
+    #[test]
+    fn unknown_event_name() {
+        unsafe {
+            env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
+            env::set_var("GITEA_SHA", "abc123");
+            env::set_var("GITEA_API_URL", "https://gitea.example.com");
+            for prefix in ["GITEA", "FORGEJO", "GITHUB"] {
+                env::remove_var(format!("{prefix}_EVENT_NAME"));
+            }
+        }
+        let client = GiteaApiClient::new().unwrap();
+        assert_eq!(client.event_name(), None);
+        assert!(!client.is_pr_event());
+    }
 
     #[test]
     fn is_pr_same_remote_push() {

@@ -6,8 +6,8 @@ use url::Url;
 
 use super::{ClientError, RestApiClient, RestApiRateLimitHeaders, common::PullRequestInfo};
 use crate::{
-    OutputVariable, ReviewAction, ReviewOptions, ThreadCommentOptions,
-    client::common::PullRequestState,
+    FileAnnotation, OutputVariable, ReviewAction, ReviewOptions, ThreadCommentOptions,
+    client::common::PullRequestState, file_annotations::print_workflow_commands,
 };
 mod serde_structs;
 use serde_structs::{FullReview, ReviewDiffComment};
@@ -29,8 +29,8 @@ pub struct GiteaApiClient {
     /// The CI run's event payload from the webhook that triggered the workflow.
     pull_request: Option<PullRequestInfo>,
 
-    /// The name of the event that was triggered when running cpp_linter.
-    pub event_name: String,
+    /// The name of the CI event, if the runner set it.
+    event_name: Option<String>,
 
     /// The value of the `GITHUB_API_URL` environment variable.
     api_url: Url,
@@ -41,7 +41,7 @@ pub struct GiteaApiClient {
     /// The value of the `GITHUB_SHA` environment variable.
     sha: String,
 
-    /// The value of the `ACTIONS_STEP_DEBUG` environment variable.
+    /// Is `RUNNER_DEBUG` set to `1` (or `ACTIONS_STEP_DEBUG` set to `true`)?
     pub debug_enabled: bool,
 
     /// Is the CI workflow run by Forgejo's runner (`FORGEJO_ACTIONS` is `true`)?
@@ -73,6 +73,14 @@ impl RestApiClient for GiteaApiClient {
 
     fn is_pr_event(&self) -> bool {
         self.pull_request.is_some()
+    }
+
+    fn is_debug_enabled(&self) -> bool {
+        self.debug_enabled
+    }
+
+    fn event_name(&self) -> Option<String> {
+        self.event_name.clone()
     }
 
     fn is_pr_same_remote(&self) -> bool {
@@ -145,6 +153,7 @@ impl RestApiClient for GiteaApiClient {
             // Check each existing review for reused comments
             for review in &existing_reviews {
                 let mut keep_review = false;
+                let mut review_outdated_comment_ids = Vec::new();
 
                 for existing_comment in &review.comments {
                     let mut keep_comment = false;
@@ -170,8 +179,13 @@ impl RestApiClient for GiteaApiClient {
 
                     // If comment doesn't match any proposed comment, mark for deletion
                     if !keep_comment {
-                        outdated_comment_ids.push(existing_comment.id);
+                        review_outdated_comment_ids.push(existing_comment.id);
                     }
+                }
+
+                // A deleted review's comments are deleted with it.
+                if keep_review || !options.delete_review_comments {
+                    outdated_comment_ids.extend(review_outdated_comment_ids);
                 }
 
                 // If no comments in this review were kept, mark review for deletion
@@ -279,6 +293,11 @@ impl RestApiClient for GiteaApiClient {
             };
         }
         Ok(())
+    }
+
+    /// Gitea renders these as highlighted lines in the job's log.
+    fn write_file_annotations(&self, annotations: &[FileAnnotation]) -> Result<(), ClientError> {
+        print_workflow_commands(annotations)
     }
 
     fn append_step_summary(&self, comment: &str) -> Result<(), ClientError> {

@@ -3,12 +3,7 @@
 //! In the root module, we just implement the RestApiClient trait.
 //! In other (private) submodules we implement behavior specific to Github's REST API.
 
-use std::{
-    env,
-    fs::OpenOptions,
-    io::{self, Write},
-    path::PathBuf,
-};
+use std::{env, fs::OpenOptions, io::Write, path::PathBuf};
 
 use async_trait::async_trait;
 use reqwest::{Client, Method, Url};
@@ -19,6 +14,7 @@ use crate::{
         ClientError, RestApiClient, RestApiRateLimitHeaders,
         common::{PullRequestInfo, PullRequestState},
     },
+    file_annotations::print_workflow_commands,
 };
 mod graphql;
 mod serde_structs;
@@ -219,21 +215,7 @@ impl RestApiClient for GithubApiClient {
     }
 
     fn write_file_annotations(&self, annotations: &[FileAnnotation]) -> Result<(), ClientError> {
-        if annotations.is_empty() {
-            // Should probably be an error.
-            // This check is only here to prevent needlessly locking stdout.
-            return Ok(());
-        }
-        let stdout = io::stdout();
-        let mut handle = stdout.lock();
-        for annotation in annotations {
-            writeln!(&mut handle, "{}", annotation.fmt_github())
-                .map_err(|e| ClientError::io("write to file annotation to stdout", e))?;
-        }
-        handle
-            .flush()
-            .map_err(|e| ClientError::io("flush stdout with file annotations", e))?;
-        Ok(())
+        print_workflow_commands(annotations)
     }
 
     #[cfg(feature = "file-changes")]
