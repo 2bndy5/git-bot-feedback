@@ -24,6 +24,17 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        # zizmor: ignore[cache-poisoning]
+      - name: Run tests
+        run: uv run --group test pytest bindings/python/tests
+
   wheels:
     runs-on: ${{ matrix.platform.runner }}
     name: >-
@@ -138,7 +149,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/git-bot-feedback-py/v')
-    needs: [wheels, sdist]
+    needs: [test, wheels, sdist]
     permissions:
       id-token: write
     steps:
@@ -153,7 +164,7 @@ jobs:
           skip-existing: true
 
   check-dist:
-    needs: [wheels, sdist]
+    needs: [test, wheels, sdist]
     if: ${{ !startsWith(github.ref, 'refs/tags/git-bot-feedback-py/v') }}
     name: Check package dist
     runs-on: ubuntu-latest

@@ -62,6 +62,34 @@ pub struct RestApiRateLimitHeaders {
     pub retry: String,
 }
 
+/// The maximum number of redirects followed by [`same_origin_redirect_policy()`].
+const MAX_REDIRECTS: usize = 10;
+
+/// A redirect policy that only follows redirects to the same origin
+/// (scheme, host, and port) as the previous URL.
+///
+/// A redirect to a different origin is not followed.
+/// Instead, the `3xx` response is returned to the caller.
+/// This prevents custom credential headers (like GitLab's `PRIVATE-TOKEN`)
+/// from being forwarded to another origin;
+/// `reqwest` only strips the `Authorization` header on cross-origin redirects.
+/// The number of followed redirects is limited to 10 (like `reqwest`'s default).
+pub fn same_origin_redirect_policy() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        let same_origin = attempt
+            .previous()
+            .last()
+            .is_some_and(|previous| previous.origin() == attempt.url().origin());
+        if !same_origin {
+            attempt.stop()
+        } else if attempt.previous().len() > MAX_REDIRECTS {
+            attempt.error("too many redirects")
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
 /// Find the closest folder, starting with `path` itself, that has a `.git` folder or file.
 ///
 /// A git submodule has a `.git` file instead of a folder.

@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use reqwest::{Client, Url};
 
-use super::{ClientError, RestApiClient, RestApiRateLimitHeaders};
+use super::{ClientError, RestApiClient, RestApiRateLimitHeaders, same_origin_redirect_policy};
 use crate::{OutputVariable, ReviewOptions, ThreadCommentOptions};
 mod diff_positions;
 mod reviews;
@@ -157,6 +157,7 @@ impl RestApiClient for GitlabApiClient {
         self.client = Client::builder()
             .default_headers(Self::make_headers(true)?)
             .user_agent(user_agent)
+            .redirect(same_origin_redirect_policy())
             .build()?;
         Ok(())
     }
