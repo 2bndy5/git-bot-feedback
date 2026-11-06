@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback/v0.12.0] - 2026-11-06
+
+### <!-- 1 --> 🚀 Added
+
+- Add `RestApiClient::is_pr_same_remote()` by @2bndy5 in [#160](https://github.com/2bndy5/git-bot-feedback/pull/160)
+- Add request, response, and error types by @2bndy5 in [#161](https://github.com/2bndy5/git-bot-feedback/pull/161)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Use the API root set by Gitea's runner and fill in missing methods by @shenxianpeng in [#162](https://github.com/2bndy5/git-bot-feedback/pull/162)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Eliminate fallback to "unknown" event name by @2bndy5 in [#164](https://github.com/2bndy5/git-bot-feedback/pull/164)
+
+[git-bot-feedback/v0.12.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.11.0...git-bot-feedback/v0.12.0
+
+Full commit diff: [`git-bot-feedback/v0.11.0...git-bot-feedback/v0.12.0`][git-bot-feedback/v0.12.0]
+
 ## [git-bot-feedback/v0.11.0] - 2026-10-27
 
 ### <!-- 1 --> 🚀 Added
@@ -15,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### <!-- 4 --> 🛠️ Fixed
 
 - Add impl for `GitlabApiClient::workspace_root()` by @2bndy5 in [#153](https://github.com/2bndy5/git-bot-feedback/pull/153)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.11.0 by @2bndy5 in [`b6d5b08`](https://github.com/2bndy5/git-bot-feedback/commit/b6d5b085a1a43268818b1c4ded00e62fc649b15a)
 
 [git-bot-feedback/v0.11.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.10.0...git-bot-feedback/v0.11.0
 
