@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     CommentKind, CommentPolicy, RestApiClient, RestApiRateLimitHeaders, ThreadCommentOptions,
-    client::{ClientError, USER_AGENT},
+    client::{ClientError, USER_AGENT, same_origin_redirect_policy},
 };
 use reqwest::{
     Client, Method, Url,
@@ -52,6 +52,7 @@ impl GitlabApiClient {
             client: Client::builder()
                 .default_headers(Self::make_headers(true)?)
                 .user_agent(USER_AGENT)
+                .redirect(same_origin_redirect_policy())
                 .build()?,
             merge_request_iid,
             event_name: env::var("CI_PIPELINE_SOURCE").ok(),

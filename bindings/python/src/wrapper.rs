@@ -3,7 +3,7 @@ use tokio::sync::Mutex;
 
 use ::git_bot_feedback::{
     RestClientError,
-    client::{RestApiClient, USER_AGENT, init_client},
+    client::{RestApiClient, USER_AGENT, init_client, same_origin_redirect_policy},
 };
 use pyo3::prelude::*;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -32,6 +32,7 @@ fn build_http(
     reqwest::Client::builder()
         .default_headers(headers)
         .user_agent(user_agent)
+        .redirect(same_origin_redirect_policy())
         .build()
         .map_err(|e| to_py_err(RestClientError::Request(e)))
 }
@@ -299,6 +300,12 @@ impl GitClient {
     /// Send an HTTP request, respecting the REST API's rate limits.
     ///
     /// The request's headers override the client's default headers.
+    ///
+    /// Only same-origin redirects are followed (up to 10), so credential headers
+    /// like GitLab's ``PRIVATE-TOKEN`` are never forwarded to another origin.
+    /// A redirect to a different origin is not followed; the ``3xx``
+    /// response is returned as is (see its ``Location`` header).
+    ///
     /// In the event where a secondary rate limit is reached, this will wait for the
     /// time interval (if specified by the server) and retry afterward.
     /// Raises ``RateLimitError`` or ``RequestError`` on failure.
