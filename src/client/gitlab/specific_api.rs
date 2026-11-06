@@ -54,7 +54,7 @@ impl GitlabApiClient {
                 .user_agent(USER_AGENT)
                 .build()?,
             merge_request_iid,
-            event_name: env::var("CI_PIPELINE_SOURCE").unwrap_or(String::from("unknown")),
+            event_name: env::var("CI_PIPELINE_SOURCE").ok(),
             api_url,
             project_id: env::var(project_var).map_err(|e| ClientError::env_var(project_var, e))?,
             source_project_id,

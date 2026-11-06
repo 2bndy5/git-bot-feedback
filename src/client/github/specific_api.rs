@@ -14,10 +14,10 @@ use std::{collections::HashMap, env, fs};
 impl GithubApiClient {
     /// Instantiate a [`GithubApiClient`] object.
     pub fn new() -> Result<Self, ClientError> {
-        let event_name = env::var("GITHUB_EVENT_NAME").unwrap_or(String::from("unknown"));
+        let event_name = env::var("GITHUB_EVENT_NAME").ok();
         let pull_request = {
-            match event_name.as_str() {
-                "pull_request" => {
+            match event_name.as_deref() {
+                Some("pull_request") => {
                     // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
                     let event_payload_path = env::var("GITHUB_EVENT_PATH")
                         .map_err(|e| ClientError::env_var("GITHUB_EVENT_PATH", e))?;
