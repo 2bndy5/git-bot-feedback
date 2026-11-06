@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback-py/v0.6.0] - 2026-11-06
+
+### <!-- 1 --> 🚀 Added
+
+- Add `RestApiClient::is_pr_same_remote()` by @2bndy5 in [#160](https://github.com/2bndy5/git-bot-feedback/pull/160)
+- Add request, response, and error types by @2bndy5 in [#161](https://github.com/2bndy5/git-bot-feedback/pull/161)
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Use the API root set by Gitea's runner and fill in missing methods by @shenxianpeng in [#162](https://github.com/2bndy5/git-bot-feedback/pull/162)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.12.0 by @2bndy5 in [`eae30be`](https://github.com/2bndy5/git-bot-feedback/commit/eae30be526aa3ee97954ab314a45b1569f2e3c7d)
+
+### <!-- 9 --> 🗨️ Changed
+
+- Eliminate fallback to "unknown" event name by @2bndy5 in [#164](https://github.com/2bndy5/git-bot-feedback/pull/164)
+
+[git-bot-feedback-py/v0.6.0]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.5.1...git-bot-feedback-py/v0.6.0
+
+Full commit diff: [`git-bot-feedback-py/v0.5.1...git-bot-feedback-py/v0.6.0`][git-bot-feedback-py/v0.6.0]
+
+## [git-bot-feedback-py/v0.5.1] - 2026-10-28
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback-py/v0.5.1 by @2bndy5 in [`082c761`](https://github.com/2bndy5/git-bot-feedback/commit/082c76147cb01b032957a3a1b13b03fe8811e6a1)
+
+[git-bot-feedback-py/v0.5.1]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.5.0...git-bot-feedback-py/v0.5.1
+
+Full commit diff: [`git-bot-feedback-py/v0.5.0...git-bot-feedback-py/v0.5.1`][git-bot-feedback-py/v0.5.1]
+
 ## [git-bot-feedback-py/v0.5.0] - 2026-10-27
 
 ### <!-- 1 --> 🚀 Added
