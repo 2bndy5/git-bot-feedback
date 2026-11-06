@@ -407,6 +407,31 @@ pub trait RestApiClient {
 
     /// The name of git server implementation is being used.
     fn client_kind(&self) -> String;
+
+    /// The root URL of the git server's REST API.
+    ///
+    /// Returns [`None`] for clients that do not use a REST API (like [`LocalClient`]).
+    fn api_url(&self) -> Option<Url> {
+        None
+    }
+
+    /// The names of the environment variables that may hold the authentication token
+    /// for the git server's REST API, in order of precedence.
+    ///
+    /// Returns an empty slice for clients that do not use a REST API (like [`LocalClient`]).
+    fn token_env_vars(&self) -> &'static [&'static str] {
+        &[]
+    }
+
+    /// The headers (authentication, `Accept`, etc.) that the git server's REST API expects
+    /// on every request.
+    ///
+    /// This does not include any security-sensitive values (such as authentication tokens).
+    ///
+    /// Returns an empty map for clients that do not use a REST API (like [`LocalClient`]).
+    fn default_headers(&self) -> Result<HeaderMap, ClientError> {
+        Ok(HeaderMap::new())
+    }
 }
 
 /// Instantiate an implementation of [`RestApiClient`] based on the environment.

@@ -1,21 +1,50 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 
-use ::git_bot_feedback::client::{RestApiClient, init_client};
+use ::git_bot_feedback::{
+    RestClientError,
+    client::{RestApiClient, USER_AGENT, init_client},
+};
 use pyo3::prelude::*;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+
+use crate::py_types::{PyRequest, PyResponse, rate_limit_headers, to_py_err};
 
 #[pyclass(module = "git_bot_feedback")]
 pub struct GitClient {
     client: Arc<Mutex<Box<dyn RestApiClient + Send + Sync>>>,
+    /// The HTTP client used by [`Self::send_api_request()`].
+    http: std::sync::Mutex<reqwest::Client>,
+}
+
+impl GitClient {
+    fn http(&self) -> reqwest::Client {
+        self.http.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+}
+
+/// Build the HTTP client with the git server's default headers.
+fn build_http(
+    client: &(dyn RestApiClient + Send + Sync),
+    user_agent: &str,
+) -> PyResult<reqwest::Client> {
+    let headers = client.default_headers().map_err(to_py_err)?;
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .user_agent(user_agent)
+        .build()
+        .map_err(|e| to_py_err(RestClientError::Request(e)))
 }
 
 #[pymethods]
 impl GitClient {
     #[new]
     pub fn new() -> PyResult<Self> {
-        let client = init_client()?;
+        let client = init_client().map_err(to_py_err)?;
+        let http = build_http(client.as_ref(), USER_AGENT)?;
         Ok(GitClient {
             client: Arc::new(Mutex::new(client)),
+            http: std::sync::Mutex::new(http),
         })
     }
 
@@ -55,7 +84,10 @@ impl GitClient {
     /// By default the user agent is set to this lib's name and version.
     /// See [`USER_AGENT`] for the default value.
     pub fn set_user_agent(&self, user_agent: &str) -> PyResult<()> {
-        self.client.blocking_lock().set_user_agent(user_agent)?;
+        let mut client = self.client.blocking_lock();
+        client.set_user_agent(user_agent).map_err(to_py_err)?;
+        let http = build_http(client.as_ref(), user_agent)?;
+        *self.http.lock().unwrap_or_else(|e| e.into_inner()) = http;
         Ok(())
     }
 
@@ -91,7 +123,8 @@ impl GitClient {
                     base_diff,
                     ignore_index,
                 )
-                .await?;
+                .await
+                .map_err(to_py_err)?;
             Ok(result)
         })
     }
@@ -115,7 +148,8 @@ impl GitClient {
                 .lock()
                 .await
                 .post_thread_comment(options)
-                .await?;
+                .await
+                .map_err(to_py_err)?;
             Ok(())
         })
     }
@@ -131,7 +165,10 @@ impl GitClient {
         text_signature = "(comment: str) -> None"
     )]
     pub fn append_step_summary(&self, comment: &str) -> PyResult<()> {
-        self.client.blocking_lock().append_step_summary(comment)?;
+        self.client
+            .blocking_lock()
+            .append_step_summary(comment)
+            .map_err(to_py_err)?;
         Ok(())
     }
 
@@ -166,7 +203,8 @@ impl GitClient {
                 .lock()
                 .await
                 .cull_pr_reviews(&mut options)
-                .await?;
+                .await
+                .map_err(to_py_err)?;
             Ok(options)
         })
     }
@@ -189,7 +227,12 @@ impl GitClient {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client_clone = Arc::clone(&self.client);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            client_clone.lock().await.post_pr_review(&options).await?;
+            client_clone
+                .lock()
+                .await
+                .post_pr_review(&options)
+                .await
+                .map_err(to_py_err)?;
             Ok(())
         })
     }
@@ -205,7 +248,10 @@ impl GitClient {
         &self,
         vars: Vec<::git_bot_feedback::OutputVariable>,
     ) -> PyResult<()> {
-        self.client.blocking_lock().write_output_variables(&vars)?;
+        self.client
+            .blocking_lock()
+            .write_output_variables(&vars)
+            .map_err(to_py_err)?;
         Ok(())
     }
 
@@ -222,7 +268,8 @@ impl GitClient {
     ) -> PyResult<()> {
         self.client
             .blocking_lock()
-            .write_file_annotations(&annotations)?;
+            .write_file_annotations(&annotations)
+            .map_err(to_py_err)?;
         Ok(())
     }
 
@@ -249,90 +296,69 @@ impl GitClient {
         self.client.blocking_lock().end_log_group(name);
     }
 
-    // /// Construct a HTTP request to be sent.
-    // ///
-    // /// The idea here is that this method is called before [`Self::send_api_request()`].
-    // /// ```ignore
-    // /// let request = Self::make_api_request(
-    // ///     &self.client,
-    // ///     Url::parse("https://example.com").unwrap(),
-    // ///     Method::GET,
-    // ///     None,
-    // ///     None,
-    // /// ).unwrap();
-    // /// let response = send_api_request(&self.client, request, &self.rest_api_headers);
-    // /// match response.await {
-    // ///     Ok(res) => todo!(handle response),
-    // ///     Err(e) => todo!(handle failure),
-    // /// }
-    // /// ```
-    // fn make_api_request(
-    //     &self,
-    //     url: &str,
-    //     method: &str,
-    //     data: Option<String>,
-    //     headers: Option<HeaderMap>,
-    // ) -> PyResult<Request> {
-    //     let url = Url::parse(url).map_err(|e| {
-    //         pyo3::exceptions::PyValueError::new_err(format!("Invalid URL '{url}': {e}"))
-    //     })?;
-    //     self.client.make_api_request(client, url, method, data, headers)
-    // }
+    /// Send an HTTP request, respecting the REST API's rate limits.
+    ///
+    /// The request's headers override the client's default headers.
+    /// In the event where a secondary rate limit is reached, this will wait for the
+    /// time interval (if specified by the server) and retry afterward.
+    /// Raises ``RateLimitError`` or ``RequestError`` on failure.
+    /// This can also throw ``ValueError`` if the request's URL, method, or headers
+    /// values are invalid.
+    #[pyo3(
+        signature = (request),
+        text_signature = "(request: Request) -> Response"
+    )]
+    pub fn send_api_request<'py>(
+        &self,
+        py: Python<'py>,
+        request: PyRef<'_, PyRequest>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let request = (*request).clone();
+        let client_clone = Arc::clone(&self.client);
+        let http = self.http();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            let client = client_clone.lock().await;
+            let kind = client.client_kind();
+            let parts = request.resolve(&kind)?;
+            let req = client
+                .make_api_request(
+                    &http,
+                    parts.url,
+                    parts.method,
+                    parts.body,
+                    Some(parts.headers),
+                )
+                .map_err(to_py_err)?;
+            let response = client
+                .send_api_request(&http, req, &rate_limit_headers(&kind))
+                .await
+                .map_err(to_py_err)?;
+            PyResponse::from_reqwest(response).await.map_err(to_py_err)
+        })
+    }
 
-    // /// A convenience function to send HTTP requests and respect a REST API rate limits.
-    // ///
-    // /// This method respects both primary and secondary rate limits.
-    // /// In the event where the secondary rate limits is reached,
-    // /// this function will wait for a time interval (if specified by the server) and retry afterward.
-    // pub fn send_api_request<'py>(
-    //     &self,
-    //     py: Python<'py>,
-    //     client: &Client,
-    //     request: Request,
-    //     rate_limit_headers: &RestApiRateLimitHeaders,
-    // ) -> PyResult<Bound<'py, PyAny>> {
-    //     pyo3_async_runtimes::tokio::future_into_py(py, async move {
-    //         let result = self
-    //             .client
-    //             .send_api_request(client, request, rate_limit_headers)
-    //             .await?;
-    //         Ok(result)
-    //     })
-    // }
-
-    // /// Gets the URL for the next page from the headers in a paginated response.
-    // ///
-    // /// Returns [`None`] if current response is the last page.
-    // fn try_next_page(&self, headers: HashMap<String, String>) -> Option<String> {
-    //     let header_map = headers
-    //         .into_iter()
-    //         .filter_map(|(k, v)| {
-    //             if let Some(val) = reqwest::header::HeaderValue::from_str(&v).ok()
-    //                 && let Some(name) = reqwest::header::HeaderName::from_str(&k).ok()
-    //             {
-    //                 Some((name, val))
-    //             } else {
-    //                 None
-    //             }
-    //         })
-    //         .collect::<reqwest::header::HeaderMap>();
-    //     self.client
-    //         .blocking_lock()
-    //         .try_next_page(&header_map)
-    //         .map(|u| u.to_string())
-    // }
-
-    // /// A helper function to log the response of an API request with context.
-    // ///
-    // /// This also dumps the response body as text if possible.
-    // pub async fn log_response<'py>(&self, py: Python<'py>, response: Response, context: &str) {
-    //     if let Err(e) = response.error_for_status_ref() {
-    //         log::error!("{}: {e:?}", context.to_owned());
-    //         if let Ok(text) = response.text().await {
-    //             log::error!("{text}");
-    //         }
-    //     }
-    // }
+    /// Gets the URL for the next page from the headers in a paginated response.
+    ///
+    /// Returns ``None`` if the current response is the last page.
+    #[pyo3(
+        signature = (headers),
+        text_signature = "(headers: dict[str, str]) -> str | None"
+    )]
+    pub fn try_next_page(&self, headers: HashMap<String, String>) -> Option<String> {
+        let header_map = headers
+            .into_iter()
+            .filter_map(|(k, v)| {
+                Some((
+                    HeaderName::from_str(&k).ok()?,
+                    HeaderValue::from_str(&v).ok()?,
+                ))
+            })
+            .collect::<HeaderMap>();
+        self.client
+            .blocking_lock()
+            .try_next_page(&header_map)
+            .map(|u| u.to_string())
+    }
 
     /// The name of git server implementation is being used.
     #[getter]
@@ -340,14 +366,41 @@ impl GitClient {
         self.client.blocking_lock().client_kind()
     }
 
+    /// The root URL of the git server's REST API.
+    ///
+    /// Use this to assemble the ``url`` of a :py:class:`~git_bot_feedback.Request`.
+    /// It is ``None`` when not run by a CI platform.
+    #[getter]
+    pub fn api_url(&self) -> Option<String> {
+        self.client.blocking_lock().api_url().map(|u| u.to_string())
+    }
+
+    /// The names of the environment variables that may hold the REST API's
+    /// authentication token, in order of precedence.
+    ///
+    /// It is empty when not run by a CI platform.
+    #[getter]
+    pub fn token_env_vars(&self) -> Vec<String> {
+        self.client
+            .blocking_lock()
+            .token_env_vars()
+            .iter()
+            .map(|n| n.to_string())
+            .collect()
+    }
+
     /// The root folder of the workspace, as named by the CI platform's environment
     /// (for example, ``GITHUB_WORKSPACE`` on GitHub).
     ///
     /// Returns ``None`` when not run by a CI platform.
-    /// Raises a ``ValueError`` if the CI platform's environment variable cannot be read.
+    /// Raises a :py:class:`~git_bot_feedback.EnvironmentError` if the CI platform's environment
+    /// variable cannot be read.
     /// This does not fall back to the working directory or
     /// :py:func:`~git_bot_feedback.nearest_git_root()`.
     pub fn workspace_root(&self) -> PyResult<Option<PathBuf>> {
-        Ok(self.client.blocking_lock().workspace_root()?)
+        self.client
+            .blocking_lock()
+            .workspace_root()
+            .map_err(to_py_err)
     }
 }

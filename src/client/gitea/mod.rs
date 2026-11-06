@@ -88,7 +88,7 @@ impl RestApiClient for GiteaApiClient {
 
     fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {
         self.client = Client::builder()
-            .default_headers(Self::make_headers()?)
+            .default_headers(Self::make_headers(true)?)
             .user_agent(user_agent)
             .build()?;
         Ok(())
@@ -332,5 +332,17 @@ impl RestApiClient for GiteaApiClient {
 
     fn client_kind(&self) -> String {
         "gitea".to_string()
+    }
+
+    fn api_url(&self) -> Option<Url> {
+        Some(self.api_url.clone())
+    }
+
+    fn token_env_vars(&self) -> &'static [&'static str] {
+        &["GITEA_TOKEN", "FORGEJO_TOKEN"]
+    }
+
+    fn default_headers(&self) -> Result<reqwest::header::HeaderMap, ClientError> {
+        Self::make_headers(false)
     }
 }

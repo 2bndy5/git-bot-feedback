@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+mod py_types;
 mod wrapper;
 
 #[doc = include_str!("../README.rst")]
@@ -16,6 +17,21 @@ mod git_bot_feedback {
         pyo3_log::init();
         Ok(())
     }
+
+    #[pymodule_export]
+    use super::py_types::EnvironmentError;
+    #[pymodule_export]
+    use super::py_types::GitBotFeedbackError;
+    #[pymodule_export]
+    use super::py_types::ParseError;
+    #[pymodule_export]
+    use super::py_types::PyRequest;
+    #[pymodule_export]
+    use super::py_types::PyResponse;
+    #[pymodule_export]
+    use super::py_types::RateLimitError;
+    #[pymodule_export]
+    use super::py_types::RequestError;
 
     #[pymodule_export]
     use super::wrapper::GitClient;

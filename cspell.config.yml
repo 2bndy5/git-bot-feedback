@@ -3,6 +3,7 @@ words:
   - armv
   - asyncio
   - autoclass
+  - autoexception
   - autofunction
   - automodule
   - autoupdate
@@ -11,6 +12,7 @@ words:
   - chrono
   - clippy
   - cooldown
+  - delenv
   - docsrs
   - endfor
   - endgroup
@@ -40,6 +42,7 @@ words:
   - pypa
   - pypi
   - pyproject
+  - pytest
   - reqwest
   - rustc
   - rustdoc

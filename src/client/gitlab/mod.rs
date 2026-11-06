@@ -78,6 +78,18 @@ impl RestApiClient for GitlabApiClient {
         "gitlab".to_string()
     }
 
+    fn api_url(&self) -> Option<Url> {
+        Some(self.api_url.clone())
+    }
+
+    fn token_env_vars(&self) -> &'static [&'static str] {
+        &["GITLAB_TOKEN"]
+    }
+
+    fn default_headers(&self) -> Result<reqwest::header::HeaderMap, ClientError> {
+        Self::make_headers(false)
+    }
+
     /// This starts a collapsible section in the CI job's log.
     ///
     /// See [GitLab's docs about custom collapsible sections](https://docs.gitlab.com/ci/jobs/job_logs/#custom-collapsible-sections).
@@ -143,7 +155,7 @@ impl RestApiClient for GitlabApiClient {
 
     fn set_user_agent(&mut self, user_agent: &str) -> Result<(), ClientError> {
         self.client = Client::builder()
-            .default_headers(Self::make_headers()?)
+            .default_headers(Self::make_headers(true)?)
             .user_agent(user_agent)
             .build()?;
         Ok(())
