@@ -34,7 +34,7 @@ export def "nur test py" [
     --clean (-c) # Purge previous test artifacts. Use to refresh coverage data.
 ] {
     if $clean {
-        run-cmd uv sync --group test --refresh-package git-bot-feedback -v
+        run-cmd uv sync --group test --reinstall-package git-bot-feedback -v
     }
     run-cmd uv run --group test pytest bindings/python/tests
 }

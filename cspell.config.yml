@@ -12,6 +12,7 @@ words:
   - chrono
   - clippy
   - cooldown
+  - delenv
   - docsrs
   - endfor
   - endgroup
