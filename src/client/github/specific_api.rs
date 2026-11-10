@@ -17,7 +17,9 @@ impl GithubApiClient {
         let event_name = env::var("GITHUB_EVENT_NAME").ok();
         let pull_request = {
             match event_name.as_deref() {
-                Some("pull_request") => {
+                // Both events have the same payload.
+                // They only differ in the context (and permissions) of the workflow run.
+                Some("pull_request" | "pull_request_target") => {
                     // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
                     let event_payload_path = env::var("GITHUB_EVENT_PATH")
                         .map_err(|e| ClientError::env_var("GITHUB_EVENT_PATH", e))?;
@@ -36,6 +38,11 @@ impl GithubApiClient {
                 }
                 _ => None,
             }
+        };
+        #[cfg(feature = "file-changes")]
+        let push_base = match event_name.as_deref() {
+            Some("push") => Self::get_push_base(),
+            _ => None,
         };
         // GITHUB_*** env vars cannot be overwritten in CI runners on GitHub.
         let gh_api_url = env::var("GITHUB_API_URL").unwrap_or("https://api.github.com".to_string());
@@ -58,6 +65,8 @@ impl GithubApiClient {
             repo: env::var("GITHUB_REPOSITORY")
                 .map_err(|e| ClientError::env_var("GITHUB_REPOSITORY", e))?,
             sha: env::var("GITHUB_SHA").map_err(|e| ClientError::env_var("GITHUB_SHA", e))?,
+            #[cfg(feature = "file-changes")]
+            push_base,
             debug_enabled: env::var("ACTIONS_STEP_DEBUG").is_ok_and(|val| &val == "true"),
             rate_limit_headers: RestApiRateLimitHeaders {
                 reset: "x-ratelimit-reset".to_string(),
@@ -65,6 +74,25 @@ impl GithubApiClient {
                 retry: "retry-after".to_string(),
             },
         })
+    }
+
+    /// Get the commit that the pushed branch pointed to before a push event.
+    ///
+    /// Returns [`None`] if the event payload cannot be read, or if it does not name
+    /// such a commit (eg. the branch was just created).
+    /// A push event is still usable without this information.
+    #[cfg(feature = "file-changes")]
+    fn get_push_base() -> Option<String> {
+        use super::serde_structs::PushEventPayload;
+
+        // event payload JSON file can be overwritten/removed in CI runners
+        let file_buf = fs::read_to_string(env::var("GITHUB_EVENT_PATH").ok()?).ok()?;
+        let before = serde_json::from_str::<PushEventPayload>(&file_buf)
+            .ok()?
+            .before?;
+        // A commit SHA of only zeros means there was no commit before the push.
+        (before.chars().all(|c| c.is_ascii_hexdigit()) && before.chars().any(|c| c != '0'))
+            .then_some(before)
     }
 
     pub(super) fn make_headers(sensitive: bool) -> Result<HeaderMap<HeaderValue>, ClientError> {
@@ -289,6 +317,36 @@ mod tests {
         }
         let client = GithubApiClient::new().unwrap();
         assert!(client.is_pr_same_remote());
+    }
+
+    #[test]
+    fn pull_request_target_is_pr_event() {
+        use crate::RestApiClient;
+        use tempfile::NamedTempFile;
+
+        let mut event_file = NamedTempFile::new().unwrap();
+        let payload = serde_json::json!({
+            "pull_request": {
+                "draft": false,
+                "state": "open",
+                "number": 42,
+                "locked": false,
+                "head": {"repo": {"id": 200, "full_name": "fork/repo"}},
+                "base": {"repo": {"id": 100, "full_name": "owner/repo"}}
+            }
+        });
+        std::io::Write::write_all(&mut event_file, payload.to_string().as_bytes()).unwrap();
+        unsafe {
+            env::set_var("GITHUB_REPOSITORY", "2bndy5/git-bot-feedback");
+            // For this event, `GITHUB_SHA` is the last commit on the PR's base branch.
+            env::set_var("GITHUB_SHA", "abc123");
+            env::set_var("GITHUB_EVENT_NAME", "pull_request_target");
+            env::set_var("GITHUB_EVENT_PATH", event_file.path());
+        }
+        let client = GithubApiClient::new().unwrap();
+        assert_eq!(client.event_name().as_deref(), Some("pull_request_target"));
+        assert!(client.is_pr_event());
+        assert!(!client.is_pr_same_remote());
     }
 
     #[test]

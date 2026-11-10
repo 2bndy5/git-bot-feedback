@@ -49,6 +49,13 @@ pub struct GithubApiClient {
     /// The value of the `GITHUB_SHA` environment variable.
     sha: String,
 
+    /// The commit that a pushed branch pointed to before a push event.
+    ///
+    /// This is [`None`] for any other event, or if a push event has no such commit
+    /// (eg. the branch was just created).
+    #[cfg(feature = "file-changes")]
+    push_base: Option<String>,
+
     /// The value of the `ACTIONS_STEP_DEBUG` environment variable.
     pub debug_enabled: bool,
 
@@ -227,8 +234,14 @@ impl RestApiClient for GithubApiClient {
         _base_diff: Option<String>,
         _ignore_index: bool,
     ) -> Result<HashMap<String, FileDiffLines>, ClientError> {
-        use crate::client::github::serde_structs::GitHubChangedFileStatus;
-
+        // A push event can deliver several commits at once.
+        if let Some(base) = &self.push_base
+            && let Some(files) = self
+                .get_pushed_files(base, file_filter, lines_changed_only)
+                .await?
+        {
+            return Ok(files);
+        }
         let (url, is_pr) = match &self.pull_request {
             Some(pr_event) => (
                 self.api_url.join(
@@ -268,38 +281,7 @@ impl RestApiClient for GithubApiClient {
                 serde_json::from_str::<Vec<serde_structs::GithubChangedFile>>(&body)
                     .map_err(|e| ClientError::json("deserialize list of changed files", e))?
             };
-            for file in files_list {
-                let ext = Path::new(&file.filename).extension().unwrap_or_default();
-                if !file_filter
-                    .extensions
-                    .contains(&ext.to_string_lossy().to_string())
-                    // skip files that were removed, since there's no content to analyze.
-                    || matches!(file.status, GitHubChangedFileStatus::Removed)
-                {
-                    continue;
-                }
-                if let Some(patch) = file.patch {
-                    let diff = format!(
-                        "diff --git a/{old} b/{new}\n--- a/{old}\n+++ b/{new}\n{patch}\n",
-                        old = file.previous_filename.unwrap_or(file.filename.clone()),
-                        new = file.filename,
-                    );
-                    for (name, info) in parse_diff(&diff, file_filter, lines_changed_only)? {
-                        files.entry(name).or_insert(info);
-                    }
-                } else if file.changes == 0 || matches!(lines_changed_only, LinesChangedOnly::Off) {
-                    // file may have been only renamed.
-                    // include it in case files-changed-only is enabled.
-                    files.entry(file.filename).or_default();
-                } else {
-                    log::warn!(
-                        "File {} has no patch info about {} changes, skipping",
-                        file.filename,
-                        file.changes
-                    );
-                }
-                // else changes are too big (per git server limits) or we don't care
-            }
+            Self::collect_changed_files(files_list, file_filter, lines_changed_only, &mut files)?;
         }
 
         Ok(files)
@@ -386,5 +368,105 @@ impl RestApiClient for GithubApiClient {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(feature = "file-changes")]
+impl GithubApiClient {
+    /// The most files that GitHub lists when comparing 2 commits.
+    const COMPARE_FILES_LIMIT: usize = 300;
+
+    /// Add the qualifying `files_list` (from a REST API response) to `files`.
+    fn collect_changed_files(
+        files_list: Vec<serde_structs::GithubChangedFile>,
+        file_filter: &FileFilter,
+        lines_changed_only: &LinesChangedOnly,
+        files: &mut HashMap<String, FileDiffLines>,
+    ) -> Result<(), ClientError> {
+        use serde_structs::GitHubChangedFileStatus;
+
+        for file in files_list {
+            let ext = Path::new(&file.filename).extension().unwrap_or_default();
+            if !file_filter
+                .extensions
+                .contains(&ext.to_string_lossy().to_string())
+                // skip files that were removed, since there's no content to analyze.
+                || matches!(file.status, GitHubChangedFileStatus::Removed)
+            {
+                continue;
+            }
+            if let Some(patch) = file.patch {
+                let diff = format!(
+                    "diff --git a/{old} b/{new}\n--- a/{old}\n+++ b/{new}\n{patch}\n",
+                    old = file.previous_filename.unwrap_or(file.filename.clone()),
+                    new = file.filename,
+                );
+                for (name, info) in parse_diff(&diff, file_filter, lines_changed_only)? {
+                    files.entry(name).or_insert(info);
+                }
+            } else if file.changes == 0 || matches!(lines_changed_only, LinesChangedOnly::Off) {
+                // file may have been only renamed.
+                // include it in case files-changed-only is enabled.
+                files.entry(file.filename).or_default();
+            } else {
+                log::warn!(
+                    "File {} has no patch info about {} changes, skipping",
+                    file.filename,
+                    file.changes
+                );
+            }
+            // else changes are too big (per git server limits) or we don't care
+        }
+        Ok(())
+    }
+
+    /// Get the files changed by all commits of a push event.
+    ///
+    /// A push event can deliver several commits at once, so this compares the pushed
+    /// commit (`GITHUB_SHA`) with the commit that the branch pointed to before (`base`).
+    ///
+    /// Returns [`None`] if the commits cannot be compared (eg. `base` no longer exists
+    /// after a force push). The caller should then only use the pushed commit's changes.
+    async fn get_pushed_files(
+        &self,
+        base: &str,
+        file_filter: &FileFilter,
+        lines_changed_only: &LinesChangedOnly,
+    ) -> Result<Option<HashMap<String, FileDiffLines>>, ClientError> {
+        const TASK: &str = "compare the pushed commits";
+        // The changed files are only listed in the first page.
+        // Each page also lists the compared commits, which are not needed here.
+        let url = Url::parse_with_params(
+            self.api_url
+                .join(format!("repos/{}/compare/{base}...{}", self.repo, self.sha).as_str())?
+                .as_str(),
+            &[("per_page", "1"), ("page", "1")],
+        )?;
+        let request = self.make_api_request(&self.client, url, Method::GET, None, None)?;
+        let response = self
+            .send_api_request(&self.client, request, &self.rate_limit_headers)
+            .await
+            .map_err(|e| e.add_request_context(TASK))?;
+        if let Err(e) = response.error_for_status_ref() {
+            log::warn!(
+                "Failed to {TASK}: {e:?}\nOnly using the changes of commit {}",
+                self.sha
+            );
+            return Ok(None);
+        }
+        let files_list =
+            serde_json::from_str::<serde_structs::PushEventFiles>(&response.text().await?)
+                .map_err(|e| ClientError::json("deserialize list of changed files", e))?
+                .files;
+        if files_list.len() >= Self::COMPARE_FILES_LIMIT {
+            log::warn!(
+                "GitHub lists at most {} changed files when comparing commits. \
+                Some files changed by this push may be missing.",
+                Self::COMPARE_FILES_LIMIT
+            );
+        }
+        let mut files = HashMap::new();
+        Self::collect_changed_files(files_list, file_filter, lines_changed_only, &mut files)?;
+        Ok(Some(files))
     }
 }
