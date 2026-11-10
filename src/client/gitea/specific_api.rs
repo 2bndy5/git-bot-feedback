@@ -80,7 +80,9 @@ impl GiteaApiClient {
         let event_name = ci_env_var("EVENT_NAME").ok();
         let pull_request = {
             match event_name.as_deref() {
-                Some("pull_request") => {
+                // Both events have the same payload.
+                // They only differ in the context (and permissions) of the workflow run.
+                Some("pull_request" | "pull_request_target") => {
                     let event_payload_path = ci_env_var("EVENT_PATH")?;
                     // event payload JSON file can be overwritten/removed in CI runners
                     let file_buf = fs::read_to_string(event_payload_path.clone())
@@ -613,6 +615,35 @@ mod tests {
         }
         let client = GiteaApiClient::new().unwrap();
         assert!(client.is_pr_same_remote());
+    }
+
+    #[test]
+    fn pull_request_target_is_pr_event() {
+        let mut event_file = NamedTempFile::new().unwrap();
+        let payload = serde_json::json!({
+            "pull_request": {
+                "draft": false,
+                "state": "open",
+                "number": 42,
+                "is_locked": false,
+                "head": {"repo_id": 200},
+                "base": {"repo_id": 100}
+            }
+        });
+        event_file
+            .write_all(payload.to_string().as_bytes())
+            .unwrap();
+        unsafe {
+            env::set_var("GITEA_REPOSITORY", "2bndy5/git-bot-feedback");
+            env::set_var("GITEA_SHA", "abc123");
+            env::set_var("GITEA_API_URL", "https://gitea.example.com");
+            env::set_var("GITEA_EVENT_NAME", "pull_request_target");
+            env::set_var("GITEA_EVENT_PATH", event_file.path());
+        }
+        let client = GiteaApiClient::new().unwrap();
+        assert_eq!(client.event_name().as_deref(), Some("pull_request_target"));
+        assert!(client.is_pr_event());
+        assert!(!client.is_pr_same_remote());
     }
 
     #[test]

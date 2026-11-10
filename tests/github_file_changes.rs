@@ -1,7 +1,7 @@
 #![cfg(all(feature = "file-changes", feature = "github"))]
 use chrono::Utc;
 mod common;
-use common::{EventType, logger_init};
+use common::{EventType, logger_init, take_logs};
 use mockito::{Matcher, Server};
 use tempfile::{NamedTempFile, TempDir};
 
@@ -13,6 +13,8 @@ use std::{env, io::Write, path::Path};
 #[derive(Default)]
 struct TestParams {
     event_t: EventType,
+    /// Use the `pull_request_target` event (instead of `pull_request`).
+    pr_target: bool,
     fail_serde_diff: bool,
     fail_serde_event_payload: bool,
     no_event_payload: bool,
@@ -54,6 +56,8 @@ async fn get_paginated_changes(lib_root: &Path, test_params: &TestParams) {
             "GITHUB_EVENT_NAME",
             if test_params.event_t == EventType::Push {
                 "push"
+            } else if test_params.pr_target {
+                "pull_request_target"
             } else {
                 "pull_request"
             },
@@ -226,6 +230,16 @@ async fn get_pr_files_paginated() {
 }
 
 #[tokio::test]
+async fn get_pr_target_files_paginated() {
+    test_get_changes(&TestParams {
+        event_t: EventType::PullRequest,
+        pr_target: true,
+        ..Default::default()
+    })
+    .await
+}
+
+#[tokio::test]
 async fn fail_push_files_paginated() {
     test_get_changes(&TestParams {
         fail_serde_diff: true,
@@ -272,4 +286,207 @@ async fn fail_request() {
         ..Default::default()
     })
     .await
+}
+
+/// The commit that the branch pointed to before the push event.
+const BEFORE: &str = "FACADE";
+
+#[derive(Default)]
+struct PushParams {
+    /// The value of `before` in the push event's payload.
+    before: Option<&'static str>,
+    /// Respond to the comparison of commits with a 404 status.
+    compare_not_found: bool,
+    /// Respond to the comparison of commits with a malformed payload.
+    compare_malformed: bool,
+    /// Respond to the comparison of commits with as many files as GitHub will list.
+    compare_at_limit: bool,
+}
+
+/// Get the changed files of a push event, and return their names (sorted) with the logs.
+///
+/// The comparison of commits is expected to be requested only when
+/// [`PushParams::before`] names a commit.
+/// The pushed commit's own changes are expected to be requested only as a fallback.
+async fn get_pushed_changes(
+    params: &PushParams,
+) -> (Result<Vec<String>, RestClientError>, Vec<String>) {
+    let lib_root = env::current_dir().unwrap();
+    let asset_path = format!(
+        "{}/tests/assets/file_changes/github",
+        lib_root.to_str().unwrap()
+    );
+    let tmp = TempDir::new().unwrap();
+    let mut event_payload = NamedTempFile::new_in(tmp.path()).unwrap();
+    if let Some(before) = params.before {
+        let payload = serde_json::json!({ "before": before, "after": SHA });
+        event_payload
+            .write_all(payload.to_string().as_bytes())
+            .unwrap();
+    } else {
+        event_payload.write_all(b"{}").unwrap();
+    }
+    let mut server = Server::new_async().await;
+    unsafe {
+        env::set_var("GITHUB_ACTIONS", "true");
+        env::remove_var("GITEA_ACTIONS");
+        env::set_var("GITHUB_REPOSITORY", REPO);
+        env::set_var("GITHUB_SHA", SHA);
+        env::set_var("GITHUB_TOKEN", TOKEN);
+        env::set_var("CI", "true");
+        env::set_var("GITHUB_EVENT_NAME", "push");
+        env::set_var("GITHUB_EVENT_PATH", event_payload.path());
+        env::set_var("GITHUB_API_URL", server.url());
+    }
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    take_logs();
+    let client = init_client().unwrap();
+
+    let reset_timestamp = (Utc::now().timestamp() + 60).to_string();
+    let is_compare_expected = params.before.is_some_and(|sha| sha == BEFORE);
+    let mut compare_mock = server
+        .mock(
+            "GET",
+            format!("/repos/{REPO}/compare/{BEFORE}...{SHA}").as_str(),
+        )
+        .match_header("Authorization", format!("token {TOKEN}").as_str())
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("per_page".to_string(), "1".to_string()),
+            Matcher::UrlEncoded("page".to_string(), "1".to_string()),
+        ]))
+        .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+        .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+        // The comparison's other pages only list more commits. They must not be requested.
+        .with_header(
+            "link",
+            format!(
+                "<{}/repos/{REPO}/compare/{BEFORE}...{SHA}?per_page=1&page=2>; rel=\"next\"",
+                server.url()
+            )
+            .as_str(),
+        )
+        .expect(if is_compare_expected { 1 } else { 0 });
+    compare_mock = if params.compare_not_found {
+        compare_mock
+            .with_status(404)
+            .with_body(r#"{"message":"Not Found","status":"404"}"#)
+    } else if params.compare_malformed {
+        compare_mock.with_body(MALFORMED_RESPONSE_PAYLOAD)
+    } else if params.compare_at_limit {
+        let files = (0..300)
+            .map(|i| {
+                serde_json::json!({
+                    "filename": format!("src/file{i}.cpp"),
+                    "status": "added",
+                    "changes": 1,
+                    "patch": "@@ -0,0 +1 @@\n+int x;",
+                })
+            })
+            .collect::<Vec<_>>();
+        compare_mock.with_body(serde_json::json!({ "files": files }).to_string())
+    } else {
+        compare_mock.with_body_from_file(format!("{asset_path}/compare_files.json"))
+    };
+    let compare_mock = compare_mock.create();
+
+    let is_fallback_expected = !is_compare_expected || params.compare_not_found;
+    let commit_mock = server
+        .mock("GET", format!("/repos/{REPO}/commits/{SHA}").as_str())
+        .match_query(Matcher::UrlEncoded("page".to_string(), "1".to_string()))
+        .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+        .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+        .with_body_from_file(format!("{asset_path}/push_files_pg2.json"))
+        .expect(if is_fallback_expected { 1 } else { 0 })
+        .create();
+
+    let file_filter = FileFilter::new(&[], &["cpp", "hpp"], None);
+    let result = client
+        .get_list_of_changed_files(&file_filter, &LinesChangedOnly::Off, None, false)
+        .await
+        .map(|files| {
+            let mut names = files.into_keys().collect::<Vec<_>>();
+            names.sort();
+            names
+        });
+    compare_mock.assert();
+    commit_mock.assert();
+    (result, take_logs())
+}
+
+/// The files changed by any of the pushed commits, not just the last commit.
+const PUSHED_FILES: [&str; 3] = ["src/demo.cpp", "src/demo.hpp", "src/renamed.cpp"];
+/// The files changed by the last pushed commit.
+const LAST_COMMIT_FILES: [&str; 1] = ["src/demo.hpp"];
+
+#[tokio::test]
+async fn get_push_files_of_all_commits() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap(), PUSHED_FILES);
+    assert!(!logs.iter().any(|l| l.contains("Only using the changes")));
+}
+
+#[tokio::test]
+async fn get_push_files_of_new_branch() {
+    for before in [
+        // no commit before the push
+        Some("0000000000000000000000000000000000000000"),
+        // not a commit SHA
+        Some("../../other/repo"),
+        Some(""),
+        // not in the event payload
+        None,
+    ] {
+        let (files, _) = get_pushed_changes(&PushParams {
+            before,
+            ..Default::default()
+        })
+        .await;
+        assert_eq!(files.unwrap(), LAST_COMMIT_FILES);
+    }
+}
+
+#[tokio::test]
+async fn get_push_files_without_comparison() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_not_found: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap(), LAST_COMMIT_FILES);
+    assert!(
+        logs.iter()
+            .any(|l| l.contains(format!("Only using the changes of commit {SHA}").as_str()))
+    );
+}
+
+#[tokio::test]
+async fn get_push_files_at_comparison_limit() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_at_limit: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap().len(), 300);
+    assert!(
+        logs.iter()
+            .any(|l| l.contains("Some files changed by this push may be missing"))
+    );
+}
+
+#[tokio::test]
+async fn fail_push_files_comparison() {
+    let (files, _) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_malformed: true,
+        ..Default::default()
+    })
+    .await;
+    assert!(matches!(files, Err(RestClientError::Json { .. })));
 }

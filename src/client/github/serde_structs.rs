@@ -115,3 +115,13 @@ pub struct PushEventFiles {
     /// The list of changed files.
     pub files: Vec<GithubChangedFile>,
 }
+
+/// A structure for deserializing a Push event's payload.
+#[cfg(feature = "file-changes")]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct PushEventPayload {
+    /// The SHA of the most recent commit on the pushed ref before the push.
+    ///
+    /// This consists of only zeros when the push created the ref.
+    pub before: Option<String>,
+}
