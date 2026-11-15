@@ -404,10 +404,15 @@ impl GithubApiClient {
                 for (name, info) in parse_diff(&diff, file_filter, lines_changed_only)? {
                     files.entry(name).or_insert(info);
                 }
-            } else if file.changes == 0 || matches!(lines_changed_only, LinesChangedOnly::Off) {
-                // file may have been only renamed.
-                // include it in case files-changed-only is enabled.
+            } else if matches!(lines_changed_only, LinesChangedOnly::Off) {
+                // file may have been only renamed (or had its mode changed, or is binary).
+                // include it because lines are not filtered (eg. for files-changed-only).
                 files.entry(file.filename).or_default();
+            } else if file.changes == 0 {
+                log::debug!(
+                    "File {} has no changed lines (eg. renamed, mode change, or binary), skipping",
+                    file.filename
+                );
             } else {
                 log::warn!(
                     "File {} has no patch info about {} changes, skipping",

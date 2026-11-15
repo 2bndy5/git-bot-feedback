@@ -490,3 +490,84 @@ async fn fail_push_files_comparison() {
     .await;
     assert!(matches!(files, Err(RestClientError::Json { .. })));
 }
+
+/// Get the changed files of a pull request that renames a file without changing its contents.
+///
+/// Returns the names (sorted) of the changed files with the logs.
+async fn get_renamed_pr_changes(
+    lines_changed_only: &LinesChangedOnly,
+) -> (Vec<String>, Vec<String>) {
+    let tmp = TempDir::new().unwrap();
+    let mut event_payload = NamedTempFile::new_in(tmp.path()).unwrap();
+    event_payload.write_all(EVENT_PAYLOAD.as_bytes()).unwrap();
+    let mut server = Server::new_async().await;
+    unsafe {
+        env::set_var("GITHUB_ACTIONS", "true");
+        env::remove_var("GITEA_ACTIONS");
+        env::set_var("GITHUB_REPOSITORY", REPO);
+        env::set_var("GITHUB_SHA", SHA);
+        env::set_var("GITHUB_TOKEN", TOKEN);
+        env::set_var("CI", "true");
+        env::set_var("GITHUB_EVENT_NAME", "pull_request");
+        env::set_var("GITHUB_EVENT_PATH", event_payload.path());
+        env::set_var("GITHUB_API_URL", server.url());
+    }
+    logger_init();
+    log::set_max_level(log::LevelFilter::Trace);
+    take_logs();
+    let client = init_client().unwrap();
+
+    let files = serde_json::json!([
+        {
+            "filename": "src/demo.cpp",
+            "status": "modified",
+            "changes": 2,
+            "patch": "@@ -1,1 +1,1 @@\n-int x;\n+int y;",
+        },
+        {
+            // GitHub lists no patch for a renamed file with unmodified contents
+            "filename": "src/renamed.cpp",
+            "previous_filename": "src/old_name.cpp",
+            "status": "renamed",
+            "changes": 0,
+        },
+    ]);
+    let reset_timestamp = (Utc::now().timestamp() + 60).to_string();
+    let mock = server
+        .mock("GET", format!("/repos/{REPO}/pulls/{PR}/files").as_str())
+        .match_query(Matcher::UrlEncoded("page".to_string(), "1".to_string()))
+        .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+        .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+        .with_body(files.to_string())
+        .create();
+
+    let file_filter = FileFilter::new(&[], &["cpp"], None);
+    let mut names = client
+        .get_list_of_changed_files(&file_filter, lines_changed_only, None, false)
+        .await
+        .unwrap()
+        .into_keys()
+        .collect::<Vec<_>>();
+    names.sort();
+    mock.assert();
+    (names, take_logs())
+}
+
+#[tokio::test]
+async fn get_pr_renamed_file_lines_changed_only_off() {
+    let (files, _) = get_renamed_pr_changes(&LinesChangedOnly::Off).await;
+    assert_eq!(files, ["src/demo.cpp", "src/renamed.cpp"]);
+}
+
+#[tokio::test]
+async fn skip_pr_renamed_file_lines_changed_only() {
+    for lines_changed_only in [LinesChangedOnly::Diff, LinesChangedOnly::On] {
+        let (files, logs) = get_renamed_pr_changes(&lines_changed_only).await;
+        assert_eq!(files, ["src/demo.cpp"], "with {lines_changed_only:?}");
+        assert!(
+            logs.iter()
+                .any(|l| l.starts_with("[DEBUG]") && l.contains("src/renamed.cpp")),
+            "with {lines_changed_only:?}"
+        );
+    }
+}
