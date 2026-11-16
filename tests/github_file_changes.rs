@@ -363,7 +363,10 @@ async fn get_pushed_changes(
             format!("/repos/{REPO}/compare/{BEFORE}...{SHA}").as_str(),
         )
         .match_header("Authorization", format!("token {TOKEN}").as_str())
-        .match_query(Matcher::Exact("page=1".to_string()))
+        .match_query(Matcher::AllOf(vec![
+            Matcher::UrlEncoded("per_page".to_string(), "1".to_string()),
+            Matcher::UrlEncoded("page".to_string(), "1".to_string()),
+        ]))
         .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
         .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
         // The comparison's other pages only list more commits. They must not be requested.
@@ -373,7 +376,7 @@ async fn get_pushed_changes(
                 String::new()
             } else {
                 format!(
-                    "<{}/repos/{REPO}/compare/{BEFORE}...{SHA}?page=2>; rel=\"next\"",
+                    "<{}/repos/{REPO}/compare/{BEFORE}...{SHA}?per_page=1&page=2>; rel=\"next\"",
                     server.url()
                 )
             }
@@ -397,7 +400,11 @@ async fn get_pushed_changes(
                 })
             })
             .collect::<Vec<_>>();
-        let commit_sha = if params.compare_wrong_head {
+        let commit_sha = if params.compare_wrong_head
+            || (params.compare_no_total
+                && !params.compare_single_commit
+                && !params.compare_merge_commit)
+        {
             "NOT_THE_PUSHED_HEAD"
         } else {
             SHA
@@ -409,12 +416,10 @@ async fn get_pushed_changes(
         } else {
             serde_json::json!([{ "sha": BEFORE }])
         };
-        let mut commits = vec![serde_json::json!({ "sha": commit_sha, "parents": parents })];
-        if params.compare_no_total && !params.compare_single_commit && !params.compare_merge_commit
-        {
-            commits.push(serde_json::json!({ "sha": "ANOTHER_COMMIT", "parents": [] }));
-        }
-        let mut body = serde_json::json!({ "commits": commits, "files": files });
+        let mut body = serde_json::json!({
+            "commits": [{ "sha": commit_sha, "parents": parents }],
+            "files": files
+        });
         if !params.compare_no_total {
             body["total_commits"] = serde_json::json!(if params.compare_single_commit
                 || params.compare_merge_commit
