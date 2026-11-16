@@ -6,12 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback/v0.12.3] - 2026-11-16
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Use GH commit API endpoint as fallback by @2bndy5 in [#172](https://github.com/2bndy5/git-bot-feedback/pull/172)
+
+[git-bot-feedback/v0.12.3]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.12.2...git-bot-feedback/v0.12.3
+
+Full commit diff: [`git-bot-feedback/v0.12.2...git-bot-feedback/v0.12.3`][git-bot-feedback/v0.12.3]
+
 ## [git-bot-feedback/v0.12.2] - 2026-11-16
 
 ### <!-- 4 --> 🛠️ Fixed
 
 - Get the right changed files for `pull_request_target` and multi-commit pushes by @shenxianpeng in [#168](https://github.com/2bndy5/git-bot-feedback/pull/168)
 - Skip files without line changes when lines-changed-only is on by @shenxianpeng in [#170](https://github.com/2bndy5/git-bot-feedback/pull/170)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.12.2 by @2bndy5 in [`d314a30`](https://github.com/2bndy5/git-bot-feedback/commit/d314a3083421cff41b6ee62ac51a70dea4549a58)
 
 [git-bot-feedback/v0.12.2]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.12.1...git-bot-feedback/v0.12.2
 
