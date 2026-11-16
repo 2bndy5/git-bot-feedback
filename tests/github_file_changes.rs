@@ -301,6 +301,18 @@ struct PushParams {
     compare_malformed: bool,
     /// Respond to the comparison of commits with as many files as GitHub will list.
     compare_at_limit: bool,
+    /// The capped comparison represents one commit whose parent is the push base.
+    compare_single_commit: bool,
+    /// The capped comparison represents a merge commit.
+    compare_merge_commit: bool,
+    /// The capped comparison's commit is not the pushed head.
+    compare_wrong_head: bool,
+    /// The capped comparison's commit does not have the push base as its parent.
+    compare_wrong_parent: bool,
+    /// Omit the total number of commits from the comparison response.
+    compare_no_total: bool,
+    /// Return the maximum number of files from the paginated commit endpoint.
+    commit_at_limit: bool,
 }
 
 /// Get the changed files of a push event, and return their names (sorted) with the logs.
@@ -360,10 +372,14 @@ async fn get_pushed_changes(
         // The comparison's other pages only list more commits. They must not be requested.
         .with_header(
             "link",
-            format!(
-                "<{}/repos/{REPO}/compare/{BEFORE}...{SHA}?per_page=1&page=2>; rel=\"next\"",
-                server.url()
-            )
+            if params.compare_single_commit || params.compare_merge_commit {
+                String::new()
+            } else {
+                format!(
+                    "<{}/repos/{REPO}/compare/{BEFORE}...{SHA}?per_page=1&page=2>; rel=\"next\"",
+                    server.url()
+                )
+            }
             .as_str(),
         )
         .expect(if is_compare_expected { 1 } else { 0 });
@@ -384,21 +400,99 @@ async fn get_pushed_changes(
                 })
             })
             .collect::<Vec<_>>();
-        compare_mock.with_body(serde_json::json!({ "files": files }).to_string())
+        let commit_sha = if params.compare_wrong_head
+            || (params.compare_no_total
+                && !params.compare_single_commit
+                && !params.compare_merge_commit)
+        {
+            "NOT_THE_PUSHED_HEAD"
+        } else {
+            SHA
+        };
+        let parents = if params.compare_merge_commit {
+            serde_json::json!([{ "sha": BEFORE }, { "sha": "ANOTHER_PARENT" }])
+        } else if params.compare_wrong_parent {
+            serde_json::json!([{ "sha": "NOT_THE_PUSH_BASE" }])
+        } else {
+            serde_json::json!([{ "sha": BEFORE }])
+        };
+        let mut body = serde_json::json!({
+            "commits": [{ "sha": commit_sha, "parents": parents }],
+            "files": files
+        });
+        if !params.compare_no_total {
+            body["total_commits"] = serde_json::json!(if params.compare_single_commit
+                || params.compare_merge_commit
+            {
+                1
+            } else {
+                2
+            });
+        }
+        compare_mock.with_body(body.to_string())
     } else {
         compare_mock.with_body_from_file(format!("{asset_path}/compare_files.json"))
     };
     let compare_mock = compare_mock.create();
 
-    let is_fallback_expected = !is_compare_expected || params.compare_not_found;
-    let commit_mock = server
-        .mock("GET", format!("/repos/{REPO}/commits/{SHA}").as_str())
-        .match_query(Matcher::UrlEncoded("page".to_string(), "1".to_string()))
-        .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
-        .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
-        .with_body_from_file(format!("{asset_path}/push_files_pg2.json"))
-        .expect(if is_fallback_expected { 1 } else { 0 })
-        .create();
+    let is_single_commit_fallback = params.compare_at_limit
+        && params.compare_single_commit
+        && !params.compare_merge_commit
+        && !params.compare_wrong_head
+        && !params.compare_wrong_parent;
+    let is_fallback_expected =
+        !is_compare_expected || params.compare_not_found || is_single_commit_fallback;
+    let commit_mocks = if is_fallback_expected && params.commit_at_limit {
+        let mut mocks = Vec::new();
+        for page in 1..=30 {
+            let files = (0..100)
+                .map(|index| {
+                    serde_json::json!({
+                        "filename": format!("src/file{}_{}.cpp", page, index),
+                        "status": "added",
+                        "changes": 0,
+                    })
+                })
+                .collect::<Vec<_>>();
+            let link = if page < 30 {
+                format!(
+                    "<{}/repos/{REPO}/commits/{SHA}?page={}&per_page=100>; rel=\"next\"",
+                    server.url(),
+                    page + 1
+                )
+            } else {
+                String::new()
+            };
+            mocks.push(
+                server
+                    .mock("GET", format!("/repos/{REPO}/commits/{SHA}").as_str())
+                    .match_query(Matcher::AllOf(vec![
+                        Matcher::UrlEncoded("page".to_string(), page.to_string()),
+                        Matcher::UrlEncoded("per_page".to_string(), "100".to_string()),
+                    ]))
+                    .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+                    .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+                    .with_header("link", link.as_str())
+                    .with_body(serde_json::json!({ "files": files }).to_string())
+                    .create(),
+            );
+        }
+        mocks
+    } else {
+        vec![
+            server
+                .mock("GET", format!("/repos/{REPO}/commits/{SHA}").as_str())
+                .match_query(Matcher::AllOf(vec![
+                    Matcher::UrlEncoded("page".to_string(), "1".to_string()),
+                    Matcher::UrlEncoded("per_page".to_string(), "100".to_string()),
+                ]))
+                .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+                .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+                .with_body_from_file(format!("{asset_path}/push_files_pg2.json"))
+                .expect(if is_fallback_expected { 1 } else { 0 })
+                .create(),
+        ]
+    };
 
     let file_filter = FileFilter::new(&[], &["cpp", "hpp"], None);
     let result = client
@@ -410,7 +504,9 @@ async fn get_pushed_changes(
             names
         });
     compare_mock.assert();
-    commit_mock.assert();
+    for mock in commit_mocks {
+        mock.assert();
+    }
     (result, take_logs())
 }
 
@@ -474,6 +570,123 @@ async fn get_push_files_at_comparison_limit() {
     })
     .await;
     assert_eq!(files.unwrap().len(), 300);
+    assert!(
+        logs.iter()
+            .any(|l| l.contains("Some files changed by this push may be missing"))
+    );
+}
+
+#[tokio::test]
+async fn get_push_files_at_comparison_limit_single_commit() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_at_limit: true,
+        compare_single_commit: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap(), LAST_COMMIT_FILES);
+    assert!(
+        !logs
+            .iter()
+            .any(|l| l.contains("Some files changed by this push may be missing"))
+    );
+}
+
+#[tokio::test]
+async fn get_push_files_at_comparison_limit_without_total_commits() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_at_limit: true,
+        compare_single_commit: true,
+        compare_no_total: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap(), LAST_COMMIT_FILES);
+    assert!(
+        !logs
+            .iter()
+            .any(|l| l.contains("Some files changed by this push may be missing"))
+    );
+}
+
+#[tokio::test]
+async fn get_push_files_at_comparison_limit_multiple_commits_without_total() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_at_limit: true,
+        compare_no_total: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap().len(), 300);
+    assert!(
+        logs.iter()
+            .any(|l| l.contains("Some files changed by this push may be missing"))
+    );
+}
+
+#[tokio::test]
+async fn get_push_files_at_comparison_limit_merge_commit() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_at_limit: true,
+        compare_merge_commit: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap().len(), 300);
+    assert!(
+        logs.iter()
+            .any(|l| l.contains("Some files changed by this push may be missing"))
+    );
+}
+
+#[tokio::test]
+async fn get_push_files_at_comparison_limit_wrong_head() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_at_limit: true,
+        compare_single_commit: true,
+        compare_wrong_head: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap().len(), 300);
+    assert!(
+        logs.iter()
+            .any(|l| l.contains("Some files changed by this push may be missing"))
+    );
+}
+
+#[tokio::test]
+async fn get_push_files_at_comparison_limit_wrong_parent() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_at_limit: true,
+        compare_single_commit: true,
+        compare_wrong_parent: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap().len(), 300);
+    assert!(
+        logs.iter()
+            .any(|l| l.contains("Some files changed by this push may be missing"))
+    );
+}
+
+#[tokio::test]
+async fn get_push_files_at_commit_endpoint_limit() {
+    let (files, logs) = get_pushed_changes(&PushParams {
+        before: Some(BEFORE),
+        compare_not_found: true,
+        commit_at_limit: true,
+        ..Default::default()
+    })
+    .await;
+    assert_eq!(files.unwrap().len(), 3000);
     assert!(
         logs.iter()
             .any(|l| l.contains("Some files changed by this push may be missing"))

@@ -255,8 +255,13 @@ impl RestApiClient for GithubApiClient {
                 false,
             ),
         };
-        let mut url = Some(Url::parse_with_params(url.as_str(), &[("page", "1")])?);
+        let mut url = Some(if is_pr {
+            Url::parse_with_params(url.as_str(), &[("page", "1")])?
+        } else {
+            Url::parse_with_params(url.as_str(), &[("page", "1"), ("per_page", "100")])?
+        });
         let mut files: HashMap<String, FileDiffLines> = HashMap::new();
+        let mut received_files = 0;
         while let Some(endpoint) = url.take() {
             let request = self.make_api_request(&self.client, endpoint, Method::GET, None, None)?;
             let response = self
@@ -281,7 +286,16 @@ impl RestApiClient for GithubApiClient {
                 serde_json::from_str::<Vec<serde_structs::GithubChangedFile>>(&body)
                     .map_err(|e| ClientError::json("deserialize list of changed files", e))?
             };
+            received_files += files_list.len();
             Self::collect_changed_files(files_list, file_filter, lines_changed_only, &mut files)?;
+        }
+
+        if !is_pr && received_files >= Self::COMMIT_FILES_LIMIT {
+            log::warn!(
+                "GitHub lists at most {} changed files for a commit. \
+                Some files changed by this push may be missing.",
+                Self::COMMIT_FILES_LIMIT
+            );
         }
 
         Ok(files)
@@ -375,6 +389,8 @@ impl RestApiClient for GithubApiClient {
 impl GithubApiClient {
     /// The most files that GitHub lists when comparing 2 commits.
     const COMPARE_FILES_LIMIT: usize = 300;
+    /// The most files that GitHub lists for a commit.
+    const COMMIT_FILES_LIMIT: usize = 3000;
 
     /// Add the qualifying `files_list` (from a REST API response) to `files`.
     fn collect_changed_files(
@@ -431,7 +447,8 @@ impl GithubApiClient {
     /// commit (`GITHUB_SHA`) with the commit that the branch pointed to before (`base`).
     ///
     /// Returns [`None`] if the commits cannot be compared (eg. `base` no longer exists
-    /// after a force push). The caller should then only use the pushed commit's changes.
+    /// after a force push), or if a single-commit comparison reaches GitHub's file limit.
+    /// The caller should then only use the pushed commit's changes.
     async fn get_pushed_files(
         &self,
         base: &str,
@@ -459,10 +476,28 @@ impl GithubApiClient {
             );
             return Ok(None);
         }
-        let files_list =
+        let comparison =
             serde_json::from_str::<serde_structs::PushEventFiles>(&response.text().await?)
-                .map_err(|e| ClientError::json("deserialize list of changed files", e))?
-                .files;
+                .map_err(|e| ClientError::json("deserialize list of changed files", e))?;
+        let is_single_commit_push = comparison.total_commits.unwrap_or(comparison.commits.len())
+            == 1
+            && comparison.commits.first().is_some_and(|commit| {
+                commit.sha == self.sha
+                    && commit.parents.len() == 1
+                    && commit
+                        .parents
+                        .first()
+                        .is_some_and(|parent| parent.sha == base)
+            });
+        if comparison.files.len() >= Self::COMPARE_FILES_LIMIT && is_single_commit_push {
+            log::debug!(
+                "Comparison reached GitHub's {}-file limit for a single-commit push. \
+                Using the paginated commit-files endpoint.",
+                Self::COMPARE_FILES_LIMIT
+            );
+            return Ok(None);
+        }
+        let files_list = comparison.files;
         if files_list.len() >= Self::COMPARE_FILES_LIMIT {
             log::warn!(
                 "GitHub lists at most {} changed files when comparing commits. \

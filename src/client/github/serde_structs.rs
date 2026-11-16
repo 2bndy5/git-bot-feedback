@@ -114,6 +114,29 @@ pub struct GithubChangedFile {
 pub struct PushEventFiles {
     /// The list of changed files.
     pub files: Vec<GithubChangedFile>,
+    /// The number of commits in a compare response.
+    #[serde(default)]
+    pub total_commits: Option<usize>,
+    /// The commits returned by a compare response.
+    #[serde(default)]
+    pub commits: Vec<GitHubCommitSummary>,
+}
+
+#[cfg(feature = "file-changes")]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct GitHubCommitSummary {
+    /// The commit's SHA.
+    pub sha: String,
+    /// The commit's parents.
+    #[serde(default)]
+    pub parents: Vec<GitHubCommitParent>,
+}
+
+#[cfg(feature = "file-changes")]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct GitHubCommitParent {
+    /// The parent's SHA.
+    pub sha: String,
 }
 
 /// A structure for deserializing a Push event's payload.
