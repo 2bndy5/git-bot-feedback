@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback-py/v0.6.2] - 2026-11-16
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Get the right changed files for `pull_request_target` and multi-commit pushes by @shenxianpeng in [#168](https://github.com/2bndy5/git-bot-feedback/pull/168)
+- Skip files without line changes when lines-changed-only is on by @shenxianpeng in [#170](https://github.com/2bndy5/git-bot-feedback/pull/170)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.12.2 by @2bndy5 in [`d314a30`](https://github.com/2bndy5/git-bot-feedback/commit/d314a3083421cff41b6ee62ac51a70dea4549a58)
+
+[git-bot-feedback-py/v0.6.2]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.6.1...git-bot-feedback-py/v0.6.2
+
+Full commit diff: [`git-bot-feedback-py/v0.6.1...git-bot-feedback-py/v0.6.2`][git-bot-feedback-py/v0.6.2]
+
 ## [git-bot-feedback-py/v0.6.1] - 2026-11-06
 
 ### <!-- 4 --> 🛠️ Fixed
@@ -15,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### <!-- 6 --> 📦 Dependency updates
 
 - Bump version to git-bot-feedback/v0.12.1 by @2bndy5 in [`1eb37b3`](https://github.com/2bndy5/git-bot-feedback/commit/1eb37b3dc60bac0465f8f7e03ca3572671b4a48b)
+- Bump version to git-bot-feedback-py/v0.6.1 by @2bndy5 in [`cb36ab9`](https://github.com/2bndy5/git-bot-feedback/commit/cb36ab94704cf198a902a6a36a04078484364901)
 
 [git-bot-feedback-py/v0.6.1]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback-py/v0.6.0...git-bot-feedback-py/v0.6.1
 
