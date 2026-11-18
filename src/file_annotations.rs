@@ -139,6 +139,8 @@ impl FileAnnotation {
     /// - `{path}:` is left out when [`Self::path`] is blank.
     /// - `{level}` is `debug`, `note`, `warning` or `error`.
     /// - ` [{title}]` is left out when [`Self::title`] is `None`.
+    /// - Line breaks (CR and LF) in `{path}`, `{message}` and `{title}` are written as
+    ///   the two characters `\r` and `\n`, so each annotation stays on one line.
     ///
     /// ```rust
     /// use git_bot_feedback::{AnnotationLevel, FileAnnotation};
@@ -164,14 +166,14 @@ impl FileAnnotation {
             AnnotationLevel::Warning => "warning",
             AnnotationLevel::Error => "error",
         };
-        let file_path = self
-            .path
-            .replace("\\", "/")
-            .trim_start()
-            .trim_start_matches('/')
-            .trim_start_matches("./")
-            .trim()
-            .to_string();
+        let file_path = escape_line_breaks(
+            self.path
+                .replace("\\", "/")
+                .trim_start()
+                .trim_start_matches('/')
+                .trim_start_matches("./")
+                .trim(),
+        );
         let mut out = String::new();
         if !file_path.is_empty() {
             out.push_str(&file_path);
@@ -183,12 +185,17 @@ impl FileAnnotation {
             }
             out.push_str(": ");
         }
-        out.push_str(&format!("{level}: {}", self.message.replace("\r\n", "\n")));
+        out.push_str(&format!("{level}: {}", escape_line_breaks(&self.message)));
         if let Some(title) = &self.title {
-            out.push_str(&format!(" [{title}]"));
+            out.push_str(&format!(" [{}]", escape_line_breaks(title)));
         }
         out
     }
+}
+
+/// Write CR and LF as the two characters `\r` and `\n`, so the text stays on one line.
+fn escape_line_breaks(text: &str) -> String {
+    text.replace('\r', "\\r").replace('\n', "\\n")
 }
 
 #[cfg(any(feature = "github", feature = "gitea"))]

@@ -152,8 +152,6 @@ fn untracked_files(
         log::debug!(
             "Getting diff of untracked file with `git diff --no-index -- /dev/null {name}`"
         );
-        // `--no-index` exits with 1 when the files differ, so the exit code is not checked.
-        // A failure to diff shows up as empty output, which adds no file.
         let output = Command::new("git")
             .current_dir(&repo_root)
             .args([
@@ -167,6 +165,11 @@ fn untracked_files(
             .arg(&name)
             .output()
             .map_err(|e| ClientError::io("invoke `git diff --no-index`", e))?;
+        // `--no-index` exits with 1 when the files differ. Any other failure is an error.
+        if !matches!(output.status.code(), Some(0 | 1)) {
+            let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
+            return Err(ClientError::GitCommand(err_msg));
+        }
         let diff_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
         files.extend(parse_diff(&diff_str, file_filter, lines_changed_only)?);
     }

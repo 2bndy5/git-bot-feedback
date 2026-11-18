@@ -558,11 +558,23 @@ fn local_annotations_one_line() {
     let no_path = FileAnnotation {
         severity: AnnotationLevel::Debug,
         start_line: Some(3),
-        message: "a\r\nb".to_string(),
+        message: "a\r\nb\nc".to_string(),
+        title: Some("multi\nline".to_string()),
         ..Default::default()
     };
-    assert_eq!(no_path.fmt_local(), "debug: a\nb");
+    // Line breaks are escaped, so the annotation is one physical line.
+    let formatted = no_path.fmt_local();
+    assert_eq!(formatted, "debug: a\\r\\nb\\nc [multi\\nline]");
+    assert_eq!(formatted.lines().count(), 1);
+    let path_break = FileAnnotation {
+        severity: AnnotationLevel::Warning,
+        path: "src/odd\nname.cpp".to_string(),
+        start_line: Some(2),
+        message: "msg".to_string(),
+        ..Default::default()
+    };
+    assert_eq!(path_break.fmt_local(), "src/odd\\nname.cpp:2: warning: msg");
     LocalClient
-        .write_file_annotations(&[file_level, line_only, no_path])
+        .write_file_annotations(&[file_level, line_only, no_path, path_break])
         .unwrap();
 }
