@@ -406,3 +406,121 @@ fn walk_dir_strip_prefix() {
     println!("discovered files: {:?}", files);
     assert!(files.contains("tests/assets/file_changes/github/pr_files_pg1.json"));
 }
+
+/// Run a git command in `dir` with a throwaway identity, and assert it succeeds.
+#[cfg(feature = "file-changes")]
+fn git(dir: &std::path::Path, args: &[&str]) {
+    let output = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(["-c", "user.name=test", "-c", "user.email=test@example.com"])
+        .args(["-c", "commit.gpgsign=false"])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// An untracked file must not hide the unstaged changes, and is itself reported as a new file.
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_untracked_files() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    std::fs::create_dir(repo.join("src")).unwrap();
+    std::fs::write(repo.join("src/tracked.cpp"), "int a;\n").unwrap();
+    std::fs::write(repo.join(".gitignore"), "build/\n").unwrap();
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+
+    // An unstaged change to a tracked file.
+    std::fs::write(repo.join("src/tracked.cpp"), "int a;\nint b;\n").unwrap();
+    // A new file that is not staged.
+    std::fs::write(repo.join("src/new.cpp"), "int c;\nint d;\n").unwrap();
+    // Untracked files that the filter or .gitignore leave out.
+    std::fs::write(repo.join("results.sarif"), "{}\n").unwrap();
+    std::fs::create_dir(repo.join("build")).unwrap();
+    std::fs::write(repo.join("build/gen.cpp"), "int e;\n").unwrap();
+
+    // Run from a subdirectory: paths must still be relative to the repository root.
+    env::set_current_dir(repo.join("src")).unwrap();
+    let client = LocalClient;
+    let file_filter = FileFilter::new(&[], &["cpp"], None);
+    let changes = client
+        .get_list_of_changed_files(
+            &file_filter,
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    let mut names = changes.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, vec!["src/new.cpp", "src/tracked.cpp"]);
+    assert_eq!(changes["src/tracked.cpp"].added_lines, vec![2]);
+    assert_eq!(changes["src/new.cpp"].added_lines, vec![1, 2]);
+
+    // Once something is staged, only the staged changes count (as pre-commit expects),
+    // so the untracked file is left out again.
+    git(repo, &["add", "src/tracked.cpp"]);
+    let changes = client
+        .get_list_of_changed_files(
+            &file_filter,
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    assert_eq!(changes.keys().collect::<Vec<_>>(), vec!["src/tracked.cpp"]);
+}
+
+#[test]
+fn local_annotations_one_line() {
+    use git_bot_feedback::AnnotationLevel;
+
+    let file_level = FileAnnotation {
+        severity: AnnotationLevel::Notice,
+        path: "./src\\demo.cpp".to_string(),
+        title: Some("clang-format".to_string()),
+        message: "File src/demo.cpp does not conform to LLVM style guidelines. (lines 2,6)"
+            .to_string(),
+        ..Default::default()
+    };
+    assert_eq!(
+        file_level.fmt_local(),
+        "src/demo.cpp: note: File src/demo.cpp does not conform to LLVM style guidelines. (lines 2,6) [clang-format]"
+    );
+    let line_only = FileAnnotation {
+        severity: AnnotationLevel::Error,
+        path: "src/demo.cpp".to_string(),
+        start_line: Some(0),
+        start_column: None,
+        message: "line 0 is shown as line 1".to_string(),
+        ..Default::default()
+    };
+    assert_eq!(
+        line_only.fmt_local(),
+        "src/demo.cpp:1: error: line 0 is shown as line 1"
+    );
+    let no_path = FileAnnotation {
+        severity: AnnotationLevel::Debug,
+        start_line: Some(3),
+        message: "a\r\nb".to_string(),
+        ..Default::default()
+    };
+    assert_eq!(no_path.fmt_local(), "debug: a\nb");
+    LocalClient
+        .write_file_annotations(&[file_level, line_only, no_path])
+        .unwrap();
+}

@@ -123,6 +123,74 @@ pub enum AnnotationLevel {
     Error,
 }
 
+impl FileAnnotation {
+    /// Format the [`FileAnnotation`] struct as one line in the format compilers and linters use.
+    ///
+    /// This is what [`LocalClient`](crate::client::LocalClient) prints to stdout,
+    /// so editors, problem matchers and coding agents can read it without extra setup.
+    ///
+    /// Example:
+    /// ```text
+    /// {path}:{line}:{col}: {level}: {message} [{title}]
+    /// ```
+    ///
+    /// - `:{line}` and `:{col}` are left out when they are not known
+    ///   (`:{col}` is also left out when `:{line}` is).
+    /// - `{path}:` is left out when [`Self::path`] is blank.
+    /// - `{level}` is `debug`, `note`, `warning` or `error`.
+    /// - ` [{title}]` is left out when [`Self::title`] is `None`.
+    ///
+    /// ```rust
+    /// use git_bot_feedback::{AnnotationLevel, FileAnnotation};
+    ///
+    /// let annotation = FileAnnotation {
+    ///     severity: AnnotationLevel::Warning,
+    ///     path: "src/main.cpp".to_string(),
+    ///     start_line: Some(4),
+    ///     start_column: Some(42),
+    ///     title: Some("performance-unnecessary-value-param".to_string()),
+    ///     message: "the parameter 'v' is copied for each invocation".to_string(),
+    ///     ..Default::default()
+    /// };
+    /// assert_eq!(
+    ///     annotation.fmt_local(),
+    ///     "src/main.cpp:4:42: warning: the parameter 'v' is copied for each invocation [performance-unnecessary-value-param]"
+    /// );
+    /// ```
+    pub fn fmt_local(&self) -> String {
+        let level = match self.severity {
+            AnnotationLevel::Debug => "debug",
+            AnnotationLevel::Notice => "note",
+            AnnotationLevel::Warning => "warning",
+            AnnotationLevel::Error => "error",
+        };
+        let file_path = self
+            .path
+            .replace("\\", "/")
+            .trim_start()
+            .trim_start_matches('/')
+            .trim_start_matches("./")
+            .trim()
+            .to_string();
+        let mut out = String::new();
+        if !file_path.is_empty() {
+            out.push_str(&file_path);
+            if let Some(line) = self.start_line.map(|l| l.max(1)) {
+                out.push_str(&format!(":{line}"));
+                if let Some(col) = self.start_column.map(|c| c.max(1)) {
+                    out.push_str(&format!(":{col}"));
+                }
+            }
+            out.push_str(": ");
+        }
+        out.push_str(&format!("{level}: {}", self.message.replace("\r\n", "\n")));
+        if let Some(title) = &self.title {
+            out.push_str(&format!(" [{title}]"));
+        }
+        out
+    }
+}
+
 #[cfg(any(feature = "github", feature = "gitea"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "github", feature = "gitea"))))]
 impl FileAnnotation {
