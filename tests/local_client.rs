@@ -485,6 +485,48 @@ async fn list_untracked_files() {
     assert_eq!(changes.keys().collect::<Vec<_>>(), vec!["src/tracked.cpp"]);
 }
 
+/// Without a diff base, a repository with only one commit (or none) must not fail on `HEAD~1`.
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_changes_first_commit() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    env::set_current_dir(repo).unwrap();
+    let client = LocalClient;
+    let file_filter = FileFilter::new(&[], &["cpp"], None);
+    let list = async |ignore_index: bool| {
+        let changes = client
+            .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, None, ignore_index)
+            .await
+            .unwrap();
+        let mut names = changes
+            .iter()
+            .map(|(name, lines)| (name.clone(), lines.added_lines.clone()))
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    };
+
+    // No commit yet: new files are untracked.
+    std::fs::write(repo.join("a.cpp"), "int a;\n").unwrap();
+    assert_eq!(list(false).await, vec![("a.cpp".to_string(), vec![1])]);
+
+    // Only one commit: its files count as new, together with the working tree changes.
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+    std::fs::write(repo.join("a.cpp"), "int a;\nint b;\n").unwrap();
+    assert_eq!(list(false).await, vec![("a.cpp".to_string(), vec![1, 2])]);
+
+    // With `ignore_index`, the first commit is shown as it is.
+    assert_eq!(list(true).await, vec![("a.cpp".to_string(), vec![1])]);
+}
+
 #[test]
 fn local_annotations_one_line() {
     use git_bot_feedback::AnnotationLevel;

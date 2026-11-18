@@ -72,6 +72,29 @@ fn git_rev_parse(base: &str) -> Result<String, ClientError> {
     }
 }
 
+/// The ID of the empty tree in this repository's object format (SHA-1 or SHA-256).
+#[cfg(feature = "file-changes")]
+fn git_empty_tree() -> Result<String, ClientError> {
+    match Command::new("git")
+        .args(["hash-object", "-t", "tree", "--stdin"])
+        .stdin(std::process::Stdio::null())
+        .output()
+    {
+        Err(e) => Err(ClientError::io(
+            "invoke `git hash-object` for the empty tree",
+            e,
+        )),
+        Ok(output) => {
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(output.stdout.trim_ascii()).to_string())
+            } else {
+                let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
+                Err(ClientError::GitCommand(err_msg))
+            }
+        }
+    }
+}
+
 /// Count the entries of `git status --short` output that have staged changes.
 ///
 /// The first status column is ` ` for an entry with no staged changes
@@ -194,7 +217,14 @@ impl RestApiClient for LocalClient {
         } else if git_status == 0 {
             // No base diff provided and there are no staged changes,
             // just get the diff of the last commit.
-            let resolved_head = git_rev_parse("HEAD~1")?;
+            let resolved_head = match git_rev_parse("HEAD~1") {
+                Ok(sha) => sha,
+                // `HEAD` is the first commit, or there is no commit yet.
+                // `git show` shows the first commit as a whole;
+                // `git diff` compares against the empty tree, so every file counts as new.
+                Err(_) if ignore_index => "HEAD".to_string(),
+                Err(_) => git_empty_tree()?,
+            };
             diff_args.push(resolved_head);
         }
         if ignore_index {
