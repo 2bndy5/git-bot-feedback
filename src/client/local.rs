@@ -34,7 +34,7 @@ pub struct LocalClient;
 
 #[cfg(all(test, feature = "file-changes"))]
 mod test {
-    use super::count_staged_entries;
+    use super::{count_staged_entries, new_file_lines};
 
     #[test]
     fn staged_entries() {
@@ -43,6 +43,20 @@ mod test {
         assert_eq!(count_staged_entries(status), 3);
         assert_eq!(count_staged_entries("?? new.cpp\n"), 0);
         assert_eq!(count_staged_entries(""), 0);
+    }
+
+    #[test]
+    fn new_file_line_counts() {
+        let lines = new_file_lines(b"a\nb\n");
+        assert_eq!(lines.added_lines, vec![1, 2]);
+        assert_eq!(lines.diff_hunks, vec![1..3]);
+        // The last line counts without a line ending, and CRLF is one line ending.
+        assert_eq!(new_file_lines(b"a\r\nb").added_lines, vec![1, 2]);
+        for no_lines in [&b""[..], &b"a\0b\n"[..]] {
+            let lines = new_file_lines(no_lines);
+            assert!(lines.added_lines.is_empty());
+            assert!(lines.diff_hunks.is_empty());
+        }
     }
 }
 
@@ -93,6 +107,27 @@ fn git_empty_tree() -> Result<String, ClientError> {
             }
         }
     }
+}
+
+/// The changed lines of a new file: every line is added.
+///
+/// Like `git diff`, a file with a NUL byte in its first 8000 bytes is binary and has no lines,
+/// and a last line without a line ending still counts.
+#[cfg(feature = "file-changes")]
+fn new_file_lines(content: &[u8]) -> FileDiffLines {
+    let is_binary = content.iter().take(8000).any(|b| *b == 0);
+    let line_count = if is_binary || content.is_empty() {
+        0
+    } else {
+        let breaks = content.iter().filter(|b| **b == b'\n').count();
+        breaks + usize::from(!content.ends_with(b"\n"))
+    } as u32;
+    let added_lines = (1..=line_count).collect::<Vec<_>>();
+    let mut diff_hunks = Vec::new();
+    if line_count > 0 {
+        diff_hunks.push(1..line_count + 1);
+    }
+    FileDiffLines::with_info(added_lines, diff_hunks)
 }
 
 /// Count the entries of `git status --short` output that have staged changes.
@@ -149,29 +184,18 @@ fn untracked_files(
         if !file_filter.is_qualified(Path::new(&name)) {
             continue;
         }
-        log::debug!(
-            "Getting diff of untracked file with `git diff --no-index -- /dev/null {name}`"
-        );
-        let output = Command::new("git")
-            .current_dir(&repo_root)
-            .args([
-                "--no-pager",
-                "diff",
-                "--no-index",
-                "--no-color",
-                "--",
-                "/dev/null",
-            ])
-            .arg(&name)
-            .output()
-            .map_err(|e| ClientError::io("invoke `git diff --no-index`", e))?;
-        // `--no-index` exits with 1 when the files differ. Any other failure is an error.
-        if !matches!(output.status.code(), Some(0 | 1)) {
-            let err_msg = String::from_utf8_lossy(&output.stderr).to_string();
-            return Err(ClientError::GitCommand(err_msg));
+        // The whole file is new. Count its lines directly instead of parsing
+        // `git diff --no-index` output, whose headers quote or pad some file names.
+        let path = Path::new(&repo_root).join(&name);
+        let content = std::fs::read(&path)
+            .map_err(|e| ClientError::io(&format!("read untracked file {name}"), e))?;
+        let diff_lines = new_file_lines(&content);
+        if lines_changed_only.is_change_valid(
+            !diff_lines.added_lines.is_empty(),
+            !diff_lines.diff_hunks.is_empty(),
+        ) {
+            files.insert(name, diff_lines);
         }
-        let diff_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        files.extend(parse_diff(&diff_str, file_filter, lines_changed_only)?);
     }
     Ok(files)
 }
@@ -208,7 +232,8 @@ impl RestApiClient for LocalClient {
             }
         };
         let mut diff_args = vec![];
-        let mut git_sub_cmd = vec!["--no-pager"];
+        // Keep non-ASCII file names unquoted in the diff headers.
+        let mut git_sub_cmd = vec!["-c", "core.quotePath=false", "--no-pager"];
         if git_status != 0 {
             // There are changes in the working directory.
             // So, compare include the staged changes.

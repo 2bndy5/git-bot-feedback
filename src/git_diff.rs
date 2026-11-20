@@ -63,7 +63,8 @@ fn get_filename_from_front_matter(front_matter: &str) -> Result<Option<&str>, Di
     if let Some(captures) = diff_file_name.captures(front_matter)
         && let Some(name) = captures.get(1)
     {
-        return Ok(Some(name.as_str().trim_end_matches(['\r', '\n'])));
+        // Git ends the name with a tab when it contains a space.
+        return Ok(Some(name.as_str().trim_end_matches(['\r', '\n', '\t'])));
     }
     let diff_renamed_file = Regex::new(r"(?m)^rename to (.*)$")?;
     if front_matter.starts_with("similarity")

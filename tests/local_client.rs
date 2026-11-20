@@ -446,6 +446,10 @@ async fn list_untracked_files() {
     std::fs::write(repo.join("src/tracked.cpp"), "int a;\nint b;\n").unwrap();
     // A new file that is not staged.
     std::fs::write(repo.join("src/new.cpp"), "int c;\nint d;\n").unwrap();
+    // New files whose names `git diff` quotes or pads, and an empty one.
+    std::fs::write(repo.join("src/has space.cpp"), "int f;\n").unwrap();
+    std::fs::write(repo.join("src/\u{e9}.cpp"), "int g;").unwrap();
+    std::fs::write(repo.join("src/empty.cpp"), "").unwrap();
     // Untracked files that the filter or .gitignore leave out.
     std::fs::write(repo.join("results.sarif"), "{}\n").unwrap();
     std::fs::create_dir(repo.join("build")).unwrap();
@@ -466,9 +470,31 @@ async fn list_untracked_files() {
         .unwrap();
     let mut names = changes.keys().cloned().collect::<Vec<_>>();
     names.sort();
-    assert_eq!(names, vec!["src/new.cpp", "src/tracked.cpp"]);
+    assert_eq!(
+        names,
+        vec![
+            "src/has space.cpp",
+            "src/new.cpp",
+            "src/tracked.cpp",
+            "src/\u{e9}.cpp"
+        ]
+    );
     assert_eq!(changes["src/tracked.cpp"].added_lines, vec![2]);
     assert_eq!(changes["src/new.cpp"].added_lines, vec![1, 2]);
+    assert_eq!(changes["src/has space.cpp"].added_lines, vec![1]);
+    assert_eq!(changes["src/\u{e9}.cpp"].added_lines, vec![1]);
+
+    // Without `lines_changed_only`, the empty file is listed too.
+    let changes = client
+        .get_list_of_changed_files(
+            &file_filter,
+            &LinesChangedOnly::Off,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    assert!(changes["src/empty.cpp"].added_lines.is_empty());
 
     // Once something is staged, only the staged changes count (as pre-commit expects),
     // so the untracked file is left out again.
@@ -483,6 +509,41 @@ async fn list_untracked_files() {
         .await
         .unwrap();
     assert_eq!(changes.keys().collect::<Vec<_>>(), vec!["src/tracked.cpp"]);
+}
+
+/// `git diff` quotes non-ASCII file names and ends names with a space with a tab.
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_changes_quoted_names() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    std::fs::write(repo.join("has space.cpp"), "int a;\n").unwrap();
+    std::fs::write(repo.join("\u{e9}.cpp"), "int b;\n").unwrap();
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+    std::fs::write(repo.join("has space.cpp"), "int a;\nint c;\n").unwrap();
+    std::fs::write(repo.join("\u{e9}.cpp"), "int b;\nint d;\n").unwrap();
+
+    env::set_current_dir(repo).unwrap();
+    let changes = LocalClient
+        .get_list_of_changed_files(
+            &FileFilter::new(&[], &["cpp"], None),
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    let mut names = changes.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, vec!["has space.cpp", "\u{e9}.cpp"]);
+    assert_eq!(changes["has space.cpp"].added_lines, vec![2]);
+    assert_eq!(changes["\u{e9}.cpp"].added_lines, vec![2]);
 }
 
 /// Without a diff base, a repository with only one commit (or none) must not fail on `HEAD~1`.
