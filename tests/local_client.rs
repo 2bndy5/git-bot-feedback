@@ -545,6 +545,39 @@ async fn list_untracked_broken_symlink() {
     assert_eq!(changes["link.cpp"].added_lines, vec![1]);
 }
 
+/// A nested repository is listed by `git ls-files --others` as a directory (`vendor/`).
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_untracked_nested_repo() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    std::fs::write(repo.join("a.cpp"), "int a;\n").unwrap();
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+    let vendor = repo.join("vendor");
+    std::fs::create_dir(&vendor).unwrap();
+    git(&vendor, &["init", "--quiet"]);
+    std::fs::write(vendor.join("v.cpp"), "int v;\n").unwrap();
+    std::fs::write(repo.join("b.cpp"), "int b;\n").unwrap();
+
+    env::set_current_dir(repo).unwrap();
+    let changes = LocalClient
+        .get_list_of_changed_files(
+            &FileFilter::new(&[], &["cpp"], None),
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    assert_eq!(changes.keys().cloned().collect::<Vec<_>>(), vec!["b.cpp"]);
+}
+
 /// `git diff` quotes non-ASCII file names and ends names with a space with a tab.
 #[tokio::test]
 #[cfg(feature = "file-changes")]

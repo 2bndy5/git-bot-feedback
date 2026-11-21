@@ -193,10 +193,12 @@ fn untracked_files(
         let read_err = |e| ClientError::io(&format!("read untracked file {name}"), e);
         // Like git, take a symbolic link's content to be its target path,
         // so a link to a missing file does not fail the run.
-        let is_symlink = std::fs::symlink_metadata(&path)
-            .map_err(read_err)?
-            .file_type()
-            .is_symlink();
+        let metadata = std::fs::symlink_metadata(&path).map_err(read_err)?;
+        if metadata.is_dir() {
+            // a nested repository (listed as `name/`) has no content to check
+            continue;
+        }
+        let is_symlink = metadata.file_type().is_symlink();
         let content = if is_symlink {
             std::fs::read_link(&path)
                 .map_err(read_err)?
