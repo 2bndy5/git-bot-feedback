@@ -406,3 +406,303 @@ fn walk_dir_strip_prefix() {
     println!("discovered files: {:?}", files);
     assert!(files.contains("tests/assets/file_changes/github/pr_files_pg1.json"));
 }
+
+/// Run a git command in `dir` with a throwaway identity, and assert it succeeds.
+#[cfg(feature = "file-changes")]
+fn git(dir: &std::path::Path, args: &[&str]) {
+    let output = std::process::Command::new("git")
+        .current_dir(dir)
+        .args(["-c", "user.name=test", "-c", "user.email=test@example.com"])
+        .args(["-c", "commit.gpgsign=false"])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// An untracked file must not hide the unstaged changes, and is itself reported as a new file.
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_untracked_files() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    std::fs::create_dir(repo.join("src")).unwrap();
+    std::fs::write(repo.join("src/tracked.cpp"), "int a;\n").unwrap();
+    std::fs::write(repo.join(".gitignore"), "build/\n").unwrap();
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+
+    // An unstaged change to a tracked file.
+    std::fs::write(repo.join("src/tracked.cpp"), "int a;\nint b;\n").unwrap();
+    // A new file that is not staged.
+    std::fs::write(repo.join("src/new.cpp"), "int c;\nint d;\n").unwrap();
+    // New files whose names `git diff` quotes or pads, and an empty one.
+    std::fs::write(repo.join("src/has space.cpp"), "int f;\n").unwrap();
+    std::fs::write(repo.join("src/\u{e9}.cpp"), "int g;").unwrap();
+    std::fs::write(repo.join("src/empty.cpp"), "").unwrap();
+    // Untracked files that the filter or .gitignore leave out.
+    std::fs::write(repo.join("results.sarif"), "{}\n").unwrap();
+    std::fs::create_dir(repo.join("build")).unwrap();
+    std::fs::write(repo.join("build/gen.cpp"), "int e;\n").unwrap();
+
+    // Run from a subdirectory: paths must still be relative to the repository root.
+    env::set_current_dir(repo.join("src")).unwrap();
+    let client = LocalClient;
+    let file_filter = FileFilter::new(&[], &["cpp"], None);
+    let changes = client
+        .get_list_of_changed_files(
+            &file_filter,
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    let mut names = changes.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(
+        names,
+        vec![
+            "src/has space.cpp",
+            "src/new.cpp",
+            "src/tracked.cpp",
+            "src/\u{e9}.cpp"
+        ]
+    );
+    assert_eq!(changes["src/tracked.cpp"].added_lines, vec![2]);
+    assert_eq!(changes["src/new.cpp"].added_lines, vec![1, 2]);
+    assert_eq!(changes["src/has space.cpp"].added_lines, vec![1]);
+    assert_eq!(changes["src/\u{e9}.cpp"].added_lines, vec![1]);
+
+    // Without `lines_changed_only`, the empty file is listed too.
+    let changes = client
+        .get_list_of_changed_files(
+            &file_filter,
+            &LinesChangedOnly::Off,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    assert!(changes["src/empty.cpp"].added_lines.is_empty());
+
+    // Once something is staged, only the staged changes count (as pre-commit expects),
+    // so the untracked file is left out again.
+    git(repo, &["add", "src/tracked.cpp"]);
+    let changes = client
+        .get_list_of_changed_files(
+            &file_filter,
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    assert_eq!(changes.keys().collect::<Vec<_>>(), vec!["src/tracked.cpp"]);
+}
+
+/// An untracked symbolic link to a missing file is listed like git lists it, without failing.
+#[cfg(all(unix, feature = "file-changes"))]
+#[tokio::test]
+async fn list_untracked_broken_symlink() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    std::fs::write(repo.join("a.cpp"), "int a;\n").unwrap();
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+    std::os::unix::fs::symlink("missing.cpp", repo.join("link.cpp")).unwrap();
+    std::fs::write(repo.join("b.cpp"), "int b;\n").unwrap();
+
+    env::set_current_dir(repo).unwrap();
+    let changes = LocalClient
+        .get_list_of_changed_files(
+            &FileFilter::new(&[], &["cpp"], None),
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    let mut names = changes.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, vec!["b.cpp", "link.cpp"]);
+    // The link's content is its target path: one line, as `git diff` shows it.
+    assert_eq!(changes["link.cpp"].added_lines, vec![1]);
+}
+
+/// A nested repository is listed by `git ls-files --others` as a directory (`vendor/`).
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_untracked_nested_repo() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    std::fs::write(repo.join("a.cpp"), "int a;\n").unwrap();
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+    let vendor = repo.join("vendor");
+    std::fs::create_dir(&vendor).unwrap();
+    git(&vendor, &["init", "--quiet"]);
+    std::fs::write(vendor.join("v.cpp"), "int v;\n").unwrap();
+    std::fs::write(repo.join("b.cpp"), "int b;\n").unwrap();
+
+    env::set_current_dir(repo).unwrap();
+    let changes = LocalClient
+        .get_list_of_changed_files(
+            &FileFilter::new(&[], &["cpp"], None),
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    assert_eq!(changes.keys().cloned().collect::<Vec<_>>(), vec!["b.cpp"]);
+}
+
+/// `git diff` quotes non-ASCII file names and ends names with a space with a tab.
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_changes_quoted_names() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    std::fs::write(repo.join("has space.cpp"), "int a;\n").unwrap();
+    std::fs::write(repo.join("\u{e9}.cpp"), "int b;\n").unwrap();
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+    std::fs::write(repo.join("has space.cpp"), "int a;\nint c;\n").unwrap();
+    std::fs::write(repo.join("\u{e9}.cpp"), "int b;\nint d;\n").unwrap();
+
+    env::set_current_dir(repo).unwrap();
+    let changes = LocalClient
+        .get_list_of_changed_files(
+            &FileFilter::new(&[], &["cpp"], None),
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    let mut names = changes.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, vec!["has space.cpp", "\u{e9}.cpp"]);
+    assert_eq!(changes["has space.cpp"].added_lines, vec![2]);
+    assert_eq!(changes["\u{e9}.cpp"].added_lines, vec![2]);
+}
+
+/// Without a diff base, a repository with only one commit (or none) must not fail on `HEAD~1`.
+#[tokio::test]
+#[cfg(feature = "file-changes")]
+async fn list_changes_first_commit() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    env::set_current_dir(repo).unwrap();
+    let client = LocalClient;
+    let file_filter = FileFilter::new(&[], &["cpp"], None);
+    let list = async |ignore_index: bool| {
+        let changes = client
+            .get_list_of_changed_files(&file_filter, &LinesChangedOnly::On, None, ignore_index)
+            .await
+            .unwrap();
+        let mut names = changes
+            .iter()
+            .map(|(name, lines)| (name.clone(), lines.added_lines.clone()))
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    };
+
+    // No commit yet: new files are untracked.
+    std::fs::write(repo.join("a.cpp"), "int a;\n").unwrap();
+    assert_eq!(list(false).await, vec![("a.cpp".to_string(), vec![1])]);
+
+    // Only one commit: its files count as new, together with the working tree changes.
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+    std::fs::write(repo.join("a.cpp"), "int a;\nint b;\n").unwrap();
+    assert_eq!(list(false).await, vec![("a.cpp".to_string(), vec![1, 2])]);
+
+    // With `ignore_index`, the first commit is shown as it is.
+    assert_eq!(list(true).await, vec![("a.cpp".to_string(), vec![1])]);
+}
+
+#[test]
+fn local_annotations_one_line() {
+    use git_bot_feedback::AnnotationLevel;
+
+    let file_level = FileAnnotation {
+        severity: AnnotationLevel::Notice,
+        path: "./src\\demo.cpp".to_string(),
+        title: Some("clang-format".to_string()),
+        message: "File src/demo.cpp does not conform to LLVM style guidelines. (lines 2,6)"
+            .to_string(),
+        ..Default::default()
+    };
+    assert_eq!(
+        file_level.fmt_local(),
+        "src/demo.cpp: note: File src/demo.cpp does not conform to LLVM style guidelines. (lines 2,6) [clang-format]"
+    );
+    let line_only = FileAnnotation {
+        severity: AnnotationLevel::Error,
+        path: "src/demo.cpp".to_string(),
+        start_line: Some(0),
+        start_column: None,
+        message: "line 0 is shown as line 1".to_string(),
+        ..Default::default()
+    };
+    assert_eq!(
+        line_only.fmt_local(),
+        "src/demo.cpp:1: error: line 0 is shown as line 1"
+    );
+    let no_path = FileAnnotation {
+        severity: AnnotationLevel::Debug,
+        start_line: Some(3),
+        message: "a\r\nb\nc".to_string(),
+        title: Some("multi\nline".to_string()),
+        ..Default::default()
+    };
+    // Line breaks are escaped, so the annotation is one physical line.
+    let formatted = no_path.fmt_local();
+    assert_eq!(formatted, "debug: a\\r\\nb\\nc [multi\\nline]");
+    assert_eq!(formatted.lines().count(), 1);
+    let path_break = FileAnnotation {
+        severity: AnnotationLevel::Warning,
+        path: "src/odd\nname.cpp".to_string(),
+        start_line: Some(2),
+        message: "msg".to_string(),
+        ..Default::default()
+    };
+    assert_eq!(path_break.fmt_local(), "src/odd\\nname.cpp:2: warning: msg");
+    LocalClient
+        .write_file_annotations(&[file_level, line_only, no_path, path_break])
+        .unwrap();
+}

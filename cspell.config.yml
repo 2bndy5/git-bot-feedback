@@ -21,6 +21,7 @@ words:
   - furo
   - Gitea
   - gitmodules
+  - gpgsign
   - hexdigit
   - hustcer
   - manylinux
@@ -48,6 +49,7 @@ words:
   - rustc
   - rustdoc
   - rustup
+  - sarif
   - sccache
   - sdist
   - serde
