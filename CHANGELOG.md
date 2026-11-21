@@ -6,11 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback/v0.12.4] - 2026-11-21
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Count untracked files, handle first commit, one-line output by @shenxianpeng in [#173](https://github.com/2bndy5/git-bot-feedback/pull/173)
+
+[git-bot-feedback/v0.12.4]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.12.3...git-bot-feedback/v0.12.4
+
+Full commit diff: [`git-bot-feedback/v0.12.3...git-bot-feedback/v0.12.4`][git-bot-feedback/v0.12.4]
+
 ## [git-bot-feedback/v0.12.3] - 2026-11-16
 
 ### <!-- 4 --> 🛠️ Fixed
 
 - Use GH commit API endpoint as fallback by @2bndy5 in [#172](https://github.com/2bndy5/git-bot-feedback/pull/172)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.12.3 by @2bndy5 in [`a3312f4`](https://github.com/2bndy5/git-bot-feedback/commit/a3312f43d0573156401fa139f9a1159e6194dc50)
 
 [git-bot-feedback/v0.12.3]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.12.2...git-bot-feedback/v0.12.3
 
