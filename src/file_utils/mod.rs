@@ -88,31 +88,16 @@ impl FileDiffLines {
     /// [Vec<Range<u32>>] in which each range describes the beginning and
     /// ending of a group of consecutive line numbers.
     fn consolidate_numbers_to_ranges(lines: &[u32]) -> Vec<Range<u32>> {
-        let mut iter_lines = lines.iter().enumerate();
-        if let Some((_, start)) = iter_lines.next() {
-            let mut range_start = *start;
-            let mut ranges: Vec<Range<u32>> = Vec::new();
-            let last_entry = lines.len() - 1;
-            for (index, number) in iter_lines {
-                if let Some(prev) = lines.get(index - 1)
-                    && (number - 1) != *prev
-                {
-                    // non-consecutive number found
-                    // push the previous range
-                    ranges.push(range_start..(*prev + 1));
-                    // and start a new range
-                    // from the current number
-                    range_start = *number;
-                }
-                if index == last_entry {
-                    // last number
-                    ranges.push(range_start..(*number + 1));
-                }
+        let mut ranges: Vec<Range<u32>> = Vec::new();
+        for &number in lines {
+            match ranges.last_mut() {
+                // consecutive number: extend the current range
+                Some(range) if range.end == number => range.end = number + 1,
+                // first or non-consecutive number: start a new range
+                _ => ranges.push(number..number + 1),
             }
-            ranges
-        } else {
-            Vec::new()
         }
+        ranges
     }
 
     /// Get the ranges of changed lines based on the `lines_changed_only` parameter.
@@ -302,6 +287,20 @@ mod test {
         let file_obj = FileDiffLines::with_info(added_lines, diff_chunks);
         let ranges = file_obj.get_ranges(&LinesChangedOnly::On);
         assert_eq!(ranges.unwrap(), vec![4..6, 9..10]);
+    }
+
+    #[test]
+    #[allow(clippy::single_range_in_vec_init)]
+    fn added_ranges_edges() {
+        for (added_lines, expected) in [
+            (vec![], vec![]),
+            (vec![7], vec![7..8]),
+            (vec![1, 2, 3], vec![1..4]),
+            (vec![1, 3, 4, 9], vec![1..2, 3..5, 9..10]),
+        ] {
+            let file_obj = FileDiffLines::with_info(added_lines, vec![]);
+            assert_eq!(file_obj.added_ranges, expected);
+        }
     }
 
     #[test]

@@ -511,6 +511,40 @@ async fn list_untracked_files() {
     assert_eq!(changes.keys().collect::<Vec<_>>(), vec!["src/tracked.cpp"]);
 }
 
+/// An untracked symbolic link to a missing file is listed like git lists it, without failing.
+#[cfg(all(unix, feature = "file-changes"))]
+#[tokio::test]
+async fn list_untracked_broken_symlink() {
+    use git_bot_feedback::{FileFilter, LinesChangedOnly};
+    use tempfile::TempDir;
+
+    logger_init();
+    let tmp_dir = TempDir::new().unwrap();
+    let repo = tmp_dir.path();
+    git(repo, &["init", "--quiet"]);
+    std::fs::write(repo.join("a.cpp"), "int a;\n").unwrap();
+    git(repo, &["add", "."]);
+    git(repo, &["commit", "--quiet", "-m", "init"]);
+    std::os::unix::fs::symlink("missing.cpp", repo.join("link.cpp")).unwrap();
+    std::fs::write(repo.join("b.cpp"), "int b;\n").unwrap();
+
+    env::set_current_dir(repo).unwrap();
+    let changes = LocalClient
+        .get_list_of_changed_files(
+            &FileFilter::new(&[], &["cpp"], None),
+            &LinesChangedOnly::On,
+            Some("HEAD".to_string()),
+            false,
+        )
+        .await
+        .unwrap();
+    let mut names = changes.keys().cloned().collect::<Vec<_>>();
+    names.sort();
+    assert_eq!(names, vec!["b.cpp", "link.cpp"]);
+    // The link's content is its target path: one line, as `git diff` shows it.
+    assert_eq!(changes["link.cpp"].added_lines, vec![1]);
+}
+
 /// `git diff` quotes non-ASCII file names and ends names with a space with a tab.
 #[tokio::test]
 #[cfg(feature = "file-changes")]

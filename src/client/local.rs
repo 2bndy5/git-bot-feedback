@@ -52,6 +52,9 @@ mod test {
         assert_eq!(lines.diff_hunks, vec![1..3]);
         // The last line counts without a line ending, and CRLF is one line ending.
         assert_eq!(new_file_lines(b"a\r\nb").added_lines, vec![1, 2]);
+        // A single added line still has its range.
+        assert_eq!(new_file_lines(b"a\n").added_ranges, vec![1..2]);
+        assert_eq!(lines.added_ranges, vec![1..3]);
         for no_lines in [&b""[..], &b"a\0b\n"[..]] {
             let lines = new_file_lines(no_lines);
             assert!(lines.added_lines.is_empty());
@@ -187,8 +190,22 @@ fn untracked_files(
         // The whole file is new. Count its lines directly instead of parsing
         // `git diff --no-index` output, whose headers quote or pad some file names.
         let path = Path::new(&repo_root).join(&name);
-        let content = std::fs::read(&path)
-            .map_err(|e| ClientError::io(&format!("read untracked file {name}"), e))?;
+        let read_err = |e| ClientError::io(&format!("read untracked file {name}"), e);
+        // Like git, take a symbolic link's content to be its target path,
+        // so a link to a missing file does not fail the run.
+        let is_symlink = std::fs::symlink_metadata(&path)
+            .map_err(read_err)?
+            .file_type()
+            .is_symlink();
+        let content = if is_symlink {
+            std::fs::read_link(&path)
+                .map_err(read_err)?
+                .to_string_lossy()
+                .into_owned()
+                .into_bytes()
+        } else {
+            std::fs::read(&path).map_err(read_err)?
+        };
         let diff_lines = new_file_lines(&content);
         if lines_changed_only.is_change_valid(
             !diff_lines.added_lines.is_empty(),
