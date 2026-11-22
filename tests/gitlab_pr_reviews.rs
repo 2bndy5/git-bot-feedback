@@ -775,7 +775,10 @@ async fn cull_without_concerns(graphql_status: Option<usize>) {
                         json!({"variables": {"projectPath": "group/project", "iid": "7"}}),
                     ),
                 ]))
-                .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
+                .with_header(
+                    REMAINING_RATE_LIMIT_HEADER,
+                    if status == 429 { "0" } else { "50" },
+                )
                 .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
                 .with_status(status)
                 .with_body(
@@ -816,6 +819,12 @@ async fn no_concerns_removes_requested_changes() {
 #[tokio::test]
 async fn no_concerns_ignores_failure_to_remove_requested_changes() {
     cull_without_concerns(Some(403)).await;
+}
+
+/// A request that returns an error (instead of a failed response) must not stop the review.
+#[tokio::test]
+async fn no_concerns_ignores_error_from_removing_requested_changes() {
+    cull_without_concerns(Some(429)).await;
 }
 
 #[tokio::test]

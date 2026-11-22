@@ -162,8 +162,12 @@ impl GitlabApiClient {
             }
         }
         options.comments.retain(|c| !reused_comments.contains(c));
-        if reused_comments.is_empty() && options.comments.is_empty() {
-            self.remove_requested_changes(iid).await?;
+        // Failing to remove a request for changes should not prevent posting the review.
+        if reused_comments.is_empty()
+            && options.comments.is_empty()
+            && let Err(e) = self.remove_requested_changes(iid).await
+        {
+            log::warn!("Failed to remove previous request for changes: {e}");
         }
         Ok(())
     }
