@@ -139,9 +139,17 @@ impl GitlabApiClient {
             .await
             .map_err(|e| e.add_request_context(TASK))?;
         if let Err(e) = response.error_for_status_ref() {
-            self.log_response(response, format!("Failed to {TASK}").as_str())
+            // Without a token, GitLab responds as if a private project does not exist.
+            let task = if env::var("GITLAB_TOKEN").is_err()
+                && matches!(response.status().as_u16(), 401 | 403 | 404)
+            {
+                "get merge request raw diffs (a private project needs an access token in the GITLAB_TOKEN environment variable)"
+            } else {
+                TASK
+            };
+            self.log_response(response, format!("Failed to {task}").as_str())
                 .await;
-            return Err(ClientError::Request(e).add_request_context(TASK));
+            return Err(ClientError::Request(e).add_request_context(task));
         }
         Ok(response.text().await?)
     }

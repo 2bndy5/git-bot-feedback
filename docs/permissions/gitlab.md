@@ -64,6 +64,7 @@ To list the files changed in a pipeline:
 | Push (or other) | `GET /projects/:id/repository/commits/:sha/diff` | Commit: Read |
 
 If the project is public, these endpoints can be read without the token having these permissions.
+A private project's merge request cannot be read without a token, and the CI/CD job token cannot read it either.
 See GitLab's [publicly accessible endpoints][public-endpoints].
 
 [public-endpoints]: https://docs.gitlab.com/auth/tokens/fine_grained_access_tokens_rest/#publicly-accessible-endpoints

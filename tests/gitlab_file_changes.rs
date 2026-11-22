@@ -26,6 +26,7 @@ struct TestParams {
     event_t: EventType,
     fail_request: bool,
     bad_json: bool,
+    no_token: bool,
 }
 
 fn set_env(api_url: &str, event_t: &EventType) {
@@ -126,6 +127,11 @@ async fn get_changes(
         format!("{}/api/v4", server.url()).as_str(),
         &test_params.event_t,
     );
+    if test_params.no_token {
+        unsafe {
+            env::remove_var("GITLAB_TOKEN");
+        }
+    }
     logger_init();
     log::set_max_level(log::LevelFilter::Debug);
     let client = GitlabApiClient::new().unwrap();
@@ -143,7 +149,14 @@ async fn get_changes(
                 format!("/api/v4/projects/{PROJECT_ID}/merge_requests/{MR}/raw_diffs").as_str(),
             )
             .match_header("Accept", "text/plain")
-            .match_header("PRIVATE-TOKEN", TOKEN)
+            .match_header(
+                "PRIVATE-TOKEN",
+                if test_params.no_token {
+                    Matcher::Missing
+                } else {
+                    Matcher::Exact(TOKEN.to_string())
+                },
+            )
             .with_header(REMAINING_RATE_LIMIT_HEADER, "50")
             .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str());
         if test_params.fail_request {
@@ -205,6 +218,11 @@ async fn get_changes(
             matches!(files, Err(RestClientError::RequestContext { .. })),
             "Expected RequestContext error, got: {files:?}"
         );
+        if test_params.event_t == EventType::PullRequest {
+            let error = files.unwrap_err().to_string();
+            assert_eq!(error.contains("GITLAB_TOKEN"), test_params.no_token);
+            assert_eq!(error.contains("v17.9"), !test_params.no_token);
+        }
         return;
     }
     if test_params.bad_json {
@@ -264,6 +282,20 @@ async fn mr_raw_diff_unavailable() {
         &TestParams {
             event_t: EventType::PullRequest,
             fail_request: true,
+            ..Default::default()
+        },
+        LinesChangedOnly::Off,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn mr_raw_diff_denied_without_token() {
+    test_get_changes(
+        &TestParams {
+            event_t: EventType::PullRequest,
+            fail_request: true,
+            no_token: true,
             ..Default::default()
         },
         LinesChangedOnly::Off,
