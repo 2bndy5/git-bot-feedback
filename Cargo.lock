@@ -413,7 +413,7 @@ dependencies = [
 
 [[package]]
 name = "git-bot-feedback"
-version = "0.12.4"
+version = "0.12.5"
 dependencies = [
  "async-trait",
  "chrono",

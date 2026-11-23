@@ -6,11 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 <!-- markdownlint-disable MD024 -->
 
+## [git-bot-feedback/v0.12.5] - 2026-11-23
+
+### <!-- 4 --> 🛠️ Fixed
+
+- Explain that a private project needs a token by @shenxianpeng in [#176](https://github.com/2bndy5/git-bot-feedback/pull/176)
+- Remove the request for changes when no concerns remain by @shenxianpeng in [#175](https://github.com/2bndy5/git-bot-feedback/pull/175)
+
+[git-bot-feedback/v0.12.5]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.12.4...git-bot-feedback/v0.12.5
+
+Full commit diff: [`git-bot-feedback/v0.12.4...git-bot-feedback/v0.12.5`][git-bot-feedback/v0.12.5]
+
 ## [git-bot-feedback/v0.12.4] - 2026-11-21
 
 ### <!-- 4 --> 🛠️ Fixed
 
 - Count untracked files, handle first commit, one-line output by @shenxianpeng in [#173](https://github.com/2bndy5/git-bot-feedback/pull/173)
+
+### <!-- 6 --> 📦 Dependency updates
+
+- Bump version to git-bot-feedback/v0.12.4 by @2bndy5 in [`cf9da3f`](https://github.com/2bndy5/git-bot-feedback/commit/cf9da3fd34570ba5d1e5a67cab55f717fc305b35)
 
 [git-bot-feedback/v0.12.4]: https://github.com/2bndy5/git-bot-feedback/compare/git-bot-feedback/v0.12.3...git-bot-feedback/v0.12.4
 
