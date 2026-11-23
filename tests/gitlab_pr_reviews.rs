@@ -725,7 +725,7 @@ async fn no_token() {
 }
 
 /// Cull a review that has no concerns left, which removes a previous request for changes.
-async fn cull_without_concerns(graphql_status: Option<usize>) {
+async fn cull_without_concerns(graphql_status: Option<usize>, action: ReviewAction) {
     let mut server = Server::new_async().await;
     unsafe {
         env::set_var("CI_API_V4_URL", format!("{}/api/v4", server.url()));
@@ -734,7 +734,7 @@ async fn cull_without_concerns(graphql_status: Option<usize>) {
         env::set_var("CI_MERGE_REQUEST_IID", MR.to_string());
         env::set_var("CI_MERGE_REQUEST_PROJECT_ID", PROJECT_ID);
         env::set_var("GITLAB_TOKEN", TOKEN);
-        if graphql_status.is_some() {
+        if graphql_status.is_some() || action == ReviewAction::RequestChanges {
             env::set_var("CI_MERGE_REQUEST_PROJECT_PATH", "group/project");
         } else {
             env::remove_var("CI_MERGE_REQUEST_PROJECT_PATH");
@@ -789,13 +789,19 @@ async fn cull_without_concerns(graphql_status: Option<usize>) {
         );
     }
 
+    let requests_changes = action == ReviewAction::RequestChanges;
     let mut options = ReviewOptions {
+        action,
         marker: MARKER.to_string(),
         ..Default::default()
     };
     client.cull_pr_reviews(&mut options).await.unwrap();
     for mock in mocks {
         mock.assert();
+    }
+    if requests_changes {
+        // `reject_unexpected_requests()` asserts that the mutation was not sent.
+        return;
     }
     let logs = take_logs();
     match graphql_status {
@@ -813,21 +819,27 @@ async fn cull_without_concerns(graphql_status: Option<usize>) {
 
 #[tokio::test]
 async fn no_concerns_removes_requested_changes() {
-    cull_without_concerns(Some(200)).await;
+    cull_without_concerns(Some(200), ReviewAction::Comment).await;
 }
 
 #[tokio::test]
 async fn no_concerns_ignores_failure_to_remove_requested_changes() {
-    cull_without_concerns(Some(403)).await;
+    cull_without_concerns(Some(403), ReviewAction::Comment).await;
 }
 
 /// A request that returns an error (instead of a failed response) must not stop the review.
 #[tokio::test]
 async fn no_concerns_ignores_error_from_removing_requested_changes() {
-    cull_without_concerns(Some(429)).await;
+    cull_without_concerns(Some(429), ReviewAction::Comment).await;
+}
+
+/// A review with no comments can still request changes (eg. only a summary is posted).
+#[tokio::test]
+async fn request_changes_without_comments_keeps_requested_changes() {
+    cull_without_concerns(None, ReviewAction::RequestChanges).await;
 }
 
 #[tokio::test]
 async fn no_concerns_without_project_path() {
-    cull_without_concerns(None).await;
+    cull_without_concerns(None, ReviewAction::Comment).await;
 }
