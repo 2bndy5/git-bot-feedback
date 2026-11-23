@@ -104,6 +104,7 @@ each comment is created as a draft note, then the draft notes are published.
 | `POST /projects/:id/merge_requests/:noteable_id/notes` | Work Item: Create | Post the review summary |
 | `POST /projects/:id/merge_requests/:merge_request_iid/approve` | Merge Request: Approve | Approve the merge request ([`ReviewAction::Approve`]) |
 | `POST /projects/:id/merge_requests/:merge_request_iid/unapprove` | Merge Request: Approve | Withdraw a previous approval ([`ReviewAction::RequestChanges`]) |
+| `POST /api/graphql` (`mergeRequestDestroyRequestedChanges`) | Merge Request: Update | Remove the token user's request for changes when no concerns remain (GitLab Premium or Ultimate) |
 
 Deleting a draft note needs the **Update** permission, not **Delete**.
 The **Delete** permission is only needed if [`ReviewOptions::delete_review_comments`] is `true`.

@@ -4,7 +4,7 @@
 //! each comment is created as a draft note, then all draft notes are published at once.
 //! This way, only 1 notification is sent for the whole review.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, env};
 
 use super::{
     GitlabApiClient, REVIEW_SUMMARY_TAG,
@@ -15,6 +15,12 @@ use super::{
 use crate::{RestApiClient, ReviewAction, ReviewComment, ReviewOptions, client::ClientError};
 use reqwest::{Method, Url};
 use serde_json::json;
+
+/// The GraphQL mutation that removes the token user's request for changes.
+///
+/// GitLab's REST API has no equivalent.
+const REMOVE_REQUESTED_CHANGES: &str = "mutation($projectPath: ID!, $iid: String!) { \
+    mergeRequestDestroyRequestedChanges(input: {projectPath: $projectPath, iid: $iid}) { errors } }";
 
 /// Get the body of a review comment as it should be posted on GitLab.
 ///
@@ -109,6 +115,8 @@ impl GitlabApiClient {
     ///
     /// Any thread started by this software that is not reused is resolved.
     /// Outdated comments are deleted instead if [`ReviewOptions::delete_review_comments`] is `true`.
+    /// If no concerns remain and [`ReviewOptions::action`] does not request changes,
+    /// then the token user's previous request for changes is removed.
     pub(super) async fn check_reused_comments(
         &self,
         iid: u64,
@@ -155,6 +163,45 @@ impl GitlabApiClient {
             }
         }
         options.comments.retain(|c| !reused_comments.contains(c));
+        // Failing to remove a request for changes should not prevent posting the review.
+        if options.action != ReviewAction::RequestChanges
+            && reused_comments.is_empty()
+            && options.comments.is_empty()
+            && let Err(e) = self.remove_requested_changes(iid).await
+        {
+            log::warn!("Failed to remove previous request for changes: {e}");
+        }
+        Ok(())
+    }
+
+    /// Remove the token user's request for changes (if any).
+    ///
+    /// Otherwise, it would keep blocking the merge request after the concerns are fixed.
+    /// This feature needs GitLab Premium or Ultimate. In other tiers, a request for changes
+    /// does not block merging, and GitLab answers this request with an error that can be ignored.
+    async fn remove_requested_changes(&self, iid: u64) -> Result<(), ClientError> {
+        const TASK: &str = "remove previous request for changes";
+        let Ok(project_path) = env::var("CI_MERGE_REQUEST_PROJECT_PATH") else {
+            log::debug!("Unable to {TASK} without CI_MERGE_REQUEST_PROJECT_PATH");
+            return Ok(());
+        };
+        let url = self.api_url.join("../graphql")?;
+        let body = json!({
+            "query": REMOVE_REQUESTED_CHANGES,
+            "variables": {"projectPath": project_path, "iid": iid.to_string()},
+        })
+        .to_string();
+        let request = self.make_api_request(&self.client, url, Method::POST, Some(body), None)?;
+        let response = self
+            .send_api_request(&self.client, request, &self.rate_limit_headers)
+            .await
+            .map_err(|e| e.add_request_context(TASK))?;
+        if response.status().is_success() {
+            log::debug!("Response to {TASK}: {}", response.text().await?);
+        } else {
+            self.log_response(response, format!("Failed to {TASK}").as_str())
+                .await;
+        }
         Ok(())
     }
 

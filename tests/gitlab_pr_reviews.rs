@@ -723,3 +723,123 @@ async fn no_token() {
     })
     .await;
 }
+
+/// Cull a review that has no concerns left, which removes a previous request for changes.
+async fn cull_without_concerns(graphql_status: Option<usize>, action: ReviewAction) {
+    let mut server = Server::new_async().await;
+    unsafe {
+        env::set_var("CI_API_V4_URL", format!("{}/api/v4", server.url()));
+        env::set_var("CI_PROJECT_ID", PROJECT_ID);
+        env::set_var("CI_COMMIT_SHA", SHA);
+        env::set_var("CI_MERGE_REQUEST_IID", MR.to_string());
+        env::set_var("CI_MERGE_REQUEST_PROJECT_ID", PROJECT_ID);
+        env::set_var("GITLAB_TOKEN", TOKEN);
+        if graphql_status.is_some() || action == ReviewAction::RequestChanges {
+            env::set_var("CI_MERGE_REQUEST_PROJECT_PATH", "group/project");
+        } else {
+            env::remove_var("CI_MERGE_REQUEST_PROJECT_PATH");
+        }
+    }
+    logger_init();
+    log::set_max_level(log::LevelFilter::Debug);
+    let mut client = GitlabApiClient::new().unwrap();
+    client.set_user_agent(USER_AGENT).unwrap();
+
+    let mut mocks = reject_unexpected_requests(&mut server);
+    mocks.push(
+        mock_api(&mut server, "GET", "")
+            .with_body(json!({"iid": MR, "state": "opened", "draft": false}).to_string())
+            .create(),
+    );
+    let outdated = diff_note(1, &format!("{MARKER}Fixed"), "src/lib.rs", 10, false);
+    mocks.push(
+        mock_api(&mut server, "GET", "/discussions")
+            .match_query(Matcher::Any)
+            .with_body(json!([{"id": "d1", "notes": [outdated]}]).to_string())
+            .create(),
+    );
+    mocks.push(
+        mock_api(&mut server, "PUT", "/discussions/d1")
+            .match_body(Matcher::Json(json!({"resolved": true})))
+            .create(),
+    );
+    if let Some(status) = graphql_status {
+        let reset_timestamp = (Utc::now().timestamp() + 60).to_string();
+        mocks.push(
+            server
+                .mock("POST", "/api/graphql")
+                .match_header("PRIVATE-TOKEN", TOKEN)
+                .match_body(Matcher::AllOf(vec![
+                    Matcher::Regex("mergeRequestDestroyRequestedChanges".to_string()),
+                    Matcher::PartialJson(
+                        json!({"variables": {"projectPath": "group/project", "iid": "7"}}),
+                    ),
+                ]))
+                .with_header(
+                    REMAINING_RATE_LIMIT_HEADER,
+                    if status == 429 { "0" } else { "50" },
+                )
+                .with_header(RESET_RATE_LIMIT_HEADER, reset_timestamp.as_str())
+                .with_status(status)
+                .with_body(
+                    json!({"data": {"mergeRequestDestroyRequestedChanges": {"errors": ["Invalid license"]}}})
+                        .to_string(),
+                )
+                .create(),
+        );
+    }
+
+    let requests_changes = action == ReviewAction::RequestChanges;
+    let mut options = ReviewOptions {
+        action,
+        marker: MARKER.to_string(),
+        ..Default::default()
+    };
+    client.cull_pr_reviews(&mut options).await.unwrap();
+    for mock in mocks {
+        mock.assert();
+    }
+    if requests_changes {
+        // `reject_unexpected_requests()` asserts that the mutation was not sent.
+        return;
+    }
+    let logs = take_logs();
+    match graphql_status {
+        Some(200) => assert!(logs.iter().any(|l| l.contains("Invalid license"))),
+        Some(_) => assert!(
+            logs.iter()
+                .any(|l| l.contains("Failed to remove previous request for changes"))
+        ),
+        None => assert!(
+            logs.iter()
+                .any(|l| l.contains("without CI_MERGE_REQUEST_PROJECT_PATH"))
+        ),
+    }
+}
+
+#[tokio::test]
+async fn no_concerns_removes_requested_changes() {
+    cull_without_concerns(Some(200), ReviewAction::Comment).await;
+}
+
+#[tokio::test]
+async fn no_concerns_ignores_failure_to_remove_requested_changes() {
+    cull_without_concerns(Some(403), ReviewAction::Comment).await;
+}
+
+/// A request that returns an error (instead of a failed response) must not stop the review.
+#[tokio::test]
+async fn no_concerns_ignores_error_from_removing_requested_changes() {
+    cull_without_concerns(Some(429), ReviewAction::Comment).await;
+}
+
+/// A review with no comments can still request changes (eg. only a summary is posted).
+#[tokio::test]
+async fn request_changes_without_comments_keeps_requested_changes() {
+    cull_without_concerns(None, ReviewAction::RequestChanges).await;
+}
+
+#[tokio::test]
+async fn no_concerns_without_project_path() {
+    cull_without_concerns(None, ReviewAction::Comment).await;
+}
